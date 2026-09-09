@@ -20,8 +20,7 @@ const STARTERS = [
   { title: "Brainstorm", text: "Give me 5 unique startup ideas in the AI space." },
 ];
 
-const BACKEND_URL = "http://localhost:5000";
-
+const BACKEND_URL = "https://rockgpt.onrender.com";
 function uid(prefix = "id") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
