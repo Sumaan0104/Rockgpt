@@ -4,7 +4,8 @@ import {
   Plus, Search, Settings, User, X, Zap, Brain, Paperclip,
   Moon, Sun, RefreshCcw, Square, ThumbsDown, ThumbsUp, Trash2,
   Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
-  Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight
+  Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
+  Lock, Volume2, VolumeX, Pin, Share2, Compass, Code2, BookOpen, PenTool
 } from "lucide-react";
 
 const BACKEND_URL = "https://rockgpt.onrender.com";
@@ -19,16 +20,15 @@ const PLANS = [
     priceMonthly: 0,
     priceYearly: 0,
     period: "/forever",
-    description: "Great for light questions, everyday brainstorming, and trying RockGPT.",
+    description: "Great for everyday questions, brainstorming, and trying RockGPT.",
     features: [
+      "Access to RockGPT Flash model",
       "50 messages per day",
       "Standard response speed",
       "Image & document file uploads",
       "Cross-device chat history",
-      "Standard AI reasoning engine",
     ],
     highlight: false,
-    color: "slate",
   },
   {
     id: "plus",
@@ -37,17 +37,16 @@ const PLANS = [
     priceMonthly: 149,
     priceYearly: 119, // 20% off
     period: "/month",
-    description: "Ideal for power users, students, developers, and creators.",
+    description: "Unlocks RockGPT 4o, priority speeds, and higher limits.",
     features: [
+      "Access to RockGPT 4o (Advanced Reasoning)",
       "500 messages per day",
       "2.5x faster priority speed",
       "Fast Mode always available",
       "Early access to new experimental features",
       "Extended 32k context memory",
-      "Zero server peak queue wait times",
     ],
     highlight: true,
-    color: "amber",
   },
   {
     id: "pro",
@@ -58,7 +57,7 @@ const PLANS = [
     period: "/month",
     description: "Uncapped performance for professionals, businesses, and heavy workflows.",
     features: [
-      "Unlimited daily messages",
+      "Unlimited access to RockGPT 4o & Flash",
       "Maximum reasoning compute & speed",
       "Highest upload limit (25MB+ files)",
       "Dedicated high-throughput VIP queue",
@@ -66,9 +65,36 @@ const PLANS = [
       "24/7 priority customer support",
     ],
     highlight: false,
-    color: "purple",
   },
 ];
+
+const CATEGORIES = [
+  { id: "all", label: "All", icon: Compass },
+  { id: "code", label: "Coding", icon: Code2 },
+  { id: "write", label: "Writing", icon: PenTool },
+  { id: "learn", label: "Learn", icon: BookOpen },
+];
+
+const PROMPT_SUGGESTIONS = {
+  all: [
+    { title: "React State Management", desc: "Compare Zustand, Redux Toolkit, and Context API", prompt: "Explain the differences between Zustand, Redux Toolkit, and React Context API with code examples and best use-cases." },
+    { title: "Quantum Computing", desc: "Explain the fundamentals simply", prompt: "Explain quantum computing and qubits to a high school student with intuitive analogies." },
+    { title: "Professional Cold Email", desc: "Write a high-converting outreach email", prompt: "Draft a concise, compelling cold outreach email to a tech recruiter highlighting full-stack engineering skills." },
+    { title: "Debug Performance", desc: "Analyze slow website rendering", prompt: "What are the top 5 frontend performance optimization strategies for high Lighthouse scores?" },
+  ],
+  code: [
+    { title: "Write a Custom Hook", desc: "Create a debounce hook in React", prompt: "Write a complete production-grade useDebounce hook in React TypeScript with clean comments." },
+    { title: "REST vs GraphQL", desc: "Key architectural differences", prompt: "Create a pros and cons comparison table between REST and GraphQL with example queries." },
+  ],
+  write: [
+    { title: "LinkedIn Thought Leadership", desc: "Post about AI in software engineering", prompt: "Write an engaging LinkedIn post about how AI agents are transforming pair programming in 2026." },
+    { title: "Product Launch Announcement", desc: "Engaging copy for product release", prompt: "Write an exciting launch announcement email for a new AI workspace product." },
+  ],
+  learn: [
+    { title: "Explain Docker Containers", desc: "From virtual machines to containers", prompt: "Explain Docker containers, images, and layers step-by-step for a beginner." },
+    { title: "Financial Concepts", desc: "Compound interest & portfolio allocation", prompt: "Explain compound interest and the 50/30/20 budget rule clearly." },
+  ],
+};
 
 function uid(prefix = "id") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -99,7 +125,7 @@ function Inline({ text, dark }) {
             <code
               key={i}
               className={`rounded-md px-1.5 py-0.5 text-[13px] font-mono ${
-                dark ? "bg-white/[.08] text-white/90" : "bg-neutral-100 text-neutral-800"
+                dark ? "bg-white/[.08] text-white/90" : "bg-neutral-200/60 text-neutral-800"
               }`}
             >
               {p.slice(1, -1)}
@@ -124,23 +150,23 @@ function MessageContent({ content, dark }) {
       <div
         key={output.length}
         className={`my-3 overflow-hidden rounded-xl border ${
-          dark ? "border-white/10 bg-[#0a0a0a]" : "border-neutral-200 bg-neutral-900 text-white"
+          dark ? "border-white/10 bg-[#0a0a0a]" : "border-neutral-300/80 bg-neutral-900 text-white shadow-sm"
         }`}
       >
         <div
           className={`flex items-center justify-between border-b px-3 py-1.5 ${
-            dark ? "border-white/10 bg-[#111]" : "border-neutral-800 bg-neutral-950"
+            dark ? "border-white/10 bg-[#121212]" : "border-neutral-800 bg-neutral-950"
           }`}
         >
-          <span className="text-[11px] font-medium text-white/45">{lang || "code"}</span>
+          <span className="text-[11px] font-mono font-medium text-neutral-400">{lang || "code"}</span>
           <button
             onClick={() => navigator.clipboard.writeText(codeLines.join("\n"))}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-white/50 hover:bg-white/[.08] hover:text-white"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-neutral-400 hover:bg-white/[.08] hover:text-white"
           >
-            <Copy size={12} /> Copy
+            <Copy size={12} /> Copy code
           </button>
         </div>
-        <pre className="overflow-x-auto p-3 text-[13px] leading-6 text-white/85 font-mono">
+        <pre className="overflow-x-auto p-3 text-[13px] leading-6 text-neutral-200 font-mono">
           <code>{codeLines.join("\n")}</code>
         </pre>
       </div>
@@ -169,13 +195,13 @@ function MessageContent({ content, dark }) {
       output.push(<div key={output.length} className="h-2" />);
     } else if (line.startsWith("### ")) {
       output.push(
-        <h3 key={output.length} className={`mt-2 mb-1 text-base font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+        <h3 key={output.length} className={`mt-3 mb-1 text-base font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
           {line.slice(4)}
         </h3>
       );
     } else if (line.startsWith("## ")) {
       output.push(
-        <h2 key={output.length} className={`mt-3 mb-1 text-lg font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+        <h2 key={output.length} className={`mt-4 mb-1 text-lg font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
           {line.slice(3)}
         </h2>
       );
@@ -183,7 +209,7 @@ function MessageContent({ content, dark }) {
       const n = line.match(/^(\d+)/)?.[1];
       output.push(
         <div key={output.length} className="flex gap-2 py-0.5">
-          <span className={`w-5 shrink-0 text-right ${dark ? "text-white/45" : "text-neutral-400"}`}>{n}.</span>
+          <span className={`w-5 shrink-0 text-right font-medium ${dark ? "text-white/45" : "text-neutral-400"}`}>{n}.</span>
           <span><Inline text={line.replace(/^\d+\.\s+/, "")} dark={dark} /></span>
         </div>
       );
@@ -196,7 +222,7 @@ function MessageContent({ content, dark }) {
       );
     } else {
       output.push(
-        <p key={output.length} className={`leading-7 ${dark ? "text-white/85" : "text-neutral-700"}`}>
+        <p key={output.length} className={`leading-7 ${dark ? "text-neutral-200" : "text-neutral-800"}`}>
           <Inline text={line} dark={dark} />
         </p>
       );
@@ -204,18 +230,18 @@ function MessageContent({ content, dark }) {
   });
   if (inCode) flushCode();
 
-  return <div className="space-y-0.5 text-[15px]">{output}</div>;
+  return <div className="space-y-1 text-[15px]">{output}</div>;
 }
 
 function RockMark({ small = false, dark = true }) {
   return (
     <div
-      className={`grid shrink-0 place-items-center rounded-[10px] font-black shadow-sm ${
+      className={`grid shrink-0 place-items-center rounded-[10px] font-black shadow-sm transition-all duration-300 ${
         small ? "h-7 w-7 text-[11px]" : "h-9 w-9 text-sm"
       } ${
         dark
-          ? "border border-white/15 bg-white text-black"
-          : "border border-neutral-900/10 bg-neutral-900 text-white"
+          ? "border border-white/15 bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.15)]"
+          : "border border-neutral-300 bg-neutral-900 text-white shadow-sm"
       }`}
     >
       R
@@ -223,51 +249,68 @@ function RockMark({ small = false, dark = true }) {
   );
 }
 
+/* =========================================================================
+   CINEMATIC INTRO ANIMATION (POLISHED FIRST IMPRESSION)
+   ========================================================================= */
 function IntroScreen({ onDone }) {
-  const [stage, setStage] = useState(0);
+  const [percent, setPercent] = useState(0);
+
   useEffect(() => {
-    const t1 = setTimeout(() => setStage(1), 500);
-    const t2 = setTimeout(() => setStage(2), 1300);
-    const t3 = setTimeout(onDone, 2300);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    const interval = setInterval(() => {
+      setPercent((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setTimeout(onDone, 350);
+          return 100;
+        }
+        return prev + 4;
+      });
+    }, 45);
+    return () => clearInterval(interval);
   }, [onDone]);
 
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#0a0a0a] fade-out" style={{ animationDelay: "1.9s" }}>
-      <style>{`html, body, #root { background: #0a0a0a; margin: 0; height: 100%; }`}</style>
-      <div className="flex flex-col items-center">
-        <div
-          className={`transition-all duration-700 ${stage >= 1 ? "scale-100 opacity-100" : "scale-50 opacity-0"}`}
-          style={{ transitionTimingFunction: "cubic-bezier(.34,1.56,.64,1)" }}
-        >
-          <div className="relative">
-            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-2xl font-black text-black shadow-[0_0_50px_rgba(255,255,255,.2)]">
-              R
-            </div>
-            {stage >= 1 && (
-              <div
-                className="absolute inset-0 -z-10 animate-ping rounded-2xl bg-white/20"
-                style={{ animationDuration: "1.5s", animationIterationCount: "2" }}
-              />
-            )}
-          </div>
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070707] text-white select-none">
+      {/* Skip button */}
+      <button
+        onClick={onDone}
+        className="absolute top-6 right-6 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/50 hover:bg-white/10 hover:text-white"
+      >
+        Skip ➜
+      </button>
+
+      {/* Ambient background glow */}
+      <div className="absolute h-80 w-80 rounded-full bg-gradient-to-tr from-amber-500/15 to-purple-600/15 blur-3xl" />
+
+      {/* Logo container with pulse & orbital ring */}
+      <div className="relative mb-6">
+        <div className="relative z-10 grid h-20 w-20 place-items-center rounded-3xl bg-white text-3xl font-black text-black shadow-[0_0_60px_rgba(255,255,255,0.25)] transition-all hover:scale-105">
+          R
         </div>
-        <div
-          className={`mt-5 text-2xl font-semibold tracking-tight text-white transition-all duration-500 ${
-            stage >= 1 ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-          }`}
-        >
-          RockGPT
+        <div className="absolute -inset-2 -z-10 animate-spin rounded-3xl border border-white/20" style={{ animationDuration: "8s" }} />
+        <div className="absolute -inset-4 -z-20 animate-pulse rounded-3xl bg-white/5 blur-md" />
+      </div>
+
+      {/* Brand title */}
+      <div className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+        RockGPT
+      </div>
+      <p className="mt-2 text-xs font-medium tracking-wider text-white/50 uppercase">
+        Next-Generation AI Workspace
+      </p>
+
+      {/* Modern Progress Bar */}
+      <div className="mt-8 w-56">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-amber-400 via-white to-purple-400 transition-all duration-100 ease-out"
+            style={{ width: `${percent}%` }}
+          />
         </div>
-        {stage >= 2 && (
-          <div className="mt-4 flex items-center gap-2 text-xs text-white/40 fade">
-            <Loader2 size={14} className="animate-spin" /> Loading your workspace...
-          </div>
-        )}
+        <div className="mt-2.5 flex items-center justify-between text-[11px] text-white/40 font-mono">
+          <span>Booting core...</span>
+          <span>{percent}%</span>
+        </div>
       </div>
     </div>
   );
@@ -277,8 +320,8 @@ function IntroScreen({ onDone }) {
    REDESIGNED UPGRADE PLAN MODAL (CHATGPT & GEMINI STYLE WITH FULL SELECTION)
    ========================================================================= */
 function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free", dark = true }) {
-  const [billingCycle, setBillingCycle] = useState("monthly"); // 'monthly' | 'yearly'
-  const [selectedPlanId, setSelectedPlanId] = useState("plus"); // defaults to 'plus'
+  const [billingCycle, setBillingCycle] = useState("monthly");
+  const [selectedPlanId, setSelectedPlanId] = useState("plus");
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -312,7 +355,7 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Mobile Pull Drag Indicator */}
+        {/* Mobile Pull Indicator */}
         <div className="flex justify-center pt-2.5 pb-1 sm:hidden">
           <div className={`h-1.5 w-12 rounded-full ${dark ? "bg-white/20" : "bg-neutral-300"}`} />
         </div>
@@ -333,18 +376,18 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
               className={`mb-1.5 inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-semibold ${
                 dark
                   ? "border border-yellow-400/30 bg-yellow-400/10 text-yellow-300"
-                  : "border border-amber-500/30 bg-amber-50 text-amber-700"
+                  : "border border-amber-500/30 bg-amber-50 text-amber-800"
               }`}
             >
               <Sparkles size={13} />
-              <span>RockGPT Plus & Pro</span>
+              <span>Unlock Advanced AI</span>
             </div>
 
             <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
-              Upgrade Your Experience
+              Upgrade Your RockGPT Plan
             </h2>
             <p className={`mt-0.5 text-xs sm:text-sm ${dark ? "text-white/60" : "text-neutral-500"}`}>
-              Unlock faster reasoning, higher limits, and priority compute.
+              Unlock RockGPT 4o, maximum speeds, and extended context limits.
             </p>
 
             {/* Monthly / Annual Toggle */}
@@ -380,13 +423,13 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
                 }`}
               >
                 <span>Annual billing</span>
-                <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-500">
                   Save 20%
                 </span>
               </button>
             </div>
 
-            {/* Mobile Plan Tab Switcher (Ensures instant 1-tap switching on phones) */}
+            {/* Mobile Tab Switcher */}
             <div className="mt-3 flex w-full max-w-[340px] items-center rounded-xl p-1 sm:hidden border border-neutral-200/20 bg-neutral-500/10">
               {PLANS.map((plan) => (
                 <button
@@ -403,9 +446,6 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
                   }`}
                 >
                   {plan.name}
-                  {plan.highlight && (
-                    <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-yellow-400" />
-                  )}
                 </button>
               ))}
             </div>
@@ -419,8 +459,6 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
               const isSelected = selectedPlanId === plan.id;
               const isCurrent = currentPlan?.toLowerCase() === plan.name.toLowerCase();
               const price = billingCycle === "yearly" ? plan.priceYearly : plan.priceMonthly;
-
-              // On mobile, show the currently selected tab, but on desktop show all 3 in a grid
               const mobileVisibleClass = isSelected ? "flex" : "hidden sm:flex";
 
               return (
@@ -431,13 +469,12 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
                     isSelected
                       ? dark
                         ? "border-yellow-400 bg-yellow-400/[0.07] ring-2 ring-yellow-400/50 shadow-[0_0_30px_rgba(250,204,21,0.15)]"
-                        : "border-amber-500 bg-amber-50/50 ring-2 ring-amber-500/40 shadow-lg"
+                        : "border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40 shadow-lg"
                       : dark
                       ? "border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]"
                       : "border-neutral-200 bg-neutral-50/50 hover:border-neutral-300 hover:bg-neutral-100/50"
                   }`}
                 >
-                  {/* Badge */}
                   {plan.highlight && (
                     <div
                       className={`absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-md ${
@@ -543,7 +580,6 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
             })}
           </div>
 
-          {/* Guarantee / Security badges */}
           <div
             className={`mt-5 flex flex-wrap items-center justify-center gap-5 rounded-xl px-4 py-3 text-center text-xs ${
               dark
@@ -555,7 +591,7 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
               <ShieldCheck size={14} className="text-emerald-500" /> 100% Secure UPI Payment
             </span>
             <span className="flex items-center gap-1.5">
-              <Zap size={14} className="text-amber-500" /> Instant activation
+              <Zap size={14} className="text-amber-500" /> Fast activation
             </span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 size={14} className="text-blue-500" /> Cancel anytime
@@ -601,7 +637,7 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
 }
 
 /* =========================================================================
-   MODERN UPI CHECKOUT MODAL (WITH 1-TAP MOBILE APP INTENT & FALLBACK QR)
+   UPI CHECKOUT MODAL
    ========================================================================= */
 function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
   const [copied, setCopied] = useState(false);
@@ -613,7 +649,6 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
 
   const totalAmount = plan.billingCycle === "yearly" ? plan.activePrice * 12 : plan.activePrice;
   const upiLink = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${encodeURIComponent(totalAmount)}&cu=INR&tn=${encodeURIComponent(`RockGPT ${plan.name} Plan`)}`;
-
   const dynamicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}&bgcolor=${dark ? "181818" : "ffffff"}&color=${dark ? "ffffff" : "000000"}&margin=1`;
 
   const copyUpi = () => {
@@ -633,7 +668,7 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
     setTimeout(() => {
       setSubmitting(false);
       setSubmitted(true);
-      notify("Payment submitted! We are verifying your transaction.");
+      notify("Payment submitted! Verifying your transaction.");
     }, 1200);
   };
 
@@ -667,12 +702,12 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
 
         {submitted ? (
           <div className="py-8 text-center">
-            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10 text-emerald-400">
+            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
               <CheckCircle2 size={32} />
             </div>
             <h4 className="text-base font-bold">Transaction Reference Saved!</h4>
             <p className={`mt-2 text-xs leading-relaxed ${dark ? "text-white/60" : "text-neutral-600"}`}>
-              Thank you! Reference (<strong className={dark ? "text-white" : "text-neutral-900"}>{utrNumber}</strong>) received for <strong>{user?.email || "guest user"}</strong>. Your account will be upgraded within 15 minutes.
+              Thank you! UTR reference (<strong className={dark ? "text-white" : "text-neutral-900"}>{utrNumber}</strong>) received for <strong>{user?.email || "guest user"}</strong>. Your account will be upgraded within 15 minutes.
             </p>
             <button
               onClick={onClose}
@@ -685,7 +720,6 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
           </div>
         ) : (
           <div className="mt-4 space-y-4">
-            {/* Amount Summary */}
             <div
               className={`flex items-center justify-between rounded-xl border p-3 ${
                 dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-50"
@@ -701,7 +735,7 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
               </div>
             </div>
 
-            {/* Mobile: 1-Tap UPI Intent Button */}
+            {/* 1-Tap Mobile UPI Intent */}
             <div className="block sm:hidden">
               <a
                 href={upiLink}
@@ -714,7 +748,6 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
               </div>
             </div>
 
-            {/* Desktop / Fallback QR Code */}
             <div
               className={`flex flex-col items-center justify-center rounded-xl border p-3 ${
                 dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-200 bg-neutral-50"
@@ -730,7 +763,6 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
               </p>
             </div>
 
-            {/* Copyable UPI ID */}
             <div
               className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
                 dark ? "border-white/10 bg-white/[0.04]" : "border-neutral-200 bg-neutral-50"
@@ -753,7 +785,6 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
               </button>
             </div>
 
-            {/* Verification Form */}
             <form onSubmit={handleSubmitProof} className="space-y-2 pt-1">
               <label className={`block text-[11px] font-medium ${dark ? "text-white/70" : "text-neutral-700"}`}>
                 Confirm payment: Enter 12-digit UTR / Ref Number
@@ -820,10 +851,10 @@ export default function RockGPT() {
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [webSearchOn, setWebSearchOn] = useState(false);
   const [fastMode, setFastMode] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("RockGPT 4o");
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [speakingId, setSpeakingId] = useState(null);
+  const [activeCategory, setActiveCategory] = useState("all");
 
-  // --- Auth state ---
+  // --- Auth & Subscription State ---
   const [user, setUser] = useState(null);
   const [authToken, setAuthToken] = useState(() => localStorage.getItem("rockgpt-token") || null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -834,7 +865,23 @@ export default function RockGPT() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  // --- Guest gate ---
+  // Check if user is a paid subscriber (Plus or Pro)
+  const isPaidUser = Boolean(user && (user.plan === "Plus" || user.plan === "Pro"));
+
+  // Default model for Free users is RockGPT Flash! Only paid users get RockGPT 4o!
+  const [selectedModel, setSelectedModel] = useState("RockGPT Flash");
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+
+  // Automatically adjust model if user logs in with an active paid plan
+  useEffect(() => {
+    if (isPaidUser) {
+      setSelectedModel("RockGPT 4o");
+    } else {
+      setSelectedModel("RockGPT Flash");
+    }
+  }, [isPaidUser]);
+
+  // Guest gate
   const [gateOpen, setGateOpen] = useState(() => !localStorage.getItem("rockgpt-token"));
   const [gateLocked, setGateLocked] = useState(false);
   const gateTimerRef = useRef(null);
@@ -874,7 +921,6 @@ export default function RockGPT() {
     recognitionRef.current = recognition;
   }, []);
 
-  // Guest timer
   useEffect(() => {
     if (authToken) {
       setGateOpen(false);
@@ -929,7 +975,40 @@ export default function RockGPT() {
 
   const notify = (text) => {
     setNotice(text);
-    setTimeout(() => setNotice(null), 2500);
+    setTimeout(() => setNotice(null), 2600);
+  };
+
+  // Text-To-Speech (Read Aloud)
+  const toggleSpeech = (msgId, text) => {
+    if (!("speechSynthesis" in window)) {
+      notify("Text-to-speech not supported in this browser");
+      return;
+    }
+    if (speakingId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+    setSpeakingId(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // MODEL SELECTOR WITH PAYWALL PROTECTION
+  const handleModelSelect = (modelName) => {
+    if (modelName === "RockGPT 4o" && !isPaidUser) {
+      setModelDropdownOpen(false);
+      setPricingOpen(true);
+      notify("🔒 RockGPT 4o is locked. Upgrade to Plus or Pro to unlock!");
+      return;
+    }
+    setSelectedModel(modelName);
+    setModelDropdownOpen(false);
+    notify(`Switched to ${modelName}`);
   };
 
   const handleAuthSubmit = async () => {
@@ -980,6 +1059,7 @@ export default function RockGPT() {
     localStorage.removeItem("rockgpt-token");
     setAuthToken(null);
     setUser(null);
+    setSelectedModel("RockGPT Flash");
     notify("Logged out successfully");
   };
 
@@ -1013,6 +1093,7 @@ export default function RockGPT() {
       const c = {
         id,
         title: (typeof firstMessage.content === "string" ? firstMessage.content : "Image message").slice(0, 50) || "New chat",
+        pinned: false,
         messages: [firstMessage],
         updatedAt: new Date(),
       };
@@ -1029,8 +1110,8 @@ export default function RockGPT() {
   const streamFromBackend = async (history, convId) => {
     setStreaming("");
     setThinkingLabel("RockGPT is thinking");
-    const t1 = setTimeout(() => setThinkingLabel("Synthesizing ideas..."), 4000);
-    const t2 = setTimeout(() => setThinkingLabel("Crafting response..."), 9000);
+    const t1 = setTimeout(() => setThinkingLabel("Synthesizing reasoning..."), 3500);
+    const t2 = setTimeout(() => setThinkingLabel("Formatting response..."), 7500);
 
     let fullText = "";
     const controller = new AbortController();
@@ -1043,7 +1124,11 @@ export default function RockGPT() {
           "Content-Type": "application/json",
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        body: JSON.stringify({ messages: history, fast: fastMode }),
+        body: JSON.stringify({
+          messages: history,
+          fast: fastMode || selectedModel === "RockGPT Flash",
+          model: selectedModel,
+        }),
         signal: controller.signal,
       });
 
@@ -1132,7 +1217,7 @@ export default function RockGPT() {
     const convId = createConversationIfNeeded(userMsg);
     const history = updatedMessages.map((m) => ({ role: m.role, content: m.content }));
     streamFromBackend(history, convId);
-  }, [input, typing, activeId, messages, attachment]);
+  }, [input, typing, activeId, messages, attachment, selectedModel, fastMode]);
 
   const stopGeneration = () => {
     abortRef.current?.abort();
@@ -1144,6 +1229,7 @@ export default function RockGPT() {
     const text = typeof m.content === "string" ? m.content : m.displayText || "";
     await navigator.clipboard.writeText(text);
     setCopied(m.id);
+    notify("Message copied to clipboard");
     setTimeout(() => setCopied(null), 1500);
   };
 
@@ -1170,6 +1256,12 @@ export default function RockGPT() {
     setEditing(null);
   };
 
+  const togglePinChat = (id) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c))
+    );
+  };
+
   const exportChat = () => {
     const body = messages
       .map(
@@ -1182,14 +1274,15 @@ export default function RockGPT() {
     const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "rockgpt-chat.txt";
+    a.download = `rockgpt-chat-${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
+    notify("Chat exported as text file");
   };
 
   const toggleRecording = () => {
     if (!recognitionRef.current) {
-      notify("Voice input is supported best on Chrome");
+      notify("Voice input supported best on Google Chrome");
       return;
     }
     if (recording) {
@@ -1219,16 +1312,18 @@ export default function RockGPT() {
     e.target.value = "";
   };
 
-  const filtered = useMemo(
-    () => conversations.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())),
-    [conversations, search]
-  );
+  // Sorted: Pinned chats on top, filtered by search
+  const filtered = useMemo(() => {
+    return conversations
+      .filter((c) => c.title.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  }, [conversations, search]);
 
-  // High contrast adaptive themes for both Light and Dark modes
+  // Ultra-realistic Theme Tokens
   const surface = dark ? "#0a0a0a" : "#ffffff";
-  const panel = dark ? "#111111" : "#f8f9fa";
-  const border = dark ? "rgba(255,255,255,.09)" : "rgba(0,0,0,.10)";
-  const textColor = dark ? "#ffffff" : "#171717";
+  const panel = dark ? "#111111" : "#f7f7f8";
+  const border = dark ? "rgba(255,255,255,.09)" : "rgba(0,0,0,.08)";
+  const textColor = dark ? "#ffffff" : "#0f172a";
   const muted = dark ? "rgba(255,255,255,.50)" : "rgba(0,0,0,.55)";
 
   if (showIntro) {
@@ -1246,14 +1341,14 @@ export default function RockGPT() {
         textarea::-webkit-scrollbar { width: 0; }
         .thin::-webkit-scrollbar { width: 5px; }
         .thin::-webkit-scrollbar-thumb { background: ${dark ? "rgba(255,255,255,.14)" : "rgba(0,0,0,.15)"}; border-radius: 20px; }
-        .fade { animation: fade .2s ease-out both; }
-        .fade-out { animation: fadeOut .4s ease-in both; }
-        .rise { animation: rise .25s cubic-bezier(.2,.8,.2,1) both; }
-        .pop { animation: pop .25s cubic-bezier(.2,.9,.3,1.15) both; }
+        .fade { animation: fade .22s ease-out both; }
+        .fade-out { animation: fadeOut .35s ease-in both; }
+        .rise { animation: rise .28s cubic-bezier(.16,1,.3,1) both; }
+        .pop { animation: pop .25s cubic-bezier(.16,1,.3,1) both; }
         @keyframes fade { from {opacity:0} to {opacity:1} }
         @keyframes fadeOut { from {opacity:1} to {opacity:0; visibility:hidden} }
         @keyframes rise { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:translateY(0)} }
-        @keyframes pop { from {opacity:0; transform:scale(.95) translateY(8px)} to {opacity:1; transform:scale(1) translateY(0)} }
+        @keyframes pop { from {opacity:0; transform:scale(.96) translateY(6px)} to {opacity:1; transform:scale(1) translateY(0)} }
         @keyframes blink { 50% { opacity:.35 } }
         .cursor-blink { animation: blink 1s step-end infinite; }
         @keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity:.4 } 30% { transform: translateY(-5px); opacity:1 } }
@@ -1263,12 +1358,11 @@ export default function RockGPT() {
         }
       `}</style>
 
-      {/* Sidebar backdrop for mobile */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm fade" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Collapsible Modern Sidebar */}
+      {/* Modern Collapsible Sidebar */}
       <aside
         className={`fixed left-0 top-0 z-50 h-full w-[85vw] max-w-[290px] shrink-0 overflow-hidden transition-transform duration-300 sm:w-[270px] ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -1279,20 +1373,22 @@ export default function RockGPT() {
           <div className="flex items-center gap-2 p-3">
             <button
               onClick={newChat}
-              className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left ${
+              className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left transition ${
                 dark ? "hover:bg-white/[.05]" : "hover:bg-black/[.05]"
               }`}
             >
               <RockMark dark={dark} />
               <div className="min-w-0">
                 <div className="truncate text-[15px] font-semibold">RockGPT</div>
-                <div className="text-[11px]" style={{ color: muted }}>AI workspace</div>
+                <div className="text-[11px]" style={{ color: muted }}>
+                  {isPaidUser ? `${user.plan} Member` : "Free Tier"}
+                </div>
               </div>
             </button>
             <button
               onClick={newChat}
               title="New chat"
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition ${
                 dark ? "hover:bg-white/[.06]" : "hover:bg-black/[.06]"
               }`}
             >
@@ -1301,7 +1397,11 @@ export default function RockGPT() {
           </div>
 
           <div className="px-3 pb-2">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: border }}>
+            <div
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-300/70 bg-white"
+              }`}
+            >
               <Search size={14} style={{ color: muted }} />
               <input
                 value={search}
@@ -1316,7 +1416,7 @@ export default function RockGPT() {
 
           <div className="thin flex-1 overflow-y-auto px-2">
             <div className="mb-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-[.16em]" style={{ color: muted }}>
-              Chats
+              Recent Chats
             </div>
             {filtered.length === 0 && (
               <div className="px-3 py-10 text-center text-xs" style={{ color: muted }}>
@@ -1331,18 +1431,22 @@ export default function RockGPT() {
                   activeId === c.id
                     ? dark
                       ? "bg-white/[.08]"
-                      : "bg-black/[.06]"
+                      : "bg-neutral-200/70"
                     : dark
                     ? "hover:bg-white/[.045]"
-                    : "hover:bg-black/[.03]"
+                    : "hover:bg-neutral-200/40"
                 }`}
               >
-                <div
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{
-                    background: activeId === c.id ? (dark ? "#fff" : "#111") : dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.25)",
-                  }}
-                />
+                {c.pinned ? (
+                  <Pin size={11} className="shrink-0 text-amber-500 fill-amber-500" />
+                ) : (
+                  <div
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{
+                      background: activeId === c.id ? (dark ? "#fff" : "#111") : dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.25)",
+                    }}
+                  />
+                )}
                 {editing === c.id ? (
                   <input
                     autoFocus
@@ -1357,6 +1461,18 @@ export default function RockGPT() {
                 ) : (
                   <span className="min-w-0 flex-1 truncate text-[13px]">{c.title}</span>
                 )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePinChat(c.id);
+                  }}
+                  title={c.pinned ? "Unpin chat" : "Pin chat"}
+                  className={`hidden shrink-0 rounded-md p-1 group-hover:block ${
+                    dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
+                  }`}
+                >
+                  <Pin size={12} className={c.pinned ? "text-amber-500" : ""} />
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1382,9 +1498,9 @@ export default function RockGPT() {
             ))}
           </div>
 
-          {/* Sidebar Footer Actions */}
+          {/* Sidebar Footer */}
           <div className="border-t p-2 space-y-1" style={{ borderColor: border }}>
-            {/* UPGRADE PLAN BUTTON IN SIDEBAR */}
+            {/* UPGRADE BUTTON */}
             <button
               onClick={() => {
                 setSidebarOpen(false);
@@ -1399,10 +1515,10 @@ export default function RockGPT() {
               <Crown size={17} className={dark ? "text-yellow-400" : "text-amber-600"} />
               <div className="flex-1 text-left">
                 <div className={`leading-none text-[13px] font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
-                  Upgrade plan
+                  {isPaidUser ? "Manage Subscription" : "Upgrade plan"}
                 </div>
                 <div className={`text-[10px] ${dark ? "text-yellow-300/80" : "text-amber-700"}`}>
-                  Get Plus or Pro
+                  {isPaidUser ? `Current: ${user.plan}` : "Unlock RockGPT 4o"}
                 </div>
               </div>
               <ChevronRight size={14} className={dark ? "text-yellow-400/60" : "text-amber-600/60"} />
@@ -1437,14 +1553,14 @@ export default function RockGPT() {
         </div>
       </aside>
 
-      {/* Main Chat Area */}
+      {/* Main Chat Interface */}
       <main className="flex min-w-0 flex-1 flex-col">
-        {/* Header (Fully Readable in BOTH Light and Dark Modes) */}
+        {/* Header with Protected Model Selector */}
         <header
           className="flex h-[56px] shrink-0 items-center justify-between border-b px-3 sm:px-4"
           style={{
             borderColor: border,
-            background: dark ? "rgba(10,10,10,.85)" : "rgba(255,255,255,.92)",
+            background: dark ? "rgba(10,10,10,.85)" : "rgba(255,255,255,.94)",
             backdropFilter: "blur(12px)",
           }}
         >
@@ -1459,17 +1575,21 @@ export default function RockGPT() {
               <Menu size={18} />
             </button>
 
-            {/* Model Selector Pill */}
+            {/* MODEL SELECTOR WITH LOCK BADGES */}
             <div className="relative">
               <button
                 onClick={() => setModelDropdownOpen((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-sm ${
                   dark
                     ? "border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]"
                     : "border-neutral-200 bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
                 }`}
               >
-                <Sparkles size={13} className={dark ? "text-yellow-400" : "text-amber-600"} />
+                {selectedModel === "RockGPT 4o" ? (
+                  <Sparkles size={13} className={dark ? "text-yellow-400" : "text-amber-600"} />
+                ) : (
+                  <Zap size={13} className="text-blue-500" />
+                )}
                 <span>{selectedModel}</span>
                 <ChevronDown size={13} className={dark ? "text-white/40" : "text-neutral-500"} />
               </button>
@@ -1478,39 +1598,14 @@ export default function RockGPT() {
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setModelDropdownOpen(false)} />
                   <div
-                    className={`absolute left-0 top-10 z-40 w-56 rounded-2xl border p-1.5 shadow-2xl pop ${
+                    className={`absolute left-0 top-10 z-40 w-64 rounded-2xl border p-1.5 shadow-2xl pop ${
                       dark ? "border-white/15 bg-[#161616]" : "border-neutral-200 bg-white"
                     }`}
                   >
+                    {/* Free Model (Unlocked) */}
                     <button
-                      onClick={() => {
-                        setSelectedModel("RockGPT 4o");
-                        setModelDropdownOpen(false);
-                      }}
-                      className={`flex w-full items-start gap-2.5 rounded-xl p-2 text-left transition ${
-                        selectedModel === "RockGPT 4o"
-                          ? dark
-                            ? "bg-white/10"
-                            : "bg-neutral-100"
-                          : dark
-                          ? "hover:bg-white/5"
-                          : "hover:bg-neutral-50"
-                      }`}
-                    >
-                      <Sparkles size={15} className={`mt-0.5 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
-                      <div>
-                        <div className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>RockGPT 4o</div>
-                        <div className={`text-[10px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
-                          Most capable reasoning
-                        </div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedModel("RockGPT Flash");
-                        setModelDropdownOpen(false);
-                      }}
-                      className={`flex w-full items-start gap-2.5 rounded-xl p-2 text-left transition ${
+                      onClick={() => handleModelSelect("RockGPT Flash")}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
                         selectedModel === "RockGPT Flash"
                           ? dark
                             ? "bg-white/10"
@@ -1521,10 +1616,52 @@ export default function RockGPT() {
                       }`}
                     >
                       <Zap size={15} className="mt-0.5 text-blue-500" />
-                      <div>
-                        <div className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>RockGPT Flash</div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+                            RockGPT Flash
+                          </span>
+                          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                            Free
+                          </span>
+                        </div>
                         <div className={`text-[10px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
-                          Fastest for quick queries
+                          Fastest for general questions
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Pro Model (Locked for Free users!) */}
+                    <button
+                      onClick={() => handleModelSelect("RockGPT 4o")}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
+                        selectedModel === "RockGPT 4o"
+                          ? dark
+                            ? "bg-white/10"
+                            : "bg-neutral-100"
+                          : dark
+                          ? "hover:bg-white/5"
+                          : "hover:bg-neutral-50"
+                      }`}
+                    >
+                      <Sparkles size={15} className={`mt-0.5 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+                            RockGPT 4o
+                          </span>
+                          {isPaidUser ? (
+                            <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-500">
+                              <Lock size={9} /> Plus/Pro
+                            </span>
+                          )}
+                        </div>
+                        <div className={`text-[10px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
+                          {isPaidUser ? "Deep reasoning & highest compute" : "Requires Plus or Pro subscription"}
                         </div>
                       </div>
                     </button>
@@ -1534,20 +1671,21 @@ export default function RockGPT() {
             </div>
           </div>
 
-          {/* TOP RIGHT CORNER: High Contrast & Perfectly Readable */}
+          {/* Top Right Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Top Upgrade Pill */}
-            <button
-              onClick={() => setPricingOpen(true)}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
-                dark
-                  ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20"
-                  : "border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20"
-              }`}
-            >
-              <Crown size={14} className={dark ? "text-yellow-400" : "text-amber-600"} />
-              <span className="font-semibold">Upgrade</span>
-            </button>
+            {!isPaidUser && (
+              <button
+                onClick={() => setPricingOpen(true)}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
+                  dark
+                    ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20"
+                }`}
+              >
+                <Crown size={14} className={dark ? "text-yellow-400" : "text-amber-600"} />
+                <span className="font-semibold">Upgrade</span>
+              </button>
+            )}
 
             {activeId && (
               <button
@@ -1579,37 +1717,66 @@ export default function RockGPT() {
             <div className="mx-auto flex min-h-full max-w-[800px] flex-col items-center justify-center px-4 py-8">
               <div className="mb-4 fade"><RockMark dark={dark} /></div>
               <h1 className="rise text-center text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
-                What can I help with?
+                What can I help with today?
               </h1>
               <p
                 className="rise mt-2 max-w-lg px-2 text-center text-xs leading-5 sm:text-sm"
                 style={{ color: muted }}
               >
-                Brainstorm, write code, analyze data, debug errors, or summarize documents.
+                Brainstorm, write clean code, analyze documents, or solve complex problems.
               </p>
 
-              {/* Suggestion Chips */}
-              <div className="rise mt-8 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
-                {[
-                  "Write a React hook for API caching",
-                  "Explain quantum computing simply",
-                  "Design a workout plan for beginners",
-                  "Review my resume bullet points",
-                ].map((promptText, i) => (
+              {/* Prompt Category Tabs */}
+              <div className="rise mt-6 flex flex-wrap items-center justify-center gap-1.5">
+                {CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                        activeCategory === cat.id
+                          ? dark
+                            ? "bg-white text-black"
+                            : "bg-neutral-900 text-white"
+                          : dark
+                          ? "bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white"
+                          : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                      }`}
+                    >
+                      <Icon size={12} />
+                      <span>{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dynamic Prompt Suggestion Cards */}
+              <div className="rise mt-4 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
+                {(PROMPT_SUGGESTIONS[activeCategory] || PROMPT_SUGGESTIONS.all).map((item, i) => (
                   <button
                     key={i}
                     onClick={() => {
-                      setInput(promptText);
+                      setInput(item.prompt);
                       inputRef.current?.focus();
                     }}
-                    className={`flex items-center justify-between rounded-xl border p-3 text-left text-xs transition-colors ${
+                    className={`flex flex-col justify-between rounded-xl border p-3 text-left transition-all hover:scale-[1.01] ${
                       dark
-                        ? "border-white/10 bg-white/[0.02] text-white/80 hover:border-white/25 hover:bg-white/[0.05]"
-                        : "border-neutral-200 bg-neutral-50 text-neutral-800 hover:border-neutral-300 hover:bg-neutral-100"
+                        ? "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.05]"
+                        : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-neutral-100/80 shadow-sm"
                     }`}
                   >
-                    <span>{promptText}</span>
-                    <ArrowRight size={13} className={dark ? "text-white/30" : "text-neutral-400"} />
+                    <div>
+                      <div className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+                        {item.title}
+                      </div>
+                      <div className={`mt-0.5 text-[11px] leading-snug ${dark ? "text-white/50" : "text-neutral-500"}`}>
+                        {item.desc}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <ArrowRight size={13} className={dark ? "text-white/30" : "text-neutral-400"} />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -1696,16 +1863,35 @@ export default function RockGPT() {
                     </div>
                   )}
 
+                  {/* Message Action Bar (Copy, TTS Speak, Like, Dislike, Regenerate) */}
                   <div className="ml-9 mt-2 flex items-center gap-1">
                     <button
                       onClick={() => copyMessage(m)}
                       className={`rounded-lg p-2 text-xs transition ${
                         dark ? "text-white/40 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
                       }`}
-                      title="Copy"
+                      title="Copy message"
                     >
                       {copied === m.id ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
                     </button>
+
+                    {/* Text-To-Speech (Read aloud) */}
+                    {m.role === "assistant" && typeof m.content === "string" && (
+                      <button
+                        onClick={() => toggleSpeech(m.id, m.content)}
+                        className={`rounded-lg p-2 text-xs transition ${
+                          speakingId === m.id
+                            ? "text-blue-500 bg-blue-500/10"
+                            : dark
+                            ? "text-white/40 hover:bg-white/[.06] hover:text-white"
+                            : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
+                        }`}
+                        title={speakingId === m.id ? "Stop voice" : "Read aloud"}
+                      >
+                        {speakingId === m.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                      </button>
+                    )}
+
                     {m.role === "user" && (
                       <button
                         onClick={() => {
@@ -1715,11 +1901,12 @@ export default function RockGPT() {
                         className={`rounded-lg p-2 transition ${
                           dark ? "text-white/40 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
                         }`}
-                        title="Edit"
+                        title="Edit prompt"
                       >
                         <Edit3 size={13} />
                       </button>
                     )}
+
                     {m.role === "assistant" && (
                       <>
                         <button
@@ -1735,6 +1922,7 @@ export default function RockGPT() {
                               ? "text-white/40 hover:bg-white/[.06]"
                               : "text-neutral-400 hover:bg-black/[.06]"
                           }`}
+                          title="Helpful"
                         >
                           <ThumbsUp size={13} />
                         </button>
@@ -1751,6 +1939,7 @@ export default function RockGPT() {
                               ? "text-white/40 hover:bg-white/[.06]"
                               : "text-neutral-400 hover:bg-black/[.06]"
                           }`}
+                          title="Not helpful"
                         >
                           <ThumbsDown size={13} />
                         </button>
@@ -1841,7 +2030,7 @@ export default function RockGPT() {
                   }
                 }}
                 rows={1}
-                placeholder="Message RockGPT..."
+                placeholder={`Message ${selectedModel}...`}
                 className={`w-full resize-none bg-transparent px-3 pb-11 pt-2 text-[15px] leading-6 outline-none sm:px-3.5 ${
                   dark ? "text-white placeholder:text-white/30" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
@@ -1970,7 +2159,7 @@ export default function RockGPT() {
         </div>
       </main>
 
-      {/* Redesigned Upgrade Plan Modal */}
+      {/* Upgrade Plan Modal */}
       <UpgradePlanModal
         isOpen={pricingOpen}
         onClose={() => setPricingOpen(false)}
@@ -2191,7 +2380,7 @@ export default function RockGPT() {
         </div>
       )}
 
-      {/* Global Notifications Toast */}
+      {/* Toast Notice */}
       {notice && (
         <div
           className={`fixed bottom-20 left-1/2 z-[95] -translate-x-1/2 rounded-full border px-4 py-2 text-xs font-medium shadow-2xl backdrop-blur-md fade ${
