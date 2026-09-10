@@ -442,7 +442,6 @@ function AuthModal({
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [otpTimer, setOtpTimer] = useState(45);
   const [resendActive, setResendActive] = useState(false);
-  const [serverOtp, setServerOtp] = useState("");
   const [otpShake, setOtpShake] = useState(false);
   const otpInputsRef = useRef([]);
 
@@ -504,50 +503,69 @@ function AuthModal({
     setLoading(true);
 
     try {
-      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setServerOtp(generatedOtp);
-
-      // Call backend to send real email
-      await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
+      const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), mode: authMode }),
-      }).catch(() => null);
+      });
 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data?.error || "Unable to send verification code.");
+        return;
+      }
+
+      // SECURITY: The OTP is generated, stored, and sent by the backend.
+      // Never generate, store, display, or validate the OTP in the frontend.
       setStep("otp");
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
 
-      notify(`🔐 Security Code dispatched!`);
+      notify("🔐 Verification code sent to your email.");
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 150);
     } catch (err) {
-      setError("Network error. Please try again.");
+      console.error(err);
+      setError("Unable to connect to the authentication server.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (!resendActive) return;
-    setLoading(true);
-    try {
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setServerOtp(newOtp);
+    if (!resendActive || loading) return;
 
-      await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), mode: authMode }),
-      }).catch(() => null);
+      });
 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data?.error || "Failed to resend verification code.");
+        return;
+      }
+
+      setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
-      notify(`New code sent to ${email}`);
-    } catch {
-      notify("Failed to resend code");
+      notify("New verification code sent.");
+
+      setTimeout(() => {
+        otpInputsRef.current[0]?.focus();
+      }, 100);
+    } catch (err) {
+      console.error(err);
+      setError("Unable to resend verification code.");
     } finally {
       setLoading(false);
     }
@@ -558,8 +576,8 @@ function AuthModal({
     setError("");
     const enteredOtp = otpDigits.join("");
 
-    if (enteredOtp.length < 6) {
-      setError("Please enter all 6 digits.");
+    if (!/^\d{6}$/.test(enteredOtp)) {
+      setError("Please enter the complete 6-digit verification code.");
       setOtpShake(true);
       setTimeout(() => setOtpShake(false), 500);
       return;
@@ -580,32 +598,24 @@ function AuthModal({
         body: JSON.stringify(body),
       });
 
-      const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => ({}));
 
-      if (res.ok && data?.token) {
-        localStorage.setItem("rockgpt-token", data.token);
-        onSuccess(data.user, data.token);
-        notify(`Welcome${authMode === "signup" ? "" : " back"}, ${data.user.name}!`);
-        onClose();
-      } else if (enteredOtp === serverOtp || enteredOtp === "123456") {
-        // Fallback local authentication
-        const mockUser = {
-          name: name.trim() || email.split("@")[0],
-          email: email.trim(),
-          plan: "Free",
-        };
-        const mockToken = "rockgpt_verified_" + Date.now();
-        localStorage.setItem("rockgpt-token", mockToken);
-        onSuccess(mockUser, mockToken);
-        notify(`Verified & signed in as ${mockUser.name}!`);
-        onClose();
-      } else {
-        setError(data?.error || "Invalid verification code.");
+      // SECURITY: Authentication succeeds only when the backend verifies
+      // the OTP and returns a real authentication token.
+      if (!res.ok || !data?.token) {
+        setError(data?.error || "Invalid or expired verification code.");
         setOtpShake(true);
         setTimeout(() => setOtpShake(false), 500);
+        return;
       }
+
+      localStorage.setItem("rockgpt-token", data.token);
+      onSuccess(data.user, data.token);
+      notify(`Welcome${authMode === "signup" ? "" : " back"}, ${data.user.name}!`);
+      onClose();
     } catch (err) {
-      setError("Server connection failed. Try again.");
+      console.error(err);
+      setError("Server connection failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -785,37 +795,6 @@ function AuthModal({
             </div>
 
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              {/* Quick Auto-Fill Dev Bar */}
-              <div
-                className={`flex items-center justify-between rounded-xl border p-2.5 text-xs ${
-                  dark
-                    ? "border-amber-400/30 bg-amber-400/[0.08] text-amber-300"
-                    : "border-amber-500/40 bg-amber-50 text-amber-800"
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <KeyRound size={14} className="shrink-0" />
-                  <span>
-                    Backup code: <strong className="font-mono text-sm tracking-wider">{serverOtp || "123456"}</strong>
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const code = serverOtp || "123456";
-                    setOtpDigits(code.split(""));
-                    notify("OTP Auto-filled!");
-                  }}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold shadow-sm transition active:scale-95 ${
-                    dark
-                      ? "bg-amber-400 text-black hover:bg-amber-300"
-                      : "bg-amber-600 text-white hover:bg-amber-700"
-                  }`}
-                >
-                  Auto-fill
-                </button>
-              </div>
-
               {/* 6-DIGIT INPUT BOXES */}
               <div className="flex items-center justify-between gap-1.5">
                 {otpDigits.map((digit, idx) => (
@@ -823,7 +802,9 @@ function AuthModal({
                     key={idx}
                     ref={(el) => (otpInputsRef.current[idx] = el)}
                     type="text"
-                    maxLength={6}
+                    inputMode="numeric"
+                    autoComplete={idx === 0 ? "one-time-code" : "off"}
+                    maxLength={1}
                     value={digit}
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
