@@ -486,6 +486,15 @@ function AuthModal({
     }
   };
 
+  // Password strength validation
+  const passwordChecks = {
+    length: password.length >= 8,
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password),
+    uppercase: /[A-Z]/.test(password),
+    number: /[0-9]/.test(password),
+  };
+  const isPasswordStrong = passwordChecks.length && passwordChecks.special && passwordChecks.uppercase && passwordChecks.number;
+
   const handleRequestOtp = async (e) => {
     if (e) e.preventDefault();
     setError("");
@@ -500,13 +509,25 @@ function AuthModal({
       return;
     }
 
+    // Enforce strong password on signup
+    if (authMode === "signup" && !isPasswordStrong) {
+      setError("Password must be 8+ characters with uppercase, number, and special character.");
+      return;
+    }
+
+    // Enforce minimum length on login too
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), mode: authMode }),
+        body: JSON.stringify({ email: email.trim(), password, mode: authMode }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -545,7 +566,7 @@ function AuthModal({
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), mode: authMode }),
+        body: JSON.stringify({ email: email.trim(), password, mode: authMode }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -722,7 +743,7 @@ function AuthModal({
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
+                  placeholder="Password (min 8 chars)"
                   type="password"
                   className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
                     dark
@@ -731,6 +752,28 @@ function AuthModal({
                   }`}
                 />
               </div>
+
+              {/* Password strength indicator — only show during signup when user starts typing */}
+              {authMode === "signup" && password.length > 0 && (
+                <div className={`rounded-xl border p-2.5 space-y-1 ${dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-200 bg-neutral-50"}`}>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: dark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.4)" }}>Password Requirements</div>
+                  {[
+                    { ok: passwordChecks.length, label: "At least 8 characters" },
+                    { ok: passwordChecks.uppercase, label: "One uppercase letter (A-Z)" },
+                    { ok: passwordChecks.number, label: "One number (0-9)" },
+                    { ok: passwordChecks.special, label: "One special character (!@#$...)" },
+                  ].map((r, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      {r.ok ? (
+                        <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                      ) : (
+                        <div className={`h-3 w-3 rounded-full border shrink-0 ${dark ? "border-white/20" : "border-neutral-300"}`} />
+                      )}
+                      <span className={`text-[11px] ${r.ok ? (dark ? "text-emerald-400" : "text-emerald-600") : (dark ? "text-neutral-500" : "text-neutral-400")}`}>{r.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {error && <p className="text-xs text-red-500">{error}</p>}
 
