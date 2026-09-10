@@ -30,7 +30,7 @@ const groq = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
 });
 
-// --- Nodemailer Transporter for Real Emails ---
+// --- Nodemailer Transporter ---
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -39,24 +39,28 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Verify email setup on boot
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-  transporter.verify((err) => {
-    if (err) {
-      console.warn("⚠️ Nodemailer verification failed. Check EMAIL_USER and EMAIL_PASS:", err.message);
-    } else {
-      console.log("✅ Email service ready to send real OTPs!");
-    }
-  });
-} else {
-  console.log("ℹ️ EMAIL_USER or EMAIL_PASS not set in .env. Running in dev OTP mode.");
-}
-
 // --- In-memory OTP Store (5-minute TTL) ---
 const otpStore = new Map();
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Strictly verify OTP (NO BYPASS CODES ALLOWED)
+function verifyStoredOtp(email, enteredOtp) {
+  const cleanEmail = email.toLowerCase().trim();
+  const record = otpStore.get(cleanEmail);
+
+  if (!record) return false;
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(cleanEmail);
+    return false;
+  }
+  if (record.otp !== enteredOtp.trim()) return false;
+
+  // Single-use: delete after successful verification
+  otpStore.delete(cleanEmail);
+  return true;
 }
 
 // --- Auth middleware ---
@@ -106,7 +110,7 @@ function dailyLimiter(req, res, next) {
 
   if (record.count >= DAILY_LIMIT) {
     return res.status(429).json({
-      error: `You've reached today's message limit (${DAILY_LIMIT}). It resets at midnight — upgrade to Plus or Pro for higher limits.`,
+      error: `You've reached today's message limit (${DAILY_LIMIT}). It resets at midnight.`,
       dailyLimitReached: true,
     });
   }
@@ -124,104 +128,113 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================
-// --- OTP & AUTH ROUTES ---
+// --- STRICT OTP & AUTHENTICATION ROUTES ---
 // ==========================================
 
-// 1. Send OTP to User's Email
+// 1. Send OTP to Real Email
 app.post("/api/auth/send-otp", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, mode, password } = req.body;
 
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
       return res.status(400).json({ error: "A valid email address is required." });
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const otp = generateOtp();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
 
-    // Save in memory
-    otpStore.set(cleanEmail, { otp, expiresAt });
-
-    console.log(`🔐 Generated OTP for ${cleanEmail}: ${otp}`);
-
-    // If email credentials exist, send real email
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      const mailOptions = {
-        from: `"RockGPT Security" <${process.env.EMAIL_USER}>`,
-        to: cleanEmail,
-        subject: `${otp} is your RockGPT verification code`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px;">
-            <div style="text-align: center; margin-bottom: 20px;">
-              <div style="display: inline-block; background: #000000; color: #ffffff; width: 44px; height: 44px; line-height: 44px; border-radius: 12px; font-size: 20px; font-weight: bold;">R</div>
-              <h2 style="color: #111827; font-size: 20px; margin-top: 12px; margin-bottom: 4px;">Verify Your Identity</h2>
-              <p style="color: #6b7280; font-size: 13px; margin: 0;">Use the code below to log in to your RockGPT workspace.</p>
-            </div>
-            <div style="text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px; padding: 18px; margin: 20px 0;">
-              <span style="font-family: monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #111827;">${otp}</span>
-            </div>
-            <p style="color: #6b7280; font-size: 12px; line-height: 18px; text-align: center;">
-              This code expires in <strong>5 minutes</strong>. If you did not request this, please safely ignore this email.
-            </p>
-          </div>
-        `,
-      };
-
-      await transporter.sendMail(mailOptions);
+    // Check if email credentials are setup on the server
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      return res.status(500).json({
+        error: "Email server credentials missing! Please configure EMAIL_USER and EMAIL_PASS in Render Environment Variables.",
+      });
     }
 
-    res.json({ message: "Verification code sent to your email." });
+    // If logging in, STRICTLY verify password BEFORE sending OTP
+    if (mode === "login") {
+      if (!password) {
+        return res.status(400).json({ error: "Password is required to sign in." });
+      }
+      const user = await User.findOne({ email: cleanEmail });
+      if (!user) {
+        return res.status(401).json({ error: "No account found with this email. Please sign up." });
+      }
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        return res.status(401).json({ error: "Invalid email or password." });
+      }
+    }
+
+    // If signing up, check if email is already taken
+    if (mode === "signup") {
+      const existing = await User.findOne({ email: cleanEmail });
+      if (existing) {
+        return res.status(409).json({ error: "An account with this email already exists. Please log in." });
+      }
+    }
+
+    // Generate real 6-digit OTP
+    const otp = generateOtp();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+    otpStore.set(cleanEmail, { otp, expiresAt });
+
+    console.log(`🔐 Dispatched real OTP for ${cleanEmail}`);
+
+    // Send real email via Google SMTP
+    const mailOptions = {
+      from: `"RockGPT Security" <${process.env.EMAIL_USER}>`,
+      to: cleanEmail,
+      subject: `${otp} is your RockGPT verification code`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="display: inline-block; background: #000000; color: #ffffff; width: 44px; height: 44px; line-height: 44px; border-radius: 12px; font-size: 20px; font-weight: bold;">R</div>
+            <h2 style="color: #111827; font-size: 20px; margin-top: 12px; margin-bottom: 4px;">Verify Your Identity</h2>
+            <p style="color: #6b7280; font-size: 13px; margin: 0;">Use the code below to complete your RockGPT verification.</p>
+          </div>
+          <div style="text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px; padding: 18px; margin: 20px 0;">
+            <span style="font-family: monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #111827;">${otp}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 12px; line-height: 18px; text-align: center;">
+            This code expires in <strong>5 minutes</strong>. If you did not request this, please safely ignore this email.
+          </p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: "Verification code sent to your email." });
   } catch (err) {
     console.error("Error in /api/auth/send-otp:", err.message);
-    res.status(500).json({ error: "Failed to send verification email. Please try again." });
+    res.status(500).json({ error: `Failed to send email: ${err.message}` });
   }
 });
 
-// Helper: Verify OTP
-function verifyStoredOtp(email, enteredOtp) {
-  const cleanEmail = email.toLowerCase().trim();
-  const record = otpStore.get(cleanEmail);
-
-  // Allow bypass test code if needed
-  if (enteredOtp === "123456") return true;
-
-  if (!record) return false;
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(cleanEmail);
-    return false;
-  }
-  if (record.otp !== enteredOtp) return false;
-
-  // Single-use: delete after successful verification
-  otpStore.delete(cleanEmail);
-  return true;
-}
-
-// 2. Signup with OTP
+// 2. Signup with Real OTP
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const { name, email, password, otp } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Name, email, and password are all required." });
+    if (!name || !email || !password || !otp) {
+      return res.status(400).json({ error: "All fields and verification code are required." });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
 
-    // Verify OTP
-    if (!otp || !verifyStoredOtp(email, otp)) {
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Verify real OTP
+    if (!verifyStoredOtp(cleanEmail, otp)) {
       return res.status(400).json({ error: "Invalid or expired verification code." });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({ email: cleanEmail });
     if (existing) {
       return res.status(409).json({ error: "An account with this email already exists." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email: email.toLowerCase(), password: hashedPassword });
+    const user = await User.create({ name: name.trim(), email: cleanEmail, password: hashedPassword });
 
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: "30d" });
 
@@ -235,21 +248,23 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 });
 
-// 3. Login with OTP
+// 3. Login with Password & Real OTP
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password, otp } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required." });
+    if (!email || !password || !otp) {
+      return res.status(400).json({ error: "Email, password, and verification code are required." });
     }
 
-    // Verify OTP
-    if (!otp || !verifyStoredOtp(email, otp)) {
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Verify real OTP
+    if (!verifyStoredOtp(cleanEmail, otp)) {
       return res.status(400).json({ error: "Invalid or expired verification code." });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
@@ -284,10 +299,7 @@ app.get("/api/auth/me", async (req, res) => {
   }
 });
 
-// ==========================================
-// --- CHAT ROUTE ---
-// ==========================================
-
+// --- Chat Route ---
 app.post("/api/chat", async (req, res) => {
   try {
     const { messages, fast } = req.body;
@@ -309,21 +321,16 @@ app.post("/api/chat", async (req, res) => {
     const stream = await groq.chat.completions.create({
       model,
       max_tokens: fast ? 300 : 1024,
-      messages: [
+            messages: [
         {
           role: "system",
-          content: `You are RockGPT, a helpful and friendly AI assistant created by Suman Mansuri (goes by "Rock"). Never say you were made by OpenAI, Groq, or any other company — you are RockGPT, Rock's own personal AI assistant. If asked about the underlying technology, you can say you're powered by an open-source language model that Rock configured.
+          content: `You are RockGPT, an advanced, friendly, and highly capable AI assistant developed by Suman Mansuri (also known as "Rock").
 
-If asked "who is Rock", "who is Suman Mansuri", or similar questions about your creator, answer using these accurate details:
-- Full name: Suman Mansuri, goes by "Rock"
-- B.Tech in Information Technology student, currently in 5th semester with an 8.5 CGPA
-- Runs his own business called Aura Crystal Divine, selling crystal products, and built its entire e-commerce website and client-facing tools himself
-- Actively learning JavaScript and React, building real-world projects like FinanceX (a finance dashboard), Catalogix (a product catalog builder), and RockGPT (this very chatbot)
-- A hands-on developer who builds and ships projects independently rather than just studying theory
-
-Speak about Rock with genuine respect and enthusiasm when asked, like a well-informed assistant proud of its creator, but keep it natural and not overly promotional.
-
-Always answer clearly and simply, as if explaining to someone smart but unfamiliar with the topic. Prefer short paragraphs and plain language over jargon. Use bullet points or numbered steps for anything with multiple parts, and use headings only for genuinely long answers. Avoid unnecessary preamble — get to the useful part quickly.${fast ? "\n\nRespond concisely and to the point — the user has requested faster, shorter replies." : ""}`,
+Core Guidelines:
+- Identity: You are RockGPT. Never mention OpenAI, Groq, or third-party providers. If asked about your tech, explain that you are powered by custom-configured open-source AI models.
+- Creator: If asked about Suman Mansuri or "Rock", explain that he is a full-stack developer and founder of Aura Crystal Divine who built RockGPT. Keep it polite, accurate, and humble.
+- Style: Be clear, accurate, and direct. Format responses with clean Markdown, headings, bullet points, and code blocks where helpful. Avoid unnecessary fluff or robotic filler.
+${fast ? "\nRespond concisely and get straight to the point." : ""}`,
         },
         ...messages,
       ],
@@ -341,22 +348,10 @@ Always answer clearly and simply, as if explaining to someone smart but unfamili
     res.end();
   } catch (err) {
     console.error("Error in /api/chat:", err.message);
-
-    let errorMessage = "Something went wrong. Please try again.";
-    if (err.status === 401 || err.message?.includes("API key")) {
-      errorMessage = "Backend configuration error — invalid API key. Contact the site admin.";
-    } else if (err.status === 429 || err.message?.includes("rate limit")) {
-      errorMessage = "RockGPT is receiving too many requests right now. Please wait a moment and try again.";
-    } else if (err.status === 503 || err.message?.includes("timeout") || err.message?.includes("ECONNREFUSED")) {
-      errorMessage = "RockGPT's AI service is temporarily unavailable. Please try again shortly.";
-    }
-
     try {
-      res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: "AI service temporarily unavailable." })}\n\n`);
       res.end();
-    } catch (writeErr) {
-      console.error("Failed to write error to stream:", writeErr.message);
-    }
+    } catch (e) {}
   }
 });
 
