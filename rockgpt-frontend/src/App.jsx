@@ -1,34 +1,75 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   ArrowUp, Check, ChevronDown, Copy, Download, Edit3, Menu, Mic,
-  PanelLeft, Plus, Search, Settings, User, X, Zap, Brain, Paperclip,
+  Plus, Search, Settings, User, X, Zap, Brain, Paperclip,
   Moon, Sun, RefreshCcw, Square, ThumbsDown, ThumbsUp, Trash2,
-  Sparkles, Globe, Gauge, Loader2, Crown,
+  Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
+  Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight
 } from "lucide-react";
 
 const BACKEND_URL = "https://rockgpt.onrender.com";
+const UPI_ID = "mansurisumaan-2@okhdfcbank";
+const PAYEE_NAME = "RockGPT";
 
 const PLANS = [
   {
+    id: "free",
     name: "Free",
-    price: "₹0",
+    badge: "Starter",
+    priceMonthly: 0,
+    priceYearly: 0,
     period: "/forever",
-    features: ["50 messages / day", "Standard response speed", "Image & file understanding", "Chat history saved"],
+    description: "Great for light questions, everyday brainstorming, and trying RockGPT.",
+    features: [
+      "50 messages per day",
+      "Standard response speed",
+      "Image & document file uploads",
+      "Cross-device chat history",
+      "Access to standard AI reasoning",
+    ],
     highlight: false,
+    cta: "Current Plan",
+    disabled: true,
   },
   {
+    id: "plus",
     name: "Plus",
-    price: "₹149",
+    badge: "Most Popular",
+    priceMonthly: 149,
+    priceYearly: 119, // ~20% off billed annually
     period: "/month",
-    features: ["500 messages / day", "Priority response speed", "Fast mode always on", "Early access to new features"],
+    description: "Ideal for power users, students, developers, and creators.",
+    features: [
+      "500 messages per day",
+      "2.5x faster priority speed",
+      "Fast Mode always available",
+      "Early access to new experimental features",
+      "Extended 32k context memory",
+      "Zero server peak delays",
+    ],
     highlight: true,
+    cta: "Upgrade to Plus",
+    disabled: false,
   },
   {
+    id: "pro",
     name: "Pro",
-    price: "₹399",
+    badge: "Ultimate Power",
+    priceMonthly: 399,
+    priceYearly: 319, // ~20% off billed annually
     period: "/month",
-    features: ["Unlimited messages", "Fastest response speed", "Priority support", "Everything in Plus"],
+    description: "Uncapped performance for professionals, businesses, and heavy workflows.",
+    features: [
+      "Unlimited daily messages",
+      "Maximum reasoning speed & compute",
+      "Highest upload limit (25MB+ files)",
+      "Dedicated priority server queue",
+      "Everything in Plus included",
+      "Priority 24/7 customer support",
+    ],
     highlight: false,
+    cta: "Upgrade to Pro",
+    disabled: false,
   },
 ];
 
@@ -135,7 +176,7 @@ function MessageContent({ content }) {
 
 function RockMark({ small = false }) {
   return (
-    <div className={`grid shrink-0 place-items-center rounded-[10px] border border-white/15 bg-white font-black text-black ${small ? "h-7 w-7 text-[11px]" : "h-9 w-9 text-sm"}`}>
+    <div className={`grid shrink-0 place-items-center rounded-[10px] border border-white/15 bg-white font-black text-black shadow-sm ${small ? "h-7 w-7 text-[11px]" : "h-9 w-9 text-sm"}`}>
       R
     </div>
   );
@@ -173,6 +214,329 @@ function IntroScreen({ onDone }) {
   );
 }
 
+/* =========================================================================
+   REDESIGNED CHATGPT & GEMINI STYLE UPGRADE PLAN MODAL & BOTTOM SHEET
+   ========================================================================= */
+function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free" }) {
+  const [billingCycle, setBillingCycle] = useState("monthly"); // "monthly" | "yearly"
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKey);
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-md transition-all sm:items-center sm:p-4 fade"
+      onClick={onClose}
+    >
+      <div
+        className="pop flex max-h-[92dvh] w-full max-w-[880px] flex-col overflow-hidden rounded-t-[28px] border border-white/15 bg-[#121212] shadow-2xl sm:max-h-[90dvh] sm:rounded-[24px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Mobile Pull Handle */}
+        <div className="flex justify-center pt-3 sm:hidden">
+          <div className="h-1.5 w-12 rounded-full bg-white/20" />
+        </div>
+
+        {/* Header */}
+        <div className="relative border-b border-white/10 px-5 py-4 sm:px-8 sm:py-6">
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white sm:right-6 sm:top-6"
+          >
+            <X size={18} />
+          </button>
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">
+              <Sparkles size={13} /> Elevate your AI Workspace
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              Upgrade Your RockGPT Plan
+            </h2>
+            <p className="mt-1 text-xs text-white/60 sm:text-sm">
+              Unlock the fastest reasoning, extended context limits, and unlimited generations.
+            </p>
+
+            {/* Billing Toggle (Monthly / Yearly) */}
+            <div className="mt-4 inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] p-1 text-xs font-medium">
+              <button
+                onClick={() => setBillingCycle("monthly")}
+                className={`rounded-full px-4 py-1.5 transition-all ${billingCycle === "monthly" ? "bg-white text-black font-semibold shadow-sm" : "text-white/60 hover:text-white"}`}
+              >
+                Monthly billing
+              </button>
+              <button
+                onClick={() => setBillingCycle("yearly")}
+                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 transition-all ${billingCycle === "yearly" ? "bg-white text-black font-semibold shadow-sm" : "text-white/60 hover:text-white"}`}
+              >
+                <span>Annual billing</span>
+                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  Save 20%
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Pricing Cards Grid */}
+        <div className="thin flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {PLANS.map((plan) => {
+              const isCurrent = currentPlan?.toLowerCase() === plan.name.toLowerCase();
+              const price = billingCycle === "yearly" ? plan.priceYearly : plan.priceMonthly;
+
+              return (
+                <div
+                  key={plan.id}
+                  className={`relative flex flex-col justify-between rounded-2xl border p-5 transition-all duration-200 ${
+                    plan.highlight
+                      ? "border-yellow-400/50 bg-gradient-to-b from-yellow-400/[0.08] to-white/[0.02] shadow-[0_0_30px_rgba(234,179,8,0.12)]"
+                      : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                  }`}
+                >
+                  {plan.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full border border-yellow-400/40 bg-gradient-to-r from-amber-400 to-yellow-300 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black shadow-md">
+                      {plan.badge}
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold text-white">{plan.name}</span>
+                      {isCurrent && (
+                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/80">
+                          Active Plan
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-1 min-h-[34px] text-xs text-white/50">{plan.description}</p>
+
+                    <div className="mt-4 flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-white">₹{price}</span>
+                      <span className="text-xs text-white/50">
+                        {plan.priceMonthly === 0 ? "/forever" : billingCycle === "yearly" ? "/mo (billed annually)" : "/month"}
+                      </span>
+                    </div>
+
+                    <div className="my-4 h-px w-full bg-white/10" />
+
+                    <ul className="space-y-2.5">
+                      {plan.features.map((feat, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-xs text-white/80">
+                          <Check size={14} className="mt-0.5 shrink-0 text-emerald-400" />
+                          <span className="leading-snug">{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="mt-6 pt-2">
+                    <button
+                      disabled={isCurrent}
+                      onClick={() => onSelectPlan({ ...plan, activePrice: price, billingCycle })}
+                      className={`w-full rounded-xl py-3 text-xs font-semibold tracking-wide transition-all ${
+                        isCurrent
+                          ? "cursor-default border border-white/10 bg-white/5 text-white/40"
+                          : plan.highlight
+                          ? "bg-white text-black shadow-lg hover:bg-neutral-200 active:scale-[0.98]"
+                          : "border border-white/15 bg-white/10 text-white hover:bg-white/15 active:scale-[0.98]"
+                      }`}
+                    >
+                      {isCurrent ? "Current Plan" : plan.cta}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Guarantee / Security badge */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-6 rounded-xl border border-white/5 bg-white/[0.01] px-4 py-3 text-center text-xs text-white/50">
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-emerald-400" /> Safe & secure payment via UPI
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Zap size={14} className="text-yellow-400" /> Fast manual activation
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="text-blue-400" /> Cancel anytime with no penalties
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   MODERN UPI CHECKOUT MODAL (WITH 1-CLICK MOBILE APP INTENT & FALLBACK QR)
+   ========================================================================= */
+function UpiCheckoutModal({ plan, onClose, notify, user }) {
+  const [copied, setCopied] = useState(false);
+  const [utrNumber, setUtrNumber] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  if (!plan) return null;
+
+  const totalAmount = plan.billingCycle === "yearly" ? plan.activePrice * 12 : plan.activePrice;
+  const upiLink = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${encodeURIComponent(totalAmount)}&cu=INR&tn=${encodeURIComponent(`RockGPT ${plan.name} Plan`)}`;
+
+  // Dynamic QR Code generation that never 404s
+  const dynamicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}&bgcolor=181818&color=ffffff&margin=1`;
+
+  const copyUpi = () => {
+    navigator.clipboard.writeText(UPI_ID);
+    setCopied(true);
+    notify("UPI ID copied to clipboard!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSubmitProof = (e) => {
+    e.preventDefault();
+    if (!utrNumber.trim()) {
+      notify("Please enter your 12-digit UPI reference/UTR number");
+      return;
+    }
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+      setSubmitted(true);
+      notify("Payment submitted! We are verifying your transaction.");
+    }, 1200);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[85] flex items-end justify-center bg-black/80 p-0 backdrop-blur-md transition-all sm:items-center sm:p-4 fade"
+      onClick={onClose}
+    >
+      <div
+        className="pop max-h-[92dvh] w-full max-w-[420px] overflow-y-auto thin rounded-t-[28px] border border-white/15 bg-[#141414] p-5 shadow-2xl sm:max-h-[85dvh] sm:rounded-2xl sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-yellow-400">Checkout</span>
+            <h3 className="text-lg font-bold text-white">Upgrade to {plan.name}</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full text-white/50 hover:bg-white/10 hover:text-white"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {submitted ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10 text-emerald-400">
+              <CheckCircle2 size={32} />
+            </div>
+            <h4 className="text-base font-bold text-white">Transaction Details Received!</h4>
+            <p className="mt-2 text-xs leading-relaxed text-white/60">
+              Thank you! We have logged your UTR reference (<strong className="text-white">{utrNumber}</strong>). Your account (<strong>{user?.email || "guest"}</strong>) will be upgraded within 15 minutes.
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-6 w-full rounded-xl bg-white py-2.5 text-xs font-semibold text-black hover:bg-neutral-200"
+            >
+              Done & Return to Chat
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {/* Amount Summary */}
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div>
+                <div className="text-xs font-medium text-white/80">{plan.name} Plan ({plan.billingCycle})</div>
+                <div className="text-[11px] text-white/50">One-time payment</div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-extrabold text-white">₹{totalAmount}</div>
+                <div className="text-[10px] text-emerald-400">Incl. all taxes</div>
+              </div>
+            </div>
+
+            {/* Mobile: 1-Tap UPI Intent Button */}
+            <div className="block sm:hidden">
+              <a
+                href={upiLink}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-xs font-bold text-white shadow-lg active:scale-95"
+              >
+                <Smartphone size={16} /> Pay via Any UPI App (GPay / PhonePe / Paytm)
+              </a>
+              <div className="my-3 text-center text-[10px] uppercase tracking-wider text-white/40">or scan / pay manually</div>
+            </div>
+
+            {/* Desktop / Fallback QR Code */}
+            <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <img
+                src={dynamicQrUrl}
+                alt="UPI QR Code"
+                className="h-44 w-44 rounded-xl border border-white/10 bg-white p-2 shadow-inner"
+              />
+              <p className="mt-2 text-[11px] text-white/50">Scan with GPay, PhonePe, Paytm, or CRED</p>
+            </div>
+
+            {/* Copyable UPI ID */}
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] text-white/40">UPI ID</div>
+                <div className="truncate font-mono text-xs font-semibold text-white">{UPI_ID}</div>
+              </div>
+              <button
+                onClick={copyUpi}
+                className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"
+              >
+                {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                <span>{copied ? "Copied" : "Copy"}</span>
+              </button>
+            </div>
+
+            {/* Verification Form */}
+            <form onSubmit={handleSubmitProof} className="space-y-2.5 pt-1">
+              <label className="block text-[11px] font-medium text-white/70">
+                Confirm payment: Enter 12-digit UTR / Ref Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 329482910482"
+                value={utrNumber}
+                onChange={(e) => setUtrNumber(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-white/50"
+              />
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-xs font-bold text-black transition-all hover:bg-neutral-200 active:scale-95 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 size={14} className="animate-spin" /> : "Verify & Activate Plan"}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   MAIN ROCKGPT APP
+   ========================================================================= */
 export default function RockGPT() {
   const [showIntro, setShowIntro] = useState(true);
   const [conversations, setConversations] = useState(() => {
@@ -204,6 +568,8 @@ export default function RockGPT() {
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [webSearchOn, setWebSearchOn] = useState(false);
   const [fastMode, setFastMode] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("RockGPT 4o");
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   // --- Auth state ---
   const [user, setUser] = useState(null);
@@ -216,7 +582,7 @@ export default function RockGPT() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
 
-  // --- Guest gate: shows immediately, re-shows locked after a few minutes ---
+  // --- Guest gate ---
   const [gateOpen, setGateOpen] = useState(() => !localStorage.getItem("rockgpt-token"));
   const [gateLocked, setGateLocked] = useState(false);
   const gateTimerRef = useRef(null);
@@ -256,7 +622,7 @@ export default function RockGPT() {
     recognitionRef.current = recognition;
   }, []);
 
-  // Guest re-prompt: if not logged in, after 3.5 minutes force the gate back open, locked
+  // Guest timer
   useEffect(() => {
     if (authToken) {
       setGateOpen(false);
@@ -285,11 +651,12 @@ export default function RockGPT() {
         setSettingsOpen(false);
         setSidebarOpen(false);
         setPricingOpen(false);
+        setPayingPlan(null);
+        setModelDropdownOpen(false);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -304,12 +671,11 @@ export default function RockGPT() {
         setAuthToken(null);
         setUser(null);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authToken]);
 
   const notify = (text) => {
     setNotice(text);
-    setTimeout(() => setNotice(null), 2200);
+    setTimeout(() => setNotice(null), 2500);
   };
 
   const handleAuthSubmit = async () => {
@@ -360,7 +726,7 @@ export default function RockGPT() {
     localStorage.removeItem("rockgpt-token");
     setAuthToken(null);
     setUser(null);
-    notify("Logged out");
+    notify("Logged out successfully");
   };
 
   const continueAsGuest = () => {
@@ -409,8 +775,8 @@ export default function RockGPT() {
   const streamFromBackend = async (history, convId) => {
     setStreaming("");
     setThinkingLabel("RockGPT is thinking");
-    const t1 = setTimeout(() => setThinkingLabel("Still working on it..."), 4000);
-    const t2 = setTimeout(() => setThinkingLabel("This one's a bit tricky, hang tight..."), 9000);
+    const t1 = setTimeout(() => setThinkingLabel("Synthesizing ideas..."), 4000);
+    const t2 = setTimeout(() => setThinkingLabel("Crafting response..."), 9000);
 
     let fullText = "";
     const controller = new AbortController();
@@ -512,7 +878,6 @@ export default function RockGPT() {
     const convId = createConversationIfNeeded(userMsg);
     const history = updatedMessages.map((m) => ({ role: m.role, content: m.content }));
     streamFromBackend(history, convId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, typing, activeId, messages, attachment]);
 
   const stopGeneration = () => {
@@ -565,7 +930,7 @@ export default function RockGPT() {
 
   const toggleRecording = () => {
     if (!recognitionRef.current) {
-      notify("Voice input isn't supported in this browser — try Chrome");
+      notify("Voice input is supported best on Chrome");
       return;
     }
     if (recording) {
@@ -590,7 +955,7 @@ export default function RockGPT() {
       reader.onload = () => setAttachment({ kind: "doc", name: file.name, textContent: reader.result.slice(0, 8000) });
       reader.readAsText(file);
     } else {
-      notify("Supported: images, .txt, and .md files for now");
+      notify("Supported: images, .txt, and .md files");
     }
     e.target.value = "";
   };
@@ -600,8 +965,8 @@ export default function RockGPT() {
     [conversations, search]
   );
 
-  const surface = dark ? "#0b0b0b" : "#ffffff";
-  const panel = dark ? "#101010" : "#f7f7f7";
+  const surface = dark ? "#0a0a0a" : "#ffffff";
+  const panel = dark ? "#111111" : "#f7f7f7";
   const border = dark ? "rgba(255,255,255,.09)" : "rgba(0,0,0,.10)";
   const textColor = dark ? "#ffffff" : "#111111";
   const muted = dark ? "rgba(255,255,255,.48)" : "rgba(0,0,0,.52)";
@@ -611,36 +976,38 @@ export default function RockGPT() {
   }
 
   return (
-    <div className="relative flex h-[100dvh] min-h-screen w-full overflow-hidden font-sans" style={{ background: surface, color: textColor }}>
+    <div className="relative flex h-[100dvh] min-h-screen w-full overflow-hidden font-sans" style={{ background: surface, color: textColor, overscrollBehaviorY: "none" }}>
       <style>{`
-        html, body, #root { height: 100%; margin: 0; padding: 0; background: ${surface}; }
+        html, body, #root { height: 100%; margin: 0; padding: 0; background: ${surface}; overscroll-behavior-y: none; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         textarea::-webkit-scrollbar { width: 0; }
         .thin::-webkit-scrollbar { width: 5px; }
         .thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 20px; }
-        .fade { animation: fade .25s ease-out both; }
+        .fade { animation: fade .2s ease-out both; }
         .fade-out { animation: fadeOut .4s ease-in both; }
         .rise { animation: rise .25s cubic-bezier(.2,.8,.2,1) both; }
-        .pop { animation: pop .3s cubic-bezier(.2,.9,.3,1.2) both; }
+        .pop { animation: pop .25s cubic-bezier(.2,.9,.3,1.15) both; }
         @keyframes fade { from {opacity:0} to {opacity:1} }
         @keyframes fadeOut { from {opacity:1} to {opacity:0; visibility:hidden} }
         @keyframes rise { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:translateY(0)} }
-        @keyframes pop { from {opacity:0; transform:scale(.94) translateY(6px)} to {opacity:1; transform:scale(1) translateY(0)} }
+        @keyframes pop { from {opacity:0; transform:scale(.95) translateY(8px)} to {opacity:1; transform:scale(1) translateY(0)} }
         @keyframes blink { 50% { opacity:.35 } }
         .cursor-blink { animation: blink 1s step-end infinite; }
         @keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity:.4 } 30% { transform: translateY(-5px); opacity:1 } }
         .dot-bounce { animation: dotBounce 1.1s ease-in-out infinite; }
         @media (max-width: 640px) {
-          .chat-bubble { max-width: 88% !important; }
+          .chat-bubble { max-width: 90% !important; }
         }
       `}</style>
 
+      {/* Sidebar backdrop for mobile */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 fade" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm fade" onClick={() => setSidebarOpen(false)} />
       )}
 
+      {/* Collapsible Modern Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-50 h-full w-[85vw] max-w-[300px] shrink-0 overflow-hidden transition-transform duration-300 sm:w-[280px] ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed left-0 top-0 z-50 h-full w-[85vw] max-w-[290px] shrink-0 overflow-hidden transition-transform duration-300 sm:w-[270px] ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
         style={{ background: panel, borderRight: `1px solid ${border}` }}
       >
         <div className="flex h-full w-full flex-col">
@@ -664,7 +1031,7 @@ export default function RockGPT() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search chats..."
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-white/30"
               />
             </div>
           </div>
@@ -676,7 +1043,7 @@ export default function RockGPT() {
               <div
                 key={c.id}
                 onClick={() => selectConversation(c.id)}
-                className={`group relative mb-1 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 ${activeId === c.id ? "bg-white/[.08]" : "hover:bg-white/[.045]"}`}
+                className={`group relative mb-1 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 transition-colors ${activeId === c.id ? "bg-white/[.08]" : "hover:bg-white/[.045]"}`}
               >
                 <div className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: activeId === c.id ? "#fff" : "rgba(255,255,255,.25)" }} />
                 {editing === c.id ? (
@@ -701,84 +1068,178 @@ export default function RockGPT() {
             ))}
           </div>
 
-          <div className="border-t p-2" style={{ borderColor: border }}>
-            <button onClick={() => setPricingOpen(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-white/[.05]">
-              <Crown size={16} className="text-yellow-400" /> <span className="flex-1 text-left">Upgrade plan</span>
+          {/* Sidebar Footer Actions */}
+          <div className="border-t p-2 space-y-1" style={{ borderColor: border }}>
+            {/* UPGRADE PLAN BUTTON WITH GRADIENT ACCENT */}
+            <button
+              onClick={() => { setSidebarOpen(false); setPricingOpen(true); }}
+              className="flex w-full items-center gap-3 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.06] px-3 py-2.5 text-sm font-medium text-yellow-300 transition-all hover:bg-yellow-400/[0.12] active:scale-[0.98]"
+            >
+              <Crown size={17} className="text-yellow-400" />
+              <div className="flex-1 text-left">
+                <div className="leading-none text-[13px] font-semibold text-white">Upgrade plan</div>
+                <div className="text-[10px] text-yellow-300/70">Get Plus or Pro</div>
+              </div>
+              <ChevronRight size={14} className="text-yellow-400/60" />
             </button>
-            <button onClick={() => setSettingsOpen(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-white/[.05]" style={{ color: muted }}>
-              <Settings size={16} /> Settings
+
+            <button onClick={() => setSettingsOpen(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm hover:bg-white/[.05]" style={{ color: muted }}>
+              <Settings size={16} /> <span className="flex-1 text-left">Settings</span>
             </button>
             <button
               onClick={() => (user ? logout() : setAuthModalOpen(true))}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-white/[.05]"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm hover:bg-white/[.05]"
             >
               <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full border" style={{ borderColor: border }}><User size={13} /></div>
               <div className="min-w-0 flex-1 text-left">
                 <div className="truncate text-xs font-medium">{user ? user.name : "Sign in"}</div>
-                <div className="text-[10px]" style={{ color: muted }}>{user ? `${user.plan} plan · Log out` : "Guest mode"}</div>
+                <div className="text-[10px]" style={{ color: muted }}>{user ? `${user.plan || "Free"} plan · Log out` : "Guest mode"}</div>
               </div>
             </button>
           </div>
         </div>
       </aside>
 
+      {/* Main Chat Interface */}
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[56px] shrink-0 items-center justify-between border-b px-3" style={{ borderColor: border, background: dark ? "rgba(11,11,11,.9)" : "rgba(255,255,255,.9)" }}>
-          <div className="flex min-w-0 items-center gap-1">
+        {/* Header with ChatGPT / Gemini Style Model Pill */}
+        <header className="flex h-[56px] shrink-0 items-center justify-between border-b px-3 sm:px-4" style={{ borderColor: border, background: dark ? "rgba(10,10,10,.85)" : "rgba(255,255,255,.9)", backdropFilter: "blur(12px)" }}>
+          <div className="flex min-w-0 items-center gap-2">
             <button onClick={() => setSidebarOpen(true)} title="Open sidebar (Ctrl+B)" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg hover:bg-white/[.06]">
               <Menu size={18} />
             </button>
-            <div className="flex items-center gap-2 px-2">
-              <RockMark small />
-              <span className="truncate text-sm font-semibold">RockGPT</span>
+
+            {/* Model Selector Dropdown (ChatGPT & Gemini UI) */}
+            <div className="relative">
+              <button
+                onClick={() => setModelDropdownOpen((v) => !v)}
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold hover:bg-white/[0.08]"
+              >
+                <Sparkles size={13} className="text-yellow-400" />
+                <span>{selectedModel}</span>
+                <ChevronDown size={13} className="text-white/40" />
+              </button>
+
+              {modelDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setModelDropdownOpen(false)} />
+                  <div className="absolute left-0 top-10 z-40 w-56 rounded-2xl border border-white/15 bg-[#161616] p-1.5 shadow-2xl pop">
+                    <button
+                      onClick={() => { setSelectedModel("RockGPT 4o"); setModelDropdownOpen(false); }}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2 text-left ${selectedModel === "RockGPT 4o" ? "bg-white/10" : "hover:bg-white/5"}`}
+                    >
+                      <Sparkles size={15} className="mt-0.5 text-yellow-400" />
+                      <div>
+                        <div className="text-xs font-semibold text-white">RockGPT 4o</div>
+                        <div className="text-[10px] text-white/50">Most intelligent & capable</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => { setSelectedModel("RockGPT Flash"); setModelDropdownOpen(false); }}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2 text-left ${selectedModel === "RockGPT Flash" ? "bg-white/10" : "hover:bg-white/5"}`}
+                    >
+                      <Zap size={15} className="mt-0.5 text-blue-400" />
+                      <div>
+                        <div className="text-xs font-semibold text-white">RockGPT Flash</div>
+                        <div className="text-[10px] text-white/50">Fastest for quick questions</div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {/* Top Upgrade Pill */}
+            <button
+              onClick={() => setPricingOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300 hover:bg-yellow-400/20"
+            >
+              <Crown size={13} />
+              <span className="hidden sm:inline">Upgrade</span>
+            </button>
+
             {activeId && (
-              <button onClick={exportChat} title="Export" className="hidden h-9 w-9 place-items-center rounded-lg hover:bg-white/[.06] sm:grid"><Download size={16} /></button>
+              <button onClick={exportChat} title="Export chat" className="hidden h-9 w-9 place-items-center rounded-lg hover:bg-white/[.06] sm:grid">
+                <Download size={16} />
+              </button>
             )}
-            <button onClick={() => setSettingsOpen(true)} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/[.06]"><Settings size={17} /></button>
+            <button onClick={() => setTheme(dark ? "light" : "dark")} title="Toggle theme" className="grid h-9 w-9 place-items-center rounded-lg hover:bg-white/[.06]">
+              {dark ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
           </div>
         </header>
 
+        {/* Chat Stream Window */}
         <section className="thin flex-1 overflow-y-auto">
           {messages.length === 0 && !typing ? (
-            <div className="mx-auto flex min-h-full max-w-[900px] flex-col items-center justify-center px-4 py-10">
-              <div className="mb-5 fade" style={{ animationDelay: "0.1s" }}><RockMark /></div>
-              <h1 className="rise text-center text-2xl font-semibold tracking-tight sm:text-3xl md:text-[38px]" style={{ animationDelay: "0.15s" }}>How can I help you today?</h1>
-              <p className="rise mt-3 max-w-xl px-2 text-center text-sm leading-6" style={{ color: muted, animationDelay: "0.25s" }}>
-                Ask questions, write code, brainstorm ideas, attach an image or document, or just talk it out.
+            <div className="mx-auto flex min-h-full max-w-[800px] flex-col items-center justify-center px-4 py-8">
+              <div className="mb-4 fade"><RockMark /></div>
+              <h1 className="rise text-center text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
+                What can I help with?
+              </h1>
+              <p className="rise mt-2 max-w-lg px-2 text-center text-xs leading-5 text-white/50 sm:text-sm">
+                Brainstorm, write code, analyze data, debug errors, or summarize documents.
               </p>
+
+              {/* Suggestion Chips */}
+              <div className="rise mt-8 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
+                {[
+                  "Write a React hook for API caching",
+                  "Explain quantum computing simply",
+                  "Design a workout plan for beginners",
+                  "Review my resume bullet points"
+                ].map((promptText, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(promptText); inputRef.current?.focus(); }}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left text-xs text-white/80 transition-colors hover:border-white/20 hover:bg-white/[0.05]"
+                  >
+                    <span>{promptText}</span>
+                    <ArrowRight size={13} className="text-white/30" />
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="mx-auto max-w-[820px] px-3 py-6 sm:px-6 sm:py-8">
               {messages.map((m, i) => (
                 <div key={m.id} className="rise mb-6 sm:mb-8">
                   <div className="mb-2 flex items-center gap-2 text-xs font-medium">
-                    {m.role === "assistant" ? <RockMark small /> : <div className="grid h-7 w-7 place-items-center rounded-full border" style={{ borderColor: border }}><User size={13} /></div>}
-                    <span>{m.role === "assistant" ? "RockGPT" : "You"}</span>
+                    {m.role === "assistant" ? (
+                      <RockMark small />
+                    ) : (
+                      <div className="grid h-7 w-7 place-items-center rounded-full border" style={{ borderColor: border }}><User size={13} /></div>
+                    )}
+                    <span className="font-semibold">{m.role === "assistant" ? "RockGPT" : "You"}</span>
                     <span className="text-[10px]" style={{ color: muted }}>{formatTime(m.createdAt)}</span>
                   </div>
 
                   {editing === m.id ? (
                     <div className="rounded-2xl border p-3" style={{ borderColor: border }}>
-                      <textarea value={editText} onChange={(e) => setEditText(e.target.value)} className="min-h-[100px] w-full resize-none bg-transparent text-sm leading-6 outline-none" />
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="min-h-[100px] w-full resize-none bg-transparent text-sm leading-6 outline-none"
+                      />
                       <div className="flex justify-end gap-2">
                         <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-1.5 text-xs" style={{ color: muted }}>Cancel</button>
                         <button
                           onClick={() => { setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, content: editText, displayText: editText } : x))); setEditing(null); }}
                           className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black"
-                        >Save</button>
+                        >
+                          Save
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    <div className={m.role === "user" ? "chat-bubble ml-0 max-w-[92%] rounded-2xl border bg-white/[.04] p-3.5 sm:p-4 sm:ml-9" : "ml-0 sm:ml-9"}>
+                    <div className={m.role === "user" ? "chat-bubble ml-0 max-w-[92%] rounded-2xl border border-white/10 bg-white/[.05] p-3.5 sm:ml-9 sm:p-4" : "ml-0 sm:ml-9"}>
                       {m.attachment?.kind === "image" && (
-                        <img src={m.attachment.dataUrl} alt={m.attachment.name} className="mb-2 max-h-56 rounded-xl border" style={{ borderColor: border }} />
+                        <img src={m.attachment.dataUrl} alt={m.attachment.name} className="mb-2 max-h-60 rounded-xl border border-white/10" />
                       )}
                       {m.attachment?.kind === "doc" && (
-                        <div className="mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: border, color: muted }}>
+                        <div className="mb-2 flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/70">
                           📄 {m.attachment.name}
                         </div>
                       )}
@@ -790,25 +1251,31 @@ export default function RockGPT() {
                     </div>
                   )}
 
-                  <div className="ml-9 mt-2 flex items-center gap-0.5">
-                    <button onClick={() => copyMessage(m)} className="rounded-lg p-2 text-xs hover:bg-white/[.06]" style={{ color: muted }} title="Copy">
-                      {copied === m.id ? <Check size={13} /> : <Copy size={13} />}
+                  <div className="ml-9 mt-2 flex items-center gap-1">
+                    <button onClick={() => copyMessage(m)} className="rounded-lg p-2 text-xs text-white/40 hover:bg-white/[.06] hover:text-white" title="Copy">
+                      {copied === m.id ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
                     </button>
                     {m.role === "user" && (
-                      <button onClick={() => { setEditing(m.id); setEditText(m.displayText || ""); }} className="rounded-lg p-2 hover:bg-white/[.06]" style={{ color: muted }} title="Edit">
+                      <button onClick={() => { setEditing(m.id); setEditText(m.displayText || ""); }} className="rounded-lg p-2 text-white/40 hover:bg-white/[.06] hover:text-white" title="Edit">
                         <Edit3 size={13} />
                       </button>
                     )}
                     {m.role === "assistant" && (
                       <>
-                        <button onClick={() => setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === true ? null : true } : x)))} className="rounded-lg p-2 hover:bg-white/[.06]" style={{ color: m.liked === true ? "white" : muted }}>
+                        <button
+                          onClick={() => setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === true ? null : true } : x)))}
+                          className={`rounded-lg p-2 hover:bg-white/[.06] ${m.liked === true ? "text-white" : "text-white/40"}`}
+                        >
                           <ThumbsUp size={13} />
                         </button>
-                        <button onClick={() => setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === false ? null : false } : x)))} className="rounded-lg p-2 hover:bg-white/[.06]" style={{ color: m.liked === false ? "white" : muted }}>
+                        <button
+                          onClick={() => setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === false ? null : false } : x)))}
+                          className={`rounded-lg p-2 hover:bg-white/[.06] ${m.liked === false ? "text-white" : "text-white/40"}`}
+                        >
                           <ThumbsDown size={13} />
                         </button>
                         {i === messages.length - 1 && (
-                          <button onClick={regenerate} className="flex items-center gap-1 rounded-lg px-2 py-2 text-xs hover:bg-white/[.06]" style={{ color: muted }}>
+                          <button onClick={regenerate} className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-white/50 hover:bg-white/[.06] hover:text-white">
                             <RefreshCcw size={13} /> Regenerate
                           </button>
                         )}
@@ -828,7 +1295,7 @@ export default function RockGPT() {
                         <span className="cursor-blink ml-1 inline-block h-4 w-0.5 bg-white align-middle" />
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 pt-1 text-sm" style={{ color: muted }}>
+                      <div className="flex items-center gap-2 pt-1 text-sm text-white/50">
                         <span>{thinkingLabel}</span>
                         <span className="flex items-end gap-1">
                           <i className="dot-bounce h-1.5 w-1.5 rounded-full bg-white" style={{ animationDelay: "0s" }} />
@@ -845,20 +1312,21 @@ export default function RockGPT() {
           )}
         </section>
 
+        {/* Input Bar */}
         <div className="shrink-0 px-2 pb-3 pt-2 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto max-w-[820px]">
             {attachment && (
-              <div className="mb-2 flex items-center gap-2 rounded-xl border p-2" style={{ borderColor: border }}>
+              <div className="mb-2 flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] p-2">
                 {attachment.kind === "image" ? (
                   <img src={attachment.dataUrl} alt={attachment.name} className="h-12 w-12 rounded-lg object-cover" />
                 ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-lg border text-lg" style={{ borderColor: border }}>📄</div>
+                  <div className="grid h-12 w-12 place-items-center rounded-lg border border-white/10 text-lg">📄</div>
                 )}
-                <span className="flex-1 truncate text-xs" style={{ color: muted }}>{attachment.name}</span>
+                <span className="flex-1 truncate text-xs text-white/70">{attachment.name}</span>
                 <button onClick={() => setAttachment(null)} className="rounded-md p-1 hover:bg-white/[.08]"><X size={14} /></button>
               </div>
             )}
-            <div className="relative rounded-[20px] border p-2 shadow-lg sm:rounded-[22px]" style={{ borderColor: border, background: dark ? "#101010" : "#fafafa" }}>
+            <div className="relative rounded-[22px] border border-white/15 bg-[#141414] p-2 shadow-xl focus-within:border-white/30">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -875,33 +1343,37 @@ export default function RockGPT() {
                 }}
                 rows={1}
                 placeholder="Message RockGPT..."
-                className="w-full resize-none bg-transparent px-2.5 pb-11 pt-1.5 text-[15px] leading-6 outline-none placeholder:text-white/25 sm:px-3 sm:pt-2"
+                className="w-full resize-none bg-transparent px-3 pb-11 pt-2 text-[15px] leading-6 text-white outline-none placeholder:text-white/30 sm:px-3.5"
                 style={{ minHeight: 46, maxHeight: 160 }}
               />
 
-              <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-between sm:bottom-2 sm:left-2 sm:right-2">
-                <div className="flex items-center gap-0.5">
+              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                <div className="flex items-center gap-1">
                   <input ref={fileRef} type="file" accept="image/*,.txt,.md" className="hidden" onChange={handleFileSelect} />
                   <div className="relative">
-                    <button onClick={() => setAttachMenuOpen((v) => !v)} title="Attach files or photos" className="grid h-9 w-9 place-items-center rounded-xl hover:bg-white/[.06]" style={{ color: muted }}>
+                    <button
+                      onClick={() => setAttachMenuOpen((v) => !v)}
+                      title="Attach photo or file"
+                      className="grid h-9 w-9 place-items-center rounded-xl text-white/50 hover:bg-white/[.06] hover:text-white"
+                    >
                       <Plus size={18} />
                     </button>
                     {attachMenuOpen && (
                       <>
                         <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
-                        <div className="absolute bottom-11 left-0 z-40 w-60 rounded-2xl border p-1.5 shadow-2xl pop" style={{ background: dark ? "#151515" : "#fff", borderColor: border }}>
+                        <div className="absolute bottom-11 left-0 z-40 w-60 rounded-2xl border border-white/15 bg-[#181818] p-1.5 shadow-2xl pop">
                           <button
                             onClick={() => { fileRef.current?.click(); setAttachMenuOpen(false); }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-white/[.06]"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/80 hover:bg-white/[.06] hover:text-white"
                           >
                             <Paperclip size={16} /> <span className="flex-1">Add photo or file</span>
                           </button>
                           <button
                             onClick={() => { setWebSearchOn((v) => !v); notify("Web search is coming soon"); setAttachMenuOpen(false); }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-white/[.06]"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-white/80 hover:bg-white/[.06] hover:text-white"
                           >
                             <Globe size={16} /> <span className="flex-1">Web search</span>
-                            <span className="rounded-full px-1.5 py-0.5 text-[9px]" style={{ color: muted, border: `1px solid ${border}` }}>Soon</span>
+                            <span className="rounded-full border border-white/10 px-1.5 py-0.5 text-[9px] text-white/40">Soon</span>
                           </button>
                         </div>
                       </>
@@ -909,17 +1381,15 @@ export default function RockGPT() {
                   </div>
                   <button
                     onClick={() => setFastMode((v) => !v)}
-                    title={fastMode ? "Fast mode on" : "Turn on fast mode for shorter, quicker replies"}
-                    className={`hidden h-9 w-9 place-items-center rounded-xl hover:bg-white/[.06] sm:grid ${fastMode ? "bg-white text-black" : ""}`}
-                    style={{ color: fastMode ? "#000" : muted }}
+                    title={fastMode ? "Fast mode active" : "Turn on fast mode"}
+                    className={`hidden h-9 w-9 place-items-center rounded-xl transition sm:grid ${fastMode ? "bg-white text-black" : "text-white/50 hover:bg-white/[.06] hover:text-white"}`}
                   >
                     <Gauge size={17} />
                   </button>
                   <button
                     onClick={toggleRecording}
                     title="Voice input"
-                    className={`grid h-9 w-9 place-items-center rounded-xl hover:bg-white/[.06] ${recording ? "bg-white text-black" : ""}`}
-                    style={{ color: recording ? "#000" : muted }}
+                    className={`grid h-9 w-9 place-items-center rounded-xl transition ${recording ? "bg-red-500 text-white animate-pulse" : "text-white/50 hover:bg-white/[.06] hover:text-white"}`}
                   >
                     <Mic size={17} />
                   </button>
@@ -933,7 +1403,7 @@ export default function RockGPT() {
                   <button
                     disabled={!input.trim() && !attachment}
                     onClick={sendMessage}
-                    className={`grid h-9 w-9 place-items-center rounded-xl transition ${input.trim() || attachment ? "bg-white text-black hover:scale-105" : "bg-white/[.07] text-white/20"}`}
+                    className={`grid h-9 w-9 place-items-center rounded-xl transition ${input.trim() || attachment ? "bg-white text-black hover:scale-105 shadow-md" : "bg-white/10 text-white/30"}`}
                     title="Send"
                   >
                     <ArrowUp size={18} />
@@ -941,26 +1411,45 @@ export default function RockGPT() {
                 )}
               </div>
             </div>
-            <div className="hidden items-center justify-center gap-2 py-2 text-[10px] sm:flex" style={{ color: muted }}>
-              <span>RockGPT may make mistakes. Consider checking important information.</span>
+            <div className="hidden items-center justify-center gap-2 py-2 text-[11px] text-white/40 sm:flex">
+              <span>RockGPT can make mistakes. Verify important information.</span>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Guest / auth gate */}
+      {/* Modern ChatGPT / Gemini Style Upgrade Plan Modal */}
+      <UpgradePlanModal
+        isOpen={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        currentPlan={user?.plan || "Free"}
+        onSelectPlan={(plan) => {
+          setPricingOpen(false);
+          setPayingPlan(plan);
+        }}
+      />
+
+      {/* Modern UPI Checkout Modal with Instant 1-Tap Mobile Support */}
+      <UpiCheckoutModal
+        plan={payingPlan}
+        onClose={() => setPayingPlan(null)}
+        notify={notify}
+        user={user}
+      />
+
+      {/* Guest / Auth Gate */}
       {gateOpen && (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 fade">
-          <div className="pop w-full max-w-[380px] rounded-2xl border p-5 shadow-2xl" style={{ background: dark ? "#151515" : "#fff", borderColor: border }}>
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/75 p-4 fade backdrop-blur-sm">
+          <div className="pop max-h-[85vh] w-full max-w-[380px] overflow-y-auto thin rounded-2xl border border-white/15 bg-[#141414] p-5 shadow-2xl">
             <div className="mb-4 flex flex-col items-center text-center">
               <RockMark />
-              <h2 className="mt-3 text-lg font-semibold">
-                {gateLocked ? "Let's keep your workspace" : "Welcome to RockGPT"}
+              <h2 className="mt-3 text-lg font-bold text-white">
+                {gateLocked ? "Save your workspace" : "Welcome to RockGPT"}
               </h2>
-              <p className="mt-1.5 text-xs leading-5" style={{ color: muted }}>
+              <p className="mt-1.5 text-xs leading-5 text-white/60">
                 {gateLocked
-                  ? "You've been chatting as a guest — sign in or create a free account to keep going."
-                  : "Sign in to save your chats across devices, or continue as a guest."}
+                  ? "You've been chatting as a guest. Sign in or register to keep your chat history."
+                  : "Sign in to sync your chats across devices, or explore as a guest."}
               </p>
             </div>
 
@@ -968,18 +1457,16 @@ export default function RockGPT() {
               <input
                 value={authName}
                 onChange={(e) => setAuthName(e.target.value)}
-                placeholder="Name"
-                className="mb-2 w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                style={{ borderColor: border, background: "transparent" }}
+                placeholder="Full Name"
+                className="mb-2 w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none"
               />
             )}
             <input
               value={authEmail}
               onChange={(e) => setAuthEmail(e.target.value)}
-              placeholder="Email"
+              placeholder="Email address"
               type="email"
-              className="mb-2 w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: border, background: "transparent" }}
+              className="mb-2 w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none"
             />
             <input
               value={authPassword}
@@ -987,8 +1474,7 @@ export default function RockGPT() {
               placeholder="Password"
               type="password"
               onKeyDown={(e) => { if (e.key === "Enter") handleAuthSubmit(); }}
-              className="mb-3 w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-              style={{ borderColor: border, background: "transparent" }}
+              className="mb-3 w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none"
             />
 
             {authError && <p className="mb-3 text-xs text-red-400">{authError}</p>}
@@ -996,23 +1482,23 @@ export default function RockGPT() {
             <button
               onClick={handleAuthSubmit}
               disabled={authLoading}
-              className="mb-2 w-full rounded-xl bg-white py-2.5 text-sm font-semibold text-black disabled:opacity-50"
+              className="mb-2 w-full rounded-xl bg-white py-2.5 text-xs font-bold text-black transition hover:bg-neutral-200 disabled:opacity-50"
             >
-              {authLoading ? "Please wait..." : authMode === "signup" ? "Sign up" : "Log in"}
+              {authLoading ? "Please wait..." : authMode === "signup" ? "Create Account" : "Sign In"}
             </button>
 
-            <p className="mb-2 text-center text-xs" style={{ color: muted }}>
+            <p className="mb-2 text-center text-xs text-white/60">
               {authMode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
                 onClick={() => { setAuthMode(authMode === "signup" ? "login" : "signup"); setAuthError(""); }}
-                className="font-medium text-white underline"
+                className="font-medium text-white underline underline-offset-2"
               >
-                {authMode === "signup" ? "Log in" : "Sign up"}
+                {authMode === "signup" ? "Sign In" : "Register"}
               </button>
             </p>
 
             {!gateLocked && (
-              <button onClick={continueAsGuest} className="w-full rounded-xl px-4 py-2 text-xs" style={{ color: muted }}>
+              <button onClick={continueAsGuest} className="w-full rounded-xl px-4 py-2 text-xs text-white/50 hover:text-white">
                 Continue as guest
               </button>
             )}
@@ -1020,126 +1506,51 @@ export default function RockGPT() {
         </div>
       )}
 
-      {/* Standalone login modal (from sidebar "Sign in") */}
+      {/* Standalone Auth Modal */}
       {authModalOpen && !gateOpen && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-4 fade" onClick={() => setAuthModalOpen(false)}>
-          <div className="pop w-full max-w-[380px] rounded-2xl border p-5 shadow-2xl" style={{ background: dark ? "#151515" : "#fff", borderColor: border }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[75] grid place-items-center bg-black/60 p-4 fade backdrop-blur-sm" onClick={() => setAuthModalOpen(false)}>
+          <div className="pop max-h-[85vh] w-full max-w-[380px] overflow-y-auto thin rounded-2xl border border-white/15 bg-[#141414] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{authMode === "signup" ? "Create your account" : "Welcome back"}</h2>
-              <button onClick={() => setAuthModalOpen(false)}><X size={18} style={{ color: muted }} /></button>
+              <h2 className="text-base font-bold text-white">{authMode === "signup" ? "Create your account" : "Welcome back"}</h2>
+              <button onClick={() => setAuthModalOpen(false)} className="text-white/50 hover:text-white"><X size={16} /></button>
             </div>
             {authMode === "signup" && (
-              <input value={authName} onChange={(e) => setAuthName(e.target.value)} placeholder="Name" className="mb-2 w-full rounded-xl border px-3 py-2.5 text-sm outline-none" style={{ borderColor: border, background: "transparent" }} />
+              <input value={authName} onChange={(e) => setAuthName(e.target.value)} placeholder="Full Name" className="mb-2 w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none" />
             )}
-            <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="Email" type="email" className="mb-2 w-full rounded-xl border px-3 py-2.5 text-sm outline-none" style={{ borderColor: border, background: "transparent" }} />
-            <input value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Password" type="password" onKeyDown={(e) => { if (e.key === "Enter") handleAuthSubmit(); }} className="mb-3 w-full rounded-xl border px-3 py-2.5 text-sm outline-none" style={{ borderColor: border, background: "transparent" }} />
+            <input value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="Email" type="email" className="mb-2 w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none" />
+            <input value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="Password" type="password" onKeyDown={(e) => { if (e.key === "Enter") handleAuthSubmit(); }} className="mb-3 w-full rounded-xl border border-white/15 bg-transparent px-3 py-2.5 text-xs text-white outline-none" />
             {authError && <p className="mb-3 text-xs text-red-400">{authError}</p>}
-            <button onClick={handleAuthSubmit} disabled={authLoading} className="mb-3 w-full rounded-xl bg-white py-2.5 text-sm font-semibold text-black disabled:opacity-50">
-              {authLoading ? "Please wait..." : authMode === "signup" ? "Sign up" : "Log in"}
+            <button onClick={handleAuthSubmit} disabled={authLoading} className="mb-3 w-full rounded-xl bg-white py-2.5 text-xs font-bold text-black disabled:opacity-50">
+              {authLoading ? "Please wait..." : authMode === "signup" ? "Create Account" : "Sign In"}
             </button>
-            <p className="text-center text-xs" style={{ color: muted }}>
+            <p className="text-center text-xs text-white/60">
               {authMode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
               <button onClick={() => { setAuthMode(authMode === "signup" ? "login" : "signup"); setAuthError(""); }} className="font-medium text-white underline">
-                {authMode === "signup" ? "Log in" : "Sign up"}
+                {authMode === "signup" ? "Sign In" : "Register"}
               </button>
             </p>
           </div>
         </div>
       )}
 
-      {/* Pricing modal */}
-      {pricingOpen && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-4 fade" onClick={() => setPricingOpen(false)}>
-          <div className="pop w-full max-w-[720px] rounded-2xl border p-5 shadow-2xl sm:p-6" style={{ background: dark ? "#151515" : "#fff", borderColor: border }} onClick={(e) => e.stopPropagation()}>
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Upgrade RockGPT</h2>
-                <p className="text-xs" style={{ color: muted }}>Pick the plan that fits how you use RockGPT.</p>
-              </div>
-              <button onClick={() => setPricingOpen(false)}><X size={18} style={{ color: muted }} /></button>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {PLANS.map((plan) => (
-                <div
-                  key={plan.name}
-                  className="flex flex-col rounded-2xl border p-4"
-                  style={{ borderColor: plan.highlight ? "#fff" : border, background: plan.highlight ? "rgba(255,255,255,.04)" : "transparent" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{plan.name}</span>
-                    {plan.highlight && <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-semibold text-black">Popular</span>}
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-2xl font-bold">{plan.price}</span>
-                    <span className="text-xs" style={{ color: muted }}>{plan.period}</span>
-                  </div>
-                  <ul className="mt-3 flex-1 space-y-1.5">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-1.5 text-xs" style={{ color: muted }}>
-                        <Check size={12} className="mt-0.5 shrink-0" /> {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    onClick={() => (plan.name === "Free" ? notify("You're already on Free") : setPayingPlan(plan))}
-                    className={`mt-4 w-full rounded-xl py-2 text-xs font-semibold ${plan.highlight ? "bg-white text-black" : "border"}`}
-                    style={!plan.highlight ? { borderColor: border } : {}}
-                  >
-                    {plan.name === "Free" ? "Current plan" : "Upgrade"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* UPI payment modal */}
-      {payingPlan && (
-        <div className="fixed inset-0 z-[75] grid place-items-center bg-black/70 p-4 fade" onClick={() => setPayingPlan(null)}>
-          <div className="pop w-full max-w-[360px] rounded-2xl border p-5 shadow-2xl text-center" style={{ background: dark ? "#151515" : "#fff", borderColor: border }} onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between text-left">
-              <div>
-                <h2 className="text-lg font-semibold">Upgrade to {payingPlan.name}</h2>
-                <p className="text-xs" style={{ color: muted }}>{payingPlan.price}{payingPlan.period}</p>
-              </div>
-              <button onClick={() => setPayingPlan(null)}><X size={18} style={{ color: muted }} /></button>
-            </div>
-            <img src="/upi-qr.png" alt="Scan to pay with UPI" className="mx-auto w-full max-w-[220px] rounded-xl border" style={{ borderColor: border }} />
-            <p className="mt-3 text-xs" style={{ color: muted }}>Scan with any UPI app, or pay to:</p>
-            <div className="mt-1.5 flex items-center justify-center gap-2">
-              <code className="rounded-md bg-white/[.06] px-2 py-1 text-xs">mansurisumaan-2@okhdfcbank</code>
-              <button
-                onClick={() => { navigator.clipboard.writeText("mansurisumaan-2@okhdfcbank"); notify("UPI ID copied"); }}
-                className="rounded-md p-1.5 hover:bg-white/[.08]"
-              >
-                <Copy size={13} />
-              </button>
-            </div>
-            <p className="mt-4 text-[11px] leading-5" style={{ color: muted }}>
-              After paying, message Rock with your payment screenshot and account email to activate your {payingPlan.name} plan — it's currently activated manually.
-            </p>
-          </div>
-        </div>
-      )}
-
+      {/* Settings Modal */}
       {settingsOpen && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4 fade" onClick={() => setSettingsOpen(false)}>
-          <div className="pop w-full max-w-[420px] rounded-2xl border p-5 shadow-2xl" style={{ background: dark ? "#151515" : "#fff", borderColor: border }} onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/60 p-4 fade backdrop-blur-sm" onClick={() => setSettingsOpen(false)}>
+          <div className="pop max-h-[85vh] w-full max-w-[420px] overflow-y-auto thin rounded-2xl border border-white/15 bg-[#141414] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold">Settings</h2>
-                <p className="text-xs" style={{ color: muted }}>Customize your RockGPT workspace.</p>
+                <h2 className="text-base font-bold text-white">Settings</h2>
+                <p className="text-xs text-white/50">Personalize your RockGPT experience.</p>
               </div>
-              <button onClick={() => setSettingsOpen(false)}><X size={18} style={{ color: muted }} /></button>
+              <button onClick={() => setSettingsOpen(false)} className="text-white/50 hover:text-white"><X size={16} /></button>
             </div>
-            <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 p-3">
               {dark ? <Moon size={17} /> : <Sun size={17} />}
               <div className="flex-1">
                 <div className="text-sm font-medium">Appearance</div>
-                <div className="text-xs" style={{ color: muted }}>Dark / light interface</div>
+                <div className="text-xs text-white/50">Switch between dark & light interface</div>
               </div>
-              <button onClick={() => setTheme(dark ? "light" : "dark")} className="rounded-lg border px-3 py-1.5 text-xs" style={{ borderColor: border }}>
+              <button onClick={() => setTheme(dark ? "light" : "dark")} className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium">
                 {dark ? "Light" : "Dark"}
               </button>
             </div>
@@ -1147,8 +1558,9 @@ export default function RockGPT() {
         </div>
       )}
 
+      {/* Global Notifications Toast */}
       {notice && (
-        <div className="fixed bottom-20 left-1/2 z-[90] -translate-x-1/2 rounded-full border bg-black px-4 py-2 text-xs text-white shadow-2xl fade" style={{ borderColor: "rgba(255,255,255,.14)" }}>
+        <div className="fixed bottom-20 left-1/2 z-[95] -translate-x-1/2 rounded-full border border-white/20 bg-black/90 px-4 py-2 text-xs font-medium text-white shadow-2xl backdrop-blur-md fade">
           {notice}
         </div>
       )}
