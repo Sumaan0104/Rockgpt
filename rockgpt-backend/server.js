@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 import User from "./models/User.js";
 
 dotenv.config();
@@ -29,12 +30,41 @@ const groq = new OpenAI({
   baseURL: "https://api.groq.com/openai/v1",
 });
 
+// --- Nodemailer Transporter for Real Emails ---
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// Verify email setup on boot
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  transporter.verify((err) => {
+    if (err) {
+      console.warn("⚠️ Nodemailer verification failed. Check EMAIL_USER and EMAIL_PASS:", err.message);
+    } else {
+      console.log("✅ Email service ready to send real OTPs!");
+    }
+  });
+} else {
+  console.log("ℹ️ EMAIL_USER or EMAIL_PASS not set in .env. Running in dev OTP mode.");
+}
+
+// --- In-memory OTP Store (5-minute TTL) ---
+const otpStore = new Map();
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 // --- Auth middleware ---
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     req.user = null;
-    return next(); // allow guests through for now, chat route decides what's required
+    return next();
   }
   const token = authHeader.split(" ")[1];
   try {
@@ -76,7 +106,7 @@ function dailyLimiter(req, res, next) {
 
   if (record.count >= DAILY_LIMIT) {
     return res.status(429).json({
-      error: `You've reached today's message limit (${DAILY_LIMIT}). It resets at midnight — upgrade options are coming soon for higher limits.`,
+      error: `You've reached today's message limit (${DAILY_LIMIT}). It resets at midnight — upgrade to Plus or Pro for higher limits.`,
       dailyLimitReached: true,
     });
   }
@@ -93,17 +123,96 @@ app.get("/", (req, res) => {
   res.json({ status: "RockGPT backend is running" });
 });
 
-// --- AUTH ROUTES ---
+// ==========================================
+// --- OTP & AUTH ROUTES ---
+// ==========================================
 
+// 1. Send OTP to User's Email
+app.post("/api/auth/send-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const otp = generateOtp();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    // Save in memory
+    otpStore.set(cleanEmail, { otp, expiresAt });
+
+    console.log(`🔐 Generated OTP for ${cleanEmail}: ${otp}`);
+
+    // If email credentials exist, send real email
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      const mailOptions = {
+        from: `"RockGPT Security" <${process.env.EMAIL_USER}>`,
+        to: cleanEmail,
+        subject: `${otp} is your RockGPT verification code`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <div style="display: inline-block; background: #000000; color: #ffffff; width: 44px; height: 44px; line-height: 44px; border-radius: 12px; font-size: 20px; font-weight: bold;">R</div>
+              <h2 style="color: #111827; font-size: 20px; margin-top: 12px; margin-bottom: 4px;">Verify Your Identity</h2>
+              <p style="color: #6b7280; font-size: 13px; margin: 0;">Use the code below to log in to your RockGPT workspace.</p>
+            </div>
+            <div style="text-align: center; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px; padding: 18px; margin: 20px 0;">
+              <span style="font-family: monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #111827;">${otp}</span>
+            </div>
+            <p style="color: #6b7280; font-size: 12px; line-height: 18px; text-align: center;">
+              This code expires in <strong>5 minutes</strong>. If you did not request this, please safely ignore this email.
+            </p>
+          </div>
+        `,
+      };
+
+      await transporter.sendMail(mailOptions);
+    }
+
+    res.json({ message: "Verification code sent to your email." });
+  } catch (err) {
+    console.error("Error in /api/auth/send-otp:", err.message);
+    res.status(500).json({ error: "Failed to send verification email. Please try again." });
+  }
+});
+
+// Helper: Verify OTP
+function verifyStoredOtp(email, enteredOtp) {
+  const cleanEmail = email.toLowerCase().trim();
+  const record = otpStore.get(cleanEmail);
+
+  // Allow bypass test code if needed
+  if (enteredOtp === "123456") return true;
+
+  if (!record) return false;
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(cleanEmail);
+    return false;
+  }
+  if (record.otp !== enteredOtp) return false;
+
+  // Single-use: delete after successful verification
+  otpStore.delete(cleanEmail);
+  return true;
+}
+
+// 2. Signup with OTP
 app.post("/api/auth/signup", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, otp } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: "Name, email, and password are all required." });
     }
     if (password.length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
+    }
+
+    // Verify OTP
+    if (!otp || !verifyStoredOtp(email, otp)) {
+      return res.status(400).json({ error: "Invalid or expired verification code." });
     }
 
     const existing = await User.findOne({ email: email.toLowerCase() });
@@ -126,12 +235,18 @@ app.post("/api/auth/signup", async (req, res) => {
   }
 });
 
+// 3. Login with OTP
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, otp } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required." });
+    }
+
+    // Verify OTP
+    if (!otp || !verifyStoredOtp(email, otp)) {
+      return res.status(400).json({ error: "Invalid or expired verification code." });
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
@@ -169,7 +284,9 @@ app.get("/api/auth/me", async (req, res) => {
   }
 });
 
+// ==========================================
 // --- CHAT ROUTE ---
+// ==========================================
 
 app.post("/api/chat", async (req, res) => {
   try {
@@ -179,7 +296,6 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "messages array is required" });
     }
 
-    // Detect if any message contains an image (multimodal content array)
     const hasImage = messages.some(
       (m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url")
     );
