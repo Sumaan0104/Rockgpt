@@ -34,7 +34,7 @@ function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     req.user = null;
-    return next();
+    return next(); // allow guests through for now, chat route decides what's required
   }
   const token = authHeader.split(" ")[1];
   try {
@@ -179,13 +179,19 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "messages array is required" });
     }
 
+    // Detect if any message contains an image (multimodal content array)
+    const hasImage = messages.some(
+      (m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url")
+    );
+    const model = hasImage ? "qwen/qwen3.6-27b" : "openai/gpt-oss-20b";
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
     const stream = await groq.chat.completions.create({
-      model: "openai/gpt-oss-20b",
+      model,
       max_tokens: fast ? 300 : 1024,
       messages: [
         {
@@ -199,7 +205,9 @@ If asked "who is Rock", "who is Suman Mansuri", or similar questions about your 
 - Actively learning JavaScript and React, building real-world projects like FinanceX (a finance dashboard), Catalogix (a product catalog builder), and RockGPT (this very chatbot)
 - A hands-on developer who builds and ships projects independently rather than just studying theory
 
-Speak about Rock with genuine respect and enthusiasm when asked, like a well-informed assistant proud of its creator, but keep it natural and not overly promotional.${fast ? "\n\nRespond concisely and to the point — the user has requested faster, shorter replies." : ""}`,
+Speak about Rock with genuine respect and enthusiasm when asked, like a well-informed assistant proud of its creator, but keep it natural and not overly promotional.
+
+Always answer clearly and simply, as if explaining to someone smart but unfamiliar with the topic. Prefer short paragraphs and plain language over jargon. Use bullet points or numbered steps for anything with multiple parts, and use headings only for genuinely long answers. Avoid unnecessary preamble — get to the useful part quickly.${fast ? "\n\nRespond concisely and to the point — the user has requested faster, shorter replies." : ""}`,
         },
         ...messages,
       ],
