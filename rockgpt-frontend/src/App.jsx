@@ -1713,7 +1713,13 @@ export default function RockGPT() {
   });
   const [conversations, setConversations] = useState(() => {
     try {
-      const saved = localStorage.getItem("rockgpt-conversations");
+      const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
+      const key = savedUser?.id
+        ? `rockgpt-conversations_${savedUser.id}`
+        : savedUser?.email
+        ? `rockgpt-conversations_${savedUser.email.replace(/[^a-zA-Z0-9]/g, "_")}`
+        : "rockgpt-conversations_guest";
+      const saved = localStorage.getItem(key) || localStorage.getItem("rockgpt-conversations");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -1802,13 +1808,20 @@ export default function RockGPT() {
   const recognitionRef = useRef(null);
   const dark = theme === "dark";
 
+  const getStorageKey = (u) => {
+    if (u?.id) return `rockgpt-conversations_${u.id}`;
+    if (u?.email) return `rockgpt-conversations_${u.email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    return "rockgpt-conversations_guest";
+  };
+
   useEffect(() => {
     try {
-      localStorage.setItem("rockgpt-conversations", JSON.stringify(conversations));
+      const key = getStorageKey(user);
+      localStorage.setItem(key, JSON.stringify(conversations));
     } catch (err) {
       console.error("Failed to save chats:", err);
     }
-  }, [conversations]);
+  }, [conversations, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1943,6 +1956,24 @@ export default function RockGPT() {
     localStorage.setItem("rockgpt-user", JSON.stringify(loggedUser));
     setGateOpen(false);
     setGateLocked(false);
+
+    // Wipe pre-login/guest chat so a clean, fresh new chat page arrives
+    setActiveId(null);
+    localStorage.removeItem("rockgpt-active-id");
+    setMessages([]);
+    setInput("");
+    setStreaming("");
+    setAttachment(null);
+    setSidebarOpen(false);
+
+    // Load logged-in user's private saved conversations
+    try {
+      const key = getStorageKey(loggedUser);
+      const userSaved = localStorage.getItem(key);
+      setConversations(userSaved ? JSON.parse(userSaved) : []);
+    } catch {
+      setConversations([]);
+    }
   };
 
   // EXPLICIT LOGOUT FUNCTION
@@ -1955,6 +1986,24 @@ export default function RockGPT() {
     setGateOpen(false);
     setProfileMenuOpen(false);
     setHeaderProfileOpen(false);
+
+    // Wipe user chats so guest starts fresh on a clean new page
+    setActiveId(null);
+    localStorage.removeItem("rockgpt-active-id");
+    setMessages([]);
+    setInput("");
+    setStreaming("");
+    setAttachment(null);
+    setSelectedModel("RockGPT Flash");
+
+    // Load clean guest conversations
+    try {
+      const guestSaved = localStorage.getItem("rockgpt-conversations_guest");
+      setConversations(guestSaved ? JSON.parse(guestSaved) : []);
+    } catch {
+      setConversations([]);
+    }
+
     notify("Logged out successfully");
   };
 
