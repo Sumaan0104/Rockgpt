@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import {
   ArrowUp, Check, ChevronDown, Copy, Download, Edit3, Menu, Mic,
   Plus, Search, Settings, User, X, Zap, Brain, Paperclip,
@@ -110,36 +113,6 @@ function formatTime(d) {
   }
 }
 
-function Inline({ text, dark }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (p.startsWith("**") && p.endsWith("**")) {
-          return (
-            <strong key={i} className={`font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
-              {p.slice(2, -2)}
-            </strong>
-          );
-        }
-        if (p.startsWith("`") && p.endsWith("`")) {
-          return (
-            <code
-              key={i}
-              className={`rounded-md px-1.5 py-0.5 text-[13px] font-mono ${
-                dark ? "bg-white/[.08] text-white/90" : "bg-neutral-200/60 text-neutral-800"
-              }`}
-            >
-              {p.slice(1, -1)}
-            </code>
-          );
-        }
-        return <span key={i}>{p}</span>;
-      })}
-    </>
-  );
-}
-
 function CodeBlock({ lang, code, dark }) {
   const [copied, setCopied] = useState(false);
 
@@ -185,82 +158,235 @@ function CodeBlock({ lang, code, dark }) {
   );
 }
 
-function MessageContent({ content, dark }) {
-  const lines = (content || "").split("\n");
-  const output = [];
-  let inCode = false;
-  let lang = "";
-  let codeLines = [];
+function normalizeMarkdown(raw) {
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const result = [];
+  let inCodeBlock = false;
+  let tableBuffer = [];
 
-  const flushCode = () => {
-    output.push(
-      <CodeBlock
-        key={output.length}
-        lang={lang}
-        code={codeLines.join("\n")}
-        dark={dark}
-      />
-    );
+  const flushTableBuffer = () => {
+    if (tableBuffer.length === 0) return;
+    const hasSep = tableBuffer.some((l) => /^\|\s*(:?-+:?\s*\|)+\s*$/.test(l.trim()));
+    if (hasSep) {
+      result.push(...tableBuffer);
+    } else {
+      const firstLine = tableBuffer[0];
+      const cols = Math.max(1, (firstLine.replace(/\\\|/g, "").match(/\|/g) || []).length - 1);
+      const sep = "| " + Array(cols).fill("---").join(" | ") + " |";
+      result.push(firstLine, sep, ...tableBuffer.slice(1));
+    }
+    tableBuffer = [];
   };
 
-  lines.forEach((line) => {
-    if (line.startsWith("```")) {
-      if (!inCode) {
-        inCode = true;
-        lang = line.slice(3).trim();
-        codeLines = [];
-      } else {
-        flushCode();
-        inCode = false;
-        lang = "";
-        codeLines = [];
-      }
-      return;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```")) {
+      flushTableBuffer();
+      inCodeBlock = !inCodeBlock;
+      result.push(line);
+      continue;
     }
-    if (inCode) {
-      codeLines.push(line);
-      return;
+    if (inCodeBlock) {
+      result.push(line);
+      continue;
     }
-    if (!line.trim()) {
-      output.push(<div key={output.length} className="h-2" />);
-    } else if (line.startsWith("### ")) {
-      output.push(
-        <h3 key={output.length} className={`mt-3 mb-1 text-base font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
-          {line.slice(4)}
-        </h3>
-      );
-    } else if (line.startsWith("## ")) {
-      output.push(
-        <h2 key={output.length} className={`mt-4 mb-1 text-lg font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
-          {line.slice(3)}
-        </h2>
-      );
-    } else if (/^\d+\.\s/.test(line)) {
-      const n = line.match(/^(\d+)/)?.[1];
-      output.push(
-        <div key={output.length} className="flex gap-2 py-0.5">
-          <span className={`w-5 shrink-0 text-right font-medium ${dark ? "text-white/45" : "text-neutral-400"}`}>{n}.</span>
-          <span><Inline text={line.replace(/^\d+\.\s+/, "")} dark={dark} /></span>
-        </div>
-      );
-    } else if (line.startsWith("- ")) {
-      output.push(
-        <div key={output.length} className="flex gap-2 py-0.5">
-          <span className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${dark ? "bg-white/50" : "bg-neutral-500"}`} />
-          <span><Inline text={line.slice(2)} dark={dark} /></span>
-        </div>
-      );
+    const isTableRow = /^\|.*\|\s*$/.test(trimmed);
+    if (isTableRow) {
+      tableBuffer.push(line);
     } else {
-      output.push(
-        <p key={output.length} className={`leading-7 ${dark ? "text-neutral-200" : "text-neutral-800"}`}>
-          <Inline text={line} dark={dark} />
-        </p>
-      );
+      flushTableBuffer();
+      result.push(line);
     }
-  });
-  if (inCode) flushCode();
+  }
+  flushTableBuffer();
+  return result.join("\n");
+}
 
-  return <div className="space-y-1 text-[15px]">{output}</div>;
+function MessageContent({ content, dark }) {
+  const normalized = useMemo(() => normalizeMarkdown(content || ""), [content]);
+
+  const components = useMemo(
+    () => ({
+      a({ href, children, ...props }) {
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1 font-medium underline underline-offset-2 transition-colors cursor-pointer break-all ${
+              dark ? "text-cyan-400 hover:text-cyan-300" : "text-blue-600 hover:text-blue-700"
+            }`}
+            {...props}
+          >
+            <span>{children}</span>
+            <ExternalLink size={12} className="inline-block shrink-0 opacity-70" />
+          </a>
+        );
+      },
+      pre({ children }) {
+        const codeElement = React.isValidElement(children) ? children : null;
+        const className = codeElement?.props?.className || "";
+        const match = /language-(\w+)/.exec(className);
+        const lang = match ? match[1] : "";
+        const rawCode = codeElement ? codeElement.props?.children : children;
+        const code = (Array.isArray(rawCode) ? rawCode.join("") : String(rawCode || "")).replace(/\n$/, "");
+        return <CodeBlock lang={lang} code={code} dark={dark} />;
+      },
+      code({ className, children, ...props }) {
+        return (
+          <code
+            className={`rounded-md px-1.5 py-0.5 text-[13px] font-mono ${
+              dark ? "bg-white/[.08] text-white/90" : "bg-neutral-200/70 text-neutral-900"
+            }`}
+            {...props}
+          >
+            {children}
+          </code>
+        );
+      },
+      table({ children }) {
+        return (
+          <div
+            className={`my-3 overflow-x-auto rounded-xl border shadow-sm ${
+              dark ? "border-white/10 bg-[#0d0e12]/80" : "border-neutral-200 bg-white"
+            }`}
+          >
+            <table
+              className={`min-w-full divide-y text-left text-xs sm:text-sm ${
+                dark ? "divide-white/10 text-neutral-200" : "divide-neutral-200 text-neutral-800"
+              }`}
+            >
+              {children}
+            </table>
+          </div>
+        );
+      },
+      thead({ children }) {
+        return (
+          <thead
+            className={
+              dark
+                ? "bg-white/[.06] text-white font-semibold"
+                : "bg-neutral-100 text-neutral-900 font-semibold"
+            }
+          >
+            {children}
+          </thead>
+        );
+      },
+      tbody({ children }) {
+        return (
+          <tbody className={`divide-y ${dark ? "divide-white/5" : "divide-neutral-100"}`}>
+            {children}
+          </tbody>
+        );
+      },
+      tr({ children }) {
+        return (
+          <tr
+            className={`transition-colors ${
+              dark ? "hover:bg-white/[.03]" : "hover:bg-neutral-50"
+            }`}
+          >
+            {children}
+          </tr>
+        );
+      },
+      th({ children }) {
+        return (
+          <th className="px-3.5 py-2.5 text-xs font-semibold uppercase tracking-wider">
+            {children}
+          </th>
+        );
+      },
+      td({ children }) {
+        return (
+          <td className="px-3.5 py-2.5 align-top leading-relaxed">
+            {children}
+          </td>
+        );
+      },
+      h1({ children }) {
+        return (
+          <h1 className={`mt-5 mb-2 text-xl font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
+            {children}
+          </h1>
+        );
+      },
+      h2({ children }) {
+        return (
+          <h2 className={`mt-4 mb-2 text-lg font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
+            {children}
+          </h2>
+        );
+      },
+      h3({ children }) {
+        return (
+          <h3 className={`mt-3 mb-1.5 text-base font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+            {children}
+          </h3>
+        );
+      },
+      h4({ children }) {
+        return (
+          <h4 className={`mt-2 mb-1 text-sm font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+            {children}
+          </h4>
+        );
+      },
+      p({ children }) {
+        return (
+          <p className={`leading-7 mb-2 last:mb-0 ${dark ? "text-neutral-200" : "text-neutral-800"}`}>
+            {children}
+          </p>
+        );
+      },
+      ul({ children }) {
+        return <ul className="my-2 ml-4 list-disc space-y-1">{children}</ul>;
+      },
+      ol({ children }) {
+        return <ol className="my-2 ml-4 list-decimal space-y-1">{children}</ol>;
+      },
+      li({ children }) {
+        return (
+          <li className={`leading-relaxed pl-1 ${dark ? "text-neutral-200" : "text-neutral-800"}`}>
+            {children}
+          </li>
+        );
+      },
+      blockquote({ children }) {
+        return (
+          <blockquote
+            className={`my-2 pl-3 border-l-2 italic ${
+              dark
+                ? "border-cyan-500/60 text-neutral-300 bg-white/[.02] py-1 rounded-r"
+                : "border-blue-500 text-neutral-700 bg-neutral-100 py-1 rounded-r"
+            }`}
+          >
+            {children}
+          </blockquote>
+        );
+      },
+      hr() {
+        return <hr className={`my-4 border-t ${dark ? "border-white/10" : "border-neutral-200"}`} />;
+      },
+    }),
+    [dark]
+  );
+
+  return (
+    <div className="space-y-1 text-[15px] leading-relaxed break-words">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={components}
+      >
+        {normalized}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 /* =========================================================================
