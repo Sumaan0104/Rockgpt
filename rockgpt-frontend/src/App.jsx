@@ -139,6 +139,51 @@ function Inline({ text, dark }) {
   );
 }
 
+function CodeBlock({ lang, code, dark }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div
+      className={`my-3 overflow-hidden rounded-xl border ${
+        dark ? "border-white/10 bg-[#0a0a0a]" : "border-neutral-300/80 bg-neutral-900 text-white shadow-sm"
+      }`}
+    >
+      <div
+        className={`flex items-center justify-between border-b px-3 py-1.5 ${
+          dark ? "border-white/10 bg-[#121212]" : "border-neutral-800 bg-neutral-950"
+        }`}
+      >
+        <span className="text-[11px] font-mono font-medium text-neutral-400">{lang || "code"}</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-neutral-400 hover:bg-white/[.08] hover:text-white transition"
+        >
+          {copied ? (
+            <>
+              <Check size={12} className="text-emerald-400" />
+              <span className="text-emerald-400">Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy size={12} />
+              <span>Copy code</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3 text-[13px] leading-6 text-neutral-200 font-mono">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
 function MessageContent({ content, dark }) {
   const lines = (content || "").split("\n");
   const output = [];
@@ -148,29 +193,12 @@ function MessageContent({ content, dark }) {
 
   const flushCode = () => {
     output.push(
-      <div
+      <CodeBlock
         key={output.length}
-        className={`my-3 overflow-hidden rounded-xl border ${
-          dark ? "border-white/10 bg-[#0a0a0a]" : "border-neutral-300/80 bg-neutral-900 text-white shadow-sm"
-        }`}
-      >
-        <div
-          className={`flex items-center justify-between border-b px-3 py-1.5 ${
-            dark ? "border-white/10 bg-[#121212]" : "border-neutral-800 bg-neutral-950"
-          }`}
-        >
-          <span className="text-[11px] font-mono font-medium text-neutral-400">{lang || "code"}</span>
-          <button
-            onClick={() => navigator.clipboard.writeText(codeLines.join("\n"))}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-neutral-400 hover:bg-white/[.08] hover:text-white"
-          >
-            <Copy size={12} /> Copy code
-          </button>
-        </div>
-        <pre className="overflow-x-auto p-3 text-[13px] leading-6 text-neutral-200 font-mono">
-          <code>{codeLines.join("\n")}</code>
-        </pre>
-      </div>
+        lang={lang}
+        code={codeLines.join("\n")}
+        dark={dark}
+      />
     );
   };
 
@@ -2167,7 +2195,7 @@ export default function RockGPT() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streaming]);
+  }, [messages, streaming, typing]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2405,11 +2433,6 @@ export default function RockGPT() {
 
   const streamFromBackend = async (history, convId) => {
     setStreaming("");
-    const is4o = selectedModel === "RockGPT 4o";
-    setThinkingLabel(is4o ? "RockGPT 4o is analyzing prompt & context..." : "RockGPT Flash is formulating response...");
-    const t1 = setTimeout(() => setThinkingLabel(is4o ? "Exploring multi-step reasoning pathways..." : "Synthesizing fast response..."), 2500);
-    const t2 = setTimeout(() => setThinkingLabel(is4o ? "Structuring deep solution & code..." : "Streaming instant tokens..."), 5500);
-
     let fullText = "";
     const controller = new AbortController();
     abortRef.current = controller;
@@ -2445,36 +2468,43 @@ export default function RockGPT() {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n\n");
-        buffer = lines.pop();
+        buffer = lines.pop() || "";
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
-          const parsed = JSON.parse(line.replace("data: ", ""));
-          if (parsed.token) {
-            fullText += parsed.token;
-            setStreaming(fullText);
-          }
-          if (parsed.error) {
-            fullText = parsed.error;
-            setStreaming(fullText);
+          try {
+            const raw = line.slice(6).trim();
+            if (!raw || raw === "[DONE]") continue;
+            const parsed = JSON.parse(raw);
+            if (parsed.token) {
+              fullText += parsed.token;
+              setStreaming(fullText);
+            }
+            if (parsed.error) {
+              fullText = parsed.error;
+              setStreaming(fullText);
+            }
+          } catch {
+            // safely ignore partial or fragmented SSE line
           }
         }
       }
     } catch (err) {
       if (err.name !== "AbortError") {
+        console.error("Stream error:", err);
         fullText = "Failed to reach RockGPT backend. Please try again.";
         setStreaming(fullText);
       }
     } finally {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      const m = { id: uid("msg"), role: "assistant", content: fullText, createdAt: new Date(), liked: null };
       setStreaming("");
       setTyping(false);
-      setMessages((prev) => [...prev, m]);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, m], updatedAt: new Date() } : c))
-      );
       abortRef.current = null;
+      if (fullText.trim()) {
+        const m = { id: uid("msg"), role: "assistant", content: fullText, createdAt: new Date(), liked: null };
+        setMessages((prev) => [...prev, m]);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, m], updatedAt: new Date() } : c))
+        );
+      }
     }
   };
 
@@ -2724,6 +2754,61 @@ export default function RockGPT() {
         @keyframes waveBars {
           0%, 100% { height: 4px; }
           50% { height: 14px; }
+        }
+        @keyframes workingShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes workingGlow {
+          0%, 100% {
+            filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.45)) drop-shadow(0 0 1px rgba(245, 158, 11, 0.25));
+          }
+          50% {
+            filter: drop-shadow(0 0 9px rgba(96, 165, 250, 0.65)) drop-shadow(0 0 3px rgba(245, 158, 11, 0.4));
+          }
+        }
+        .working-shimmer-text {
+          display: inline-flex;
+          align-items: center;
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: -0.01em;
+          background: linear-gradient(
+            90deg,
+            #60a5fa 0%,
+            #38bdf8 22%,
+            #ffffff 48%,
+            #fef08a 70%,
+            #f59e0b 86%,
+            #60a5fa 100%
+          );
+          background-size: 200% auto;
+          color: transparent;
+          -webkit-background-clip: text;
+          background-clip: text;
+          animation: workingShimmer 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite, workingGlow 3s ease-in-out infinite;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .working-shimmer-text-light {
+          display: inline-flex;
+          align-items: center;
+          font-size: 15px;
+          font-weight: 600;
+          letter-spacing: -0.01em;
+          background: linear-gradient(
+            90deg,
+            #2563eb 0%,
+            #0284c7 25%,
+            #0f172a 50%,
+            #d97706 75%,
+            #2563eb 100%
+          );
+          background-size: 200% auto;
+          color: transparent;
+          -webkit-background-clip: text;
+          background-clip: text;
+          animation: workingShimmer 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -3459,56 +3544,36 @@ export default function RockGPT() {
 
               {typing && (
                 <div className="rise mb-8 flex items-start gap-3">
-                  {/* Glowing Neural Avatar */}
+                  {/* Avatar Icon */}
                   <div className="relative shrink-0 mt-0.5">
-                    <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-amber-500/30 via-purple-500/30 to-blue-500/30 blur-sm animate-pulse" />
                     <div
-                      className={`relative grid h-8 w-8 place-items-center rounded-xl border shadow-md ${
-                        dark ? "border-amber-500/30 bg-[#151515]" : "border-amber-500/40 bg-white"
+                      className={`grid h-8 w-8 place-items-center rounded-xl border shadow-sm ${
+                        dark
+                          ? "border-white/10 bg-[#161616] text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.12)]"
+                          : "border-neutral-200 bg-white text-amber-600 shadow-sm"
                       }`}
                     >
-                      <Sparkles size={16} className="text-amber-400 animate-spin" style={{ animationDuration: "8s" }} />
+                      <Sparkles size={16} className="text-amber-400" />
                     </div>
                   </div>
 
                   <div className="min-w-0 flex-1 pt-0.5">
-                    {streaming ? (
-                      <div className={`text-[15px] leading-7 ${dark ? "text-white/90" : "text-neutral-800"}`}>
-                        <MessageContent content={streaming} dark={dark} />
-                        <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-gradient-to-t from-amber-500 to-amber-300 stream-cursor align-middle shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                    {!streaming ? (
+                      <div className="flex items-center py-1">
+                        <span className={`${dark ? "working-shimmer-text" : "working-shimmer-text-light"} select-none`}>
+                          Working...
+                        </span>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        {/* Dynamic Reasoning Pill with Animated Wave */}
-                        <div
-                          className="inline-flex items-center gap-2.5 rounded-2xl border px-3.5 py-2 text-xs font-medium backdrop-blur-md transition shadow-sm"
-                          style={{
-                            borderColor: dark ? "rgba(245,158,11,0.25)" : "rgba(245,158,11,0.35)",
-                            background: dark ? "rgba(22,22,22,0.9)" : "rgba(255,255,255,0.95)",
-                          }}
-                        >
-                          {/* Animated Multi-color Wave Bars */}
-                          <div className="flex items-center gap-1 h-3">
-                            <span className="w-1 bg-amber-500 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0s" }} />
-                            <span className="w-1 bg-amber-400 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0.2s" }} />
-                            <span className="w-1 bg-purple-400 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0.4s" }} />
-                            <span className="w-1 bg-blue-400 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
-                          </div>
-
-                          <span className="bg-gradient-to-r from-amber-400 via-purple-300 to-blue-400 bg-clip-text font-semibold text-transparent">
-                            {thinkingLabel}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`${dark ? "working-shimmer-text" : "working-shimmer-text-light"} text-xs font-semibold select-none`}>
+                            Working...
                           </span>
                         </div>
-
-                        {/* Shimmering Neural Aurora Line */}
-                        <div
-                          className="h-1 max-w-[280px] overflow-hidden rounded-full border"
-                          style={{
-                            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-                            background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-                          }}
-                        >
-                          <div className="h-full w-full aurora-shimmer rounded-full" />
+                        <div className={`text-[15px] leading-7 ${dark ? "text-white/90" : "text-neutral-800"}`}>
+                          <MessageContent content={streaming} dark={dark} />
+                          <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-gradient-to-t from-amber-500 to-amber-300 stream-cursor align-middle shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
                         </div>
                       </div>
                     )}
