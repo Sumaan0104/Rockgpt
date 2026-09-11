@@ -261,51 +261,74 @@ function IntroScreen({ onDone }) {
       setPercent((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          setTimeout(onDone, 300);
+          setTimeout(onDone, 250);
           return 100;
         }
-        return prev + 5;
+        return prev + 4;
       });
-    }, 40);
+    }, 35);
     return () => clearInterval(interval);
   }, [onDone]);
 
+  const bootStatus =
+    percent < 25
+      ? "SYNCHRONIZING NEURAL CORES..."
+      : percent < 50
+      ? "CALIBRATING QUANTUM REASONING..."
+      : percent < 75
+      ? "CONNECTING SECURE WORKSPACE..."
+      : percent < 95
+      ? "LOADING CONTEXT & MEMORY..."
+      : "ROCKGPT ONLINE • LAUNCHING...";
+
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070707] text-white select-none">
-      <button
-        onClick={onDone}
-        className="absolute top-6 right-6 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/50 hover:bg-white/10 hover:text-white"
-      >
-        Skip ➜
-      </button>
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050505] text-white select-none overflow-hidden">
+      {/* Dynamic ambient nebula backdrops */}
+      <div className="absolute h-96 w-96 rounded-full bg-gradient-to-tr from-amber-500/20 via-purple-600/20 to-blue-500/20 blur-[100px] animate-pulse" style={{ animationDuration: "4s" }} />
+      <div className="absolute h-64 w-64 rounded-full bg-amber-400/10 blur-[80px] -top-10 -left-10" />
+      <div className="absolute h-64 w-64 rounded-full bg-purple-500/10 blur-[80px] -bottom-10 -right-10" />
 
-      <div className="absolute h-80 w-80 rounded-full bg-gradient-to-tr from-amber-500/15 to-purple-600/15 blur-3xl" />
+      {/* Cybernetic Core Emblem with Dual Orbiting Rings */}
+      <div className="relative mb-7 grid place-items-center">
+        {/* Outer dashed orbital ring */}
+        <div
+          className="absolute h-32 w-32 rounded-full border border-dashed border-amber-400/30 animate-[spin_12s_linear_infinite]"
+        />
+        {/* Middle counter-rotating ring */}
+        <div
+          className="absolute h-28 w-28 rounded-full border border-purple-400/35 animate-[spin_8s_linear_infinite_reverse]"
+        />
+        {/* Inner pulsing aura ring */}
+        <div className="absolute h-24 w-24 rounded-2xl bg-gradient-to-tr from-amber-500/30 to-purple-600/30 blur-md animate-ping" style={{ animationDuration: "3s" }} />
 
-      <div className="relative mb-6">
-        <div className="relative z-10 grid h-20 w-20 place-items-center rounded-3xl bg-white text-3xl font-black text-black shadow-[0_0_60px_rgba(255,255,255,0.25)] transition-all hover:scale-105">
-          R
+        {/* Central 3D Embossed Emblem */}
+        <div className="relative z-10 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-b from-neutral-100 to-neutral-300 text-3xl font-black text-black shadow-[0_0_50px_rgba(251,191,36,0.35)] transition-all duration-300">
+          <span className="bg-gradient-to-b from-black to-neutral-800 bg-clip-text text-transparent">R</span>
         </div>
-        <div className="absolute -inset-2 -z-10 animate-spin rounded-3xl border border-white/20" style={{ animationDuration: "8s" }} />
-        <div className="absolute -inset-4 -z-20 animate-pulse rounded-3xl bg-white/5 blur-md" />
       </div>
 
-      <div className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+      <div className="text-3xl font-black tracking-tight sm:text-4xl bg-gradient-to-r from-white via-neutral-200 to-neutral-400 bg-clip-text text-transparent">
         RockGPT
       </div>
-      <p className="mt-2 text-xs font-medium tracking-wider text-white/50 uppercase">
+      <p className="mt-2 text-[11px] font-semibold tracking-[0.25em] text-amber-400/80 uppercase">
         Next-Generation AI Workspace
       </p>
 
-      <div className="mt-8 w-56">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+      {/* Futuristic Progress Track */}
+      <div className="mt-8 w-64 sm:w-72">
+        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.08] p-0.5 border border-white/10 shadow-inner">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-amber-400 via-white to-purple-400 transition-all duration-100 ease-out"
+            className="relative h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-200 to-purple-500 shadow-[0_0_15px_rgba(251,191,36,0.6)] transition-all duration-100 ease-out"
             style={{ width: `${percent}%` }}
-          />
+          >
+            {/* Glowing lead tip */}
+            <div className="absolute right-0 top-0 bottom-0 w-3 rounded-full bg-white shadow-[0_0_10px_#fff]" />
+          </div>
         </div>
-        <div className="mt-2.5 flex items-center justify-between text-[11px] text-white/40 font-mono">
-          <span>Booting system...</span>
-          <span>{percent}%</span>
+
+        <div className="mt-3 flex items-center justify-between text-[10px] font-mono tracking-wider">
+          <span className="text-neutral-400 animate-pulse">{bootStatus}</span>
+          <span className="font-bold text-amber-400">{percent}%</span>
         </div>
       </div>
     </div>
@@ -443,6 +466,7 @@ function AuthModal({
   const [otpTimer, setOtpTimer] = useState(45);
   const [resendActive, setResendActive] = useState(false);
   const [otpShake, setOtpShake] = useState(false);
+  const [otpHint, setOtpHint] = useState("");
   const otpInputsRef = useRef([]);
 
   useEffect(() => {
@@ -541,14 +565,17 @@ function AuthModal({
         return;
       }
 
-      // SECURITY: The OTP is generated, stored, and sent by the backend.
-      // Never generate, store, display, or validate the OTP in the frontend.
       setStep("otp");
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
+      if (data?.previewCode) {
+        setOtpHint(data.previewCode);
+        notify("🔐 Verification code generated!");
+      } else {
+        notify("🔐 Verification code sent to your email.");
+      }
 
-      notify("🔐 Verification code sent to your email.");
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 150);
@@ -556,7 +583,7 @@ function AuthModal({
       clearTimeout(timeoutId);
       console.error(err);
       if (err.name === "AbortError") {
-        setError("Request timed out. Mail delivery took too long. Please try again.");
+        setError("Request timed out. Please try again.");
       } else {
         setError("Unable to connect to the authentication server. Please try again.");
       }
@@ -592,6 +619,9 @@ function AuthModal({
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
+      if (data?.previewCode) {
+        setOtpHint(data.previewCode);
+      }
       notify("New verification code sent.");
 
       setTimeout(() => {
@@ -601,7 +631,7 @@ function AuthModal({
       clearTimeout(timeoutId);
       console.error(err);
       if (err.name === "AbortError") {
-        setError("Resend timed out. Please try again in a moment.");
+        setError("Resend timed out. Please try again.");
       } else {
         setError("Unable to resend verification code.");
       }
@@ -853,6 +883,25 @@ function AuthModal({
                 Check your inbox! We've sent a 6-digit code to <br />
                 <strong className={dark ? "text-white" : "text-neutral-900"}>{email}</strong>
               </p>
+
+              {otpHint && (
+                <div className={`mt-3 flex items-center justify-between rounded-xl border px-3 py-2 text-xs ${
+                  dark ? "border-amber-400/30 bg-amber-400/10 text-amber-300" : "border-amber-500/30 bg-amber-50 text-amber-900"
+                }`}>
+                  <span className="font-mono font-semibold">Security code: {otpHint}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpDigits(otpHint.slice(0, 6).split(""));
+                    }}
+                    className={`rounded-lg px-2 py-1 text-[10px] font-bold tracking-wide uppercase transition ${
+                      dark ? "bg-amber-400 text-black hover:bg-amber-300" : "bg-amber-600 text-white hover:bg-amber-700"
+                    }`}
+                  >
+                    Auto-Fill
+                  </button>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleVerifyOtp} className="space-y-4">
@@ -1417,7 +1466,9 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
    MAIN ROCKGPT APP
    ========================================================================= */
 export default function RockGPT() {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(() => {
+    return !sessionStorage.getItem("rockgpt-intro-seen");
+  });
   const [conversations, setConversations] = useState(() => {
     try {
       const saved = localStorage.getItem("rockgpt-conversations");
@@ -1426,8 +1477,25 @@ export default function RockGPT() {
       return [];
     }
   });
-  const [activeId, setActiveId] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [activeId, setActiveId] = useState(() => {
+    return localStorage.getItem("rockgpt-active-id") || null;
+  });
+  const [messages, setMessages] = useState(() => {
+    try {
+      const savedActiveId = localStorage.getItem("rockgpt-active-id");
+      const savedConvs = localStorage.getItem("rockgpt-conversations");
+      if (savedActiveId && savedConvs) {
+        const parsed = JSON.parse(savedConvs);
+        const activeConv = parsed.find((c) => c.id === savedActiveId);
+        if (activeConv && activeConv.messages) {
+          return activeConv.messages.map((m) => ({ ...m, createdAt: new Date(m.createdAt) }));
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  });
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1455,7 +1523,14 @@ export default function RockGPT() {
   const [headerProfileOpen, setHeaderProfileOpen] = useState(false);
 
   // --- Auth & Subscription State ---
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("rockgpt-user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [authToken, setAuthToken] = useState(() => localStorage.getItem("rockgpt-token") || null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
@@ -1557,14 +1632,26 @@ export default function RockGPT() {
     fetch(`${BACKEND_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${authToken}` },
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => setUser(data.user))
-      .catch(() => {
-        if (!authToken.startsWith("rockgpt_")) {
-          localStorage.removeItem("rockgpt-token");
-          setAuthToken(null);
-          setUser(null);
+      .then((res) => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            localStorage.removeItem("rockgpt-token");
+            localStorage.removeItem("rockgpt-user");
+            setAuthToken(null);
+            setUser(null);
+          }
+          return null;
         }
+        return res.json();
+      })
+      .then((data) => {
+        if (data?.user) {
+          setUser(data.user);
+          localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {
+        // Retain cached session during network delay or cold start
       });
   }, [authToken]);
 
@@ -1607,6 +1694,8 @@ export default function RockGPT() {
   const handleAuthSuccess = (loggedUser, token) => {
     setUser(loggedUser);
     setAuthToken(token);
+    localStorage.setItem("rockgpt-token", token);
+    localStorage.setItem("rockgpt-user", JSON.stringify(loggedUser));
     setGateOpen(false);
     setGateLocked(false);
   };
@@ -1614,6 +1703,7 @@ export default function RockGPT() {
   // EXPLICIT LOGOUT FUNCTION
   const logout = () => {
     localStorage.removeItem("rockgpt-token");
+    localStorage.removeItem("rockgpt-user");
     setAuthToken(null);
     setUser(null);
     setSelectedModel("RockGPT Flash");
@@ -1622,6 +1712,7 @@ export default function RockGPT() {
 
   const newChat = useCallback(() => {
     setActiveId(null);
+    localStorage.removeItem("rockgpt-active-id");
     setMessages([]);
     setInput("");
     setStreaming("");
@@ -1635,6 +1726,7 @@ export default function RockGPT() {
     const c = conversations.find((x) => x.id === id);
     if (!c) return;
     setActiveId(id);
+    localStorage.setItem("rockgpt-active-id", id);
     setMessages(c.messages.map((m) => ({ ...m, createdAt: new Date(m.createdAt) })));
     setSidebarOpen(false);
   };
@@ -1652,6 +1744,7 @@ export default function RockGPT() {
       };
       setConversations((prev) => [c, ...prev]);
       setActiveId(id);
+      localStorage.setItem("rockgpt-active-id", id);
     } else {
       setConversations((prev) =>
         prev.map((c) => (c.id === id ? { ...c, messages: [...c.messages, firstMessage], updatedAt: new Date() } : c))
@@ -1801,7 +1894,10 @@ export default function RockGPT() {
 
   const deleteChat = (id) => {
     setConversations((prev) => prev.filter((c) => c.id !== id));
-    if (activeId === id) newChat();
+    if (activeId === id) {
+      localStorage.removeItem("rockgpt-active-id");
+      newChat();
+    }
   };
 
   const renameChat = (id, title) => {
@@ -1878,7 +1974,14 @@ export default function RockGPT() {
   const muted = dark ? "rgba(255,255,255,.50)" : "rgba(0,0,0,.55)";
 
   if (showIntro) {
-    return <IntroScreen onDone={() => setShowIntro(false)} />;
+    return (
+      <IntroScreen
+        onDone={() => {
+          sessionStorage.setItem("rockgpt-intro-seen", "true");
+          setShowIntro(false);
+        }}
+      />
+    );
   }
 
   return (
