@@ -523,25 +523,47 @@ function AuthModal({
     if (e) e.preventDefault();
     setError("");
 
-    if (!email.trim() || (authMode !== "forgot" && !password.trim()) || (authMode === "signup" && !name.trim())) {
+    const form = e?.currentTarget?.tagName === "FORM" ? e.currentTarget : e?.target?.closest ? e.target.closest("form") : null;
+    const effectiveName = (form?.elements?.name?.value || name || "").trim();
+    const effectiveEmail = (form?.elements?.email?.value || email || "").trim();
+    const effectivePassword = form?.elements?.password?.value || password || "";
+
+    if (effectiveName && effectiveName !== name) setName(effectiveName);
+    if (effectiveEmail && effectiveEmail !== email) setEmail(effectiveEmail);
+    if (effectivePassword && effectivePassword !== password) setPassword(effectivePassword);
+
+    if (!effectiveEmail || (authMode !== "forgot" && !effectivePassword) || (authMode === "signup" && !effectiveName)) {
       setError("Please fill in all required fields.");
       return;
     }
 
+    if (authMode === "signup" && effectiveName.length < 2) {
+      setError("Full Name is required (minimum 2 characters).");
+      return;
+    }
+
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email.trim())) {
+    if (!emailRegex.test(effectiveEmail)) {
       setError("Please provide a valid email address (e.g. name@gmail.com).");
       return;
     }
 
     // Enforce strong password on signup
-    if (authMode === "signup" && !isPasswordStrong) {
+    const effectiveChecks = {
+      length: effectivePassword.length >= 8,
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(effectivePassword),
+      uppercase: /[A-Z]/.test(effectivePassword),
+      number: /[0-9]/.test(effectivePassword),
+    };
+    const isEffectivePasswordStrong = effectiveChecks.length && effectiveChecks.special && effectiveChecks.uppercase && effectiveChecks.number;
+
+    if (authMode === "signup" && !isEffectivePasswordStrong) {
       setError("Password must be 8+ characters with uppercase, number, and special character.");
       return;
     }
 
     // Enforce minimum length on login too
-    if (authMode === "login" && password.length < 8) {
+    if (authMode === "login" && effectivePassword.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
     }
@@ -549,7 +571,7 @@ function AuthModal({
     setLoading(true);
     setLoadingText("Sending verification code...");
     const t1 = setTimeout(() => setLoadingText("Connecting to server (Render free tier waking up)..."), 3500);
-    const t2 = setTimeout(() => setLoadingText("Generating secure verification code..."), 12000);
+    const t2 = setTimeout(() => setLoadingText("Dispatching email via Brevo..."), 10000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);
 
@@ -557,7 +579,7 @@ function AuthModal({
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, mode: authMode }),
+        body: JSON.stringify({ name: effectiveName, email: effectiveEmail, password: effectivePassword, mode: authMode }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -656,8 +678,20 @@ function AuthModal({
       return;
     }
 
+    const form = e?.currentTarget?.tagName === "FORM" ? e.currentTarget : e?.target?.closest ? e.target.closest("form") : null;
+    const effectiveName = (form?.elements?.name?.value || name || "").trim();
+    const effectiveEmail = (form?.elements?.email?.value || email || "").trim();
+    const effectivePassword = form?.elements?.password?.value || form?.elements?.newPassword?.value || password || "";
+
     if (authMode === "forgot") {
-      if (!isPasswordStrong) {
+      const pwdChecks = {
+        length: effectivePassword.length >= 8,
+        special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(effectivePassword),
+        uppercase: /[A-Z]/.test(effectivePassword),
+        number: /[0-9]/.test(effectivePassword),
+      };
+      const isPwdValid = pwdChecks.length && pwdChecks.special && pwdChecks.uppercase && pwdChecks.number;
+      if (!isPwdValid) {
         setError("New password must be 8+ characters with uppercase, number, and special character.");
         return;
       }
@@ -667,14 +701,14 @@ function AuthModal({
 
     try {
       let endpoint = "/api/auth/login";
-      let body = { email: email.trim(), password, otp: enteredOtp };
+      let body = { email: effectiveEmail, password: effectivePassword, otp: enteredOtp };
 
       if (authMode === "signup") {
         endpoint = "/api/auth/signup";
-        body = { name: name.trim(), email: email.trim(), password, otp: enteredOtp };
+        body = { name: effectiveName, email: effectiveEmail, password: effectivePassword, otp: enteredOtp };
       } else if (authMode === "forgot") {
         endpoint = "/api/auth/reset-password";
-        body = { email: email.trim(), otp: enteredOtp, newPassword: password };
+        body = { email: effectiveEmail, otp: enteredOtp, newPassword: effectivePassword };
       }
 
       const res = await fetch(`${BACKEND_URL}${endpoint}`, {
@@ -784,8 +818,12 @@ function AuthModal({
                 <div className="relative">
                   <User size={15} className="absolute left-3 top-3.5 text-neutral-500" />
                   <input
+                    name="name"
+                    id="auth-name"
+                    autoComplete="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onInput={(e) => setName(e.target.value)}
                     placeholder="Full Name"
                     className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
                       dark
@@ -799,8 +837,12 @@ function AuthModal({
               <div className="relative">
                 <Mail size={15} className="absolute left-3 top-3.5 text-neutral-500" />
                 <input
+                  name="email"
+                  id="auth-email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onInput={(e) => setEmail(e.target.value)}
                   placeholder="Email Address"
                   type="email"
                   className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
@@ -815,8 +857,12 @@ function AuthModal({
                 <div className="relative">
                   <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
                   <input
+                    name="password"
+                    id="auth-password"
+                    autoComplete={authMode === "signup" ? "new-password" : "current-password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    onInput={(e) => setPassword(e.target.value)}
                     placeholder="Password (min 8 chars)"
                     type="password"
                     className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
@@ -1030,8 +1076,12 @@ function AuthModal({
                   <div className="relative">
                     <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
                     <input
+                      name="newPassword"
+                      id="auth-new-password"
+                      autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      onInput={(e) => setPassword(e.target.value)}
                       placeholder="New Password (min 8 chars)"
                       type="password"
                       className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
@@ -2129,8 +2179,43 @@ export default function RockGPT() {
       style={{ background: surface, color: textColor, overscrollBehaviorY: "none" }}
     >
       <style>{`
-        html, body, #root { height: 100%; margin: 0; padding: 0; background: ${surface}; overscroll-behavior-y: none; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body, #root { 
+          height: 100%; 
+          margin: 0; 
+          padding: 0; 
+          background: ${surface}; 
+          overscroll-behavior-y: none;
+          -webkit-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          user-select: none;
+        }
+        *, *::before, *::after { 
+          box-sizing: border-box; 
+          -webkit-tap-highlight-color: transparent; 
+        }
+        /* Completely eliminate blinking text caret (|) when clicking or tapping text */
+        *:not(input):not(textarea):not([contenteditable="true"]) {
+          caret-color: transparent !important;
+        }
+        input, textarea, [contenteditable="true"] {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+          caret-color: ${dark ? "#f59e0b" : "#000000"} !important;
+        }
+        .selectable-text, .chat-bubble pre, .chat-bubble code, .chat-bubble p {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+        }
+        button, a, [role="button"] {
+          -webkit-user-select: none !important;
+          user-select: none !important;
+          cursor: pointer;
+        }
         textarea::-webkit-scrollbar { width: 0; }
         .thin::-webkit-scrollbar { width: 5px; }
         .thin::-webkit-scrollbar-thumb { background: ${dark ? "rgba(255,255,255,.14)" : "rgba(0,0,0,.15)"}; border-radius: 20px; }
@@ -2142,6 +2227,8 @@ export default function RockGPT() {
         @keyframes fadeOut { from {opacity:1} to {opacity:0; visibility:hidden} }
         @keyframes rise { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:translateY(0)} }
         @keyframes pop { from {opacity:0; transform:scale(.96) translateY(6px)} to {opacity:1; transform:scale(1) translateY(0)} }
+        @keyframes pulseGlow { 0% { box-shadow: 0 0 10px rgba(245,158,11,0.2); } 50% { box-shadow: 0 0 25px rgba(245,158,11,0.45); } 100% { box-shadow: 0 0 10px rgba(245,158,11,0.2); } }
+        .pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
         @keyframes blink { 50% { opacity:.35 } }
         .cursor-blink { animation: blink 1s step-end infinite; }
         @keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity:.4 } 30% { transform: translateY(-5px); opacity:1 } }
@@ -3122,6 +3209,26 @@ export default function RockGPT() {
                   style={!fastMode ? { borderColor: border } : {}}
                 >
                   {fastMode ? "On" : "Off"}
+                </button>
+              </div>
+
+              {/* Replay Intro Animation */}
+              <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
+                <Sparkles size={17} className="text-amber-500" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Intro Animation</div>
+                  <div className="text-xs" style={{ color: muted }}>Play the futuristic startup sequence</div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    sessionStorage.removeItem("rockgpt-intro-seen");
+                    setShowIntro(true);
+                  }}
+                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-amber-500 hover:bg-amber-500/10 transition"
+                  style={{ borderColor: border }}
+                >
+                  Play
                 </button>
               </div>
 
