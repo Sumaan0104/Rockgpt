@@ -278,6 +278,12 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
     const otpR = verifyStoredOtp(em, otp);
     if (!otpR.valid) return res.status(400).json({ error: otpR.error });
 
+    // Strict password verification on account creation
+    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    if (!/[A-Z]/.test(password)) return res.status(400).json({ error: "Password must include at least one uppercase letter (A-Z)." });
+    if (!/[0-9]/.test(password)) return res.status(400).json({ error: "Password must include at least one number (0-9)." });
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return res.status(400).json({ error: "Password must include at least one special character (!@#$...)." });
+
     // Double check name and email uniqueness before saving
     if (await User.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } })) {
       return res.status(409).json({ error: `The name "${name.trim()}" is already taken. Please choose another.` });
@@ -293,7 +299,47 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
   } catch (err) { console.error("Signup:", err.message); res.status(500).json({ error: "Signup failed." }); }
 });
 
-// ═══ LOGIN ═══
+// ═══ DIRECT LOGIN (EMAIL + PASSWORD) ═══
+app.post("/api/auth/direct-login", authLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+    const em = email.trim().toLowerCase();
+    const user = await User.findOne({ email: em });
+    if (!user) {
+      return res.status(401).json({ error: "No account found with this email. Please check your spelling or sign up." });
+    }
+    const passMatch = await bcrypt.compare(password, user.password);
+    if (!passMatch) {
+      return res.status(401).json({ error: "Incorrect password for this account. Please verify your password or use 'Forgot password?' to reset it." });
+    }
+
+    // Check if subscription expired
+    if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date() && user.plan !== "Free") {
+      user.plan = "Free";
+      await user.save();
+    }
+
+    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: user.plan,
+        planExpiresAt: user.planExpiresAt,
+      },
+    });
+  } catch (err) {
+    console.error("Direct login error:", err.message);
+    res.status(500).json({ error: "Login failed. Please try again." });
+  }
+});
+
+// ═══ LOGIN (WITH OTP) ═══
 app.post("/api/auth/login", authLimiter, async (req, res) => {
   try {
     const { email, password, otp } = req.body;

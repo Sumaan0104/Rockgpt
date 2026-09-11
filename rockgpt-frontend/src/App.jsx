@@ -7,7 +7,7 @@ import {
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
   Lock, Volume2, VolumeX, Pin, Share2, Compass, Code2, BookOpen, PenTool,
   Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck, CreditCard,
-  SquarePen, PenLine
+  SquarePen, PenLine, Eye, EyeOff
 } from "lucide-react";
 
 const BACKEND_URL = "https://rockgpt.onrender.com";
@@ -268,7 +268,7 @@ function MessageContent({ content, dark }) {
    ========================================================================= */
 function RockLogo({ size = 32, dark = true, animated = false, className = "" }) {
   const uid = useMemo(() => `rl-${size}-${Math.random().toString(36).slice(2, 6)}`, [size]);
-  const gradAmber = `ga-${uid}`;
+  const gradPlatinum = `gp-${uid}`;
   const filterGlow = `fg-${uid}`;
 
   return (
@@ -282,17 +282,17 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
       style={{ overflow: "visible" }}
     >
       <defs>
-        {/* Luminous Platinum to Warm Golden Amber Gradient */}
-        <linearGradient id={gradAmber} x1="15" y1="8" x2="85" y2="92" gradientUnits="userSpaceOnUse">
+        {/* Pure Liquid Platinum to Diamond White Gradient */}
+        <linearGradient id={gradPlatinum} x1="15" y1="8" x2="85" y2="92" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="25%" stopColor="#fef08a" />
-          <stop offset="60%" stopColor="#f59e0b" />
-          <stop offset="100%" stopColor="#b45309" />
+          <stop offset="35%" stopColor="#f1f5f9" />
+          <stop offset="70%" stopColor="#cbd5e1" />
+          <stop offset="100%" stopColor="#64748b" />
         </linearGradient>
 
-        {/* Dynamic Bloom Filter */}
+        {/* Dynamic Studio Glow Filter */}
         <filter id={filterGlow} x="-20%" y="-20%" width="140%" height="140%" filterUnits="userSpaceOnUse">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="blur" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
@@ -303,9 +303,9 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
       {/* Hexagonal Quantum Crystal Shield */}
       <polygon
         points="50,6 88,27 88,73 50,94 12,73 12,27"
-        fill={dark ? "#0b0b0f" : "#ffffff"}
-        stroke={`url(#${gradAmber})`}
-        strokeWidth="3.5"
+        fill={dark ? "#09090b" : "#ffffff"}
+        stroke={`url(#${gradPlatinum})`}
+        strokeWidth="3.2"
         strokeLinejoin="round"
         filter={`url(#${filterGlow})`}
       />
@@ -313,7 +313,7 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
       {/* Internal Facet Geometric Precision Lines */}
       <path
         d="M50 6 L50 94 M12 27 L88 73 M12 73 L88 27"
-        stroke={dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"}
+        stroke={dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.08)"}
         strokeWidth="1.2"
       />
 
@@ -322,14 +322,14 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
         cx="50"
         cy="50"
         r="23"
-        fill={dark ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.05)"}
+        fill={dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)"}
       />
 
       {/* Unified Master "R" Monogram */}
       {/* 1. Vertical Pillar */}
       <path
         d="M33 26 V74"
-        stroke={`url(#${gradAmber})`}
+        stroke={`url(#${gradPlatinum})`}
         strokeWidth="7.5"
         strokeLinecap="round"
       />
@@ -337,16 +337,16 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
       {/* 2. Sweeping Dynamic Upper Loop */}
       <path
         d="M33 29 H53 C65 29 72 35 72 43 C72 51 65 57 53 57 H33"
-        stroke={`url(#${gradAmber})`}
+        stroke={`url(#${gradPlatinum})`}
         strokeWidth="7.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* 3. Aerodynamic Diagonal Power Leg — Unified Matching Gold */}
+      {/* 3. Aerodynamic Diagonal Power Leg */}
       <path
         d="M48 56 L68 74"
-        stroke={`url(#${gradAmber})`}
+        stroke={`url(#${gradPlatinum})`}
         strokeWidth="7.5"
         strokeLinecap="round"
       />
@@ -357,7 +357,7 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
         fill="#ffffff"
         filter={`url(#${filterGlow})`}
       />
-      <circle cx="52" cy="43" r="1.6" fill="#fffbeb" />
+      <circle cx="52" cy="43" r="1.6" fill="#ffffff" />
     </svg>
   );
 }
@@ -423,26 +423,26 @@ function IntroScreen({ onDone }) {
       `}</style>
       {/* Ambient Pulsing Atmospheric Light Pools */}
       <div
-        className="absolute h-[340px] w-[340px] sm:h-[460px] sm:w-[460px] rounded-full bg-gradient-to-tr from-amber-500/15 via-white/[0.04] to-amber-600/15 blur-[90px] animate-pulse"
+        className="absolute h-[340px] w-[340px] sm:h-[460px] sm:w-[460px] rounded-full bg-gradient-to-tr from-white/[0.08] via-white/[0.03] to-white/[0.06] blur-[100px] animate-pulse"
         style={{ animationDuration: "3s" }}
       />
-      <div className="absolute h-60 w-60 rounded-full bg-white/[0.03] blur-[80px] -top-8 -right-8" />
-      <div className="absolute h-60 w-60 rounded-full bg-amber-500/10 blur-[80px] -bottom-8 -left-8" />
+      <div className="absolute h-60 w-60 rounded-full bg-white/[0.04] blur-[80px] -top-8 -right-8" />
+      <div className="absolute h-60 w-60 rounded-full bg-white/[0.03] blur-[80px] -bottom-8 -left-8" />
 
       {/* Gentle Constellation Starlight Dust */}
-      <div className="absolute top-[20%] left-[18%] h-1.5 w-1.5 rounded-full bg-amber-400/70 animate-ping" style={{ animationDuration: "2.4s" }} />
-      <div className="absolute top-[30%] right-[18%] h-1.5 w-1.5 rounded-full bg-white/70 animate-pulse" style={{ animationDuration: "1.8s" }} />
-      <div className="absolute bottom-[28%] left-[22%] h-2 w-2 rounded-full bg-yellow-300/60 animate-pulse" style={{ animationDuration: "2.8s" }} />
-      <div className="absolute bottom-[32%] right-[24%] h-1 w-1 rounded-full bg-amber-200/60 animate-ping" style={{ animationDuration: "2s" }} />
+      <div className="absolute top-[20%] left-[18%] h-1.5 w-1.5 rounded-full bg-white/70 animate-ping" style={{ animationDuration: "2.4s" }} />
+      <div className="absolute top-[30%] right-[18%] h-1.5 w-1.5 rounded-full bg-white/90 animate-pulse" style={{ animationDuration: "1.8s" }} />
+      <div className="absolute bottom-[28%] left-[22%] h-2 w-2 rounded-full bg-white/60 animate-pulse" style={{ animationDuration: "2.8s" }} />
+      <div className="absolute bottom-[32%] right-[24%] h-1 w-1 rounded-full bg-white/80 animate-ping" style={{ animationDuration: "2s" }} />
 
       {/* Center 3D Floating Crystal Emblem */}
       <div className="relative mb-6 sm:mb-8 grid place-items-center">
         {/* Outer Concentric Ethereal Halo Rings */}
-        <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full border border-amber-400/20 animate-[spin_14s_linear_infinite]" />
-        <div className="absolute h-32 w-32 sm:h-40 sm:w-40 rounded-full border border-dashed border-white/15 animate-[spin_10s_linear_infinite_reverse]" />
+        <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full border border-white/20 animate-[spin_14s_linear_infinite]" />
+        <div className="absolute h-32 w-32 sm:h-40 sm:w-40 rounded-full border border-dashed border-white/10 animate-[spin_10s_linear_infinite_reverse]" />
 
         {/* Radiant Center Glow Orb */}
-        <div className="absolute h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-tr from-amber-500/30 via-yellow-400/20 to-white/20 blur-xl animate-pulse" />
+        <div className="absolute h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-white/[0.08] blur-xl animate-pulse" />
 
         {/* Floating RockLogo */}
         <div className="relative z-10 animate-[logoFloat_3s_ease-in-out_infinite]">
@@ -450,19 +450,19 @@ function IntroScreen({ onDone }) {
             size={84}
             dark={true}
             animated={false}
-            className="drop-shadow-[0_0_35px_rgba(245,158,11,0.55)] sm:w-[100px] sm:h-[100px]"
+            className="drop-shadow-[0_0_35px_rgba(255,255,255,0.4)] sm:w-[100px] sm:h-[100px]"
           />
         </div>
       </div>
 
       {/* Brand Typography & Tagline */}
       <div className="text-center px-4">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-0.5 text-[10px] font-bold tracking-widest text-amber-300 uppercase shadow-inner mb-2">
-          <Sparkles size={11} className="text-amber-400 animate-spin" style={{ animationDuration: "6s" }} />
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3 py-0.5 text-[10px] font-bold tracking-widest text-neutral-300 uppercase shadow-inner mb-2">
+          <Sparkles size={11} className="text-white/80 animate-spin" style={{ animationDuration: "6s" }} />
           <span>v4.2 Turbo • Quantum AI</span>
         </div>
 
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-amber-200 bg-clip-text text-transparent drop-shadow-sm">
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-neutral-400 bg-clip-text text-transparent drop-shadow-sm">
           RockGPT
         </h1>
         <p className="mt-1 text-[11px] sm:text-xs font-mono tracking-[0.2em] text-neutral-400 uppercase">
@@ -474,11 +474,11 @@ function IntroScreen({ onDone }) {
       <div className="mt-7 sm:mt-9 w-64 sm:w-76 px-2">
         <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07] p-0.5 border border-white/10 shadow-inner">
           <div
-            className="relative h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-300 to-white shadow-[0_0_15px_rgba(245,158,11,0.8)] transition-all duration-75 ease-out"
+            className="relative h-full rounded-full bg-gradient-to-r from-neutral-600 via-neutral-300 to-white shadow-[0_0_15px_rgba(255,255,255,0.7)] transition-all duration-75 ease-out"
             style={{ width: `${percent}%` }}
           >
             {/* White-Hot Laser Tip */}
-            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_10px_#ffffff,0_0_18px_#fde047]" />
+            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_10px_#ffffff,0_0_18px_#ffffff]" />
           </div>
         </div>
 
@@ -486,7 +486,7 @@ function IntroScreen({ onDone }) {
           <span className="text-neutral-400 animate-pulse truncate max-w-[180px] sm:max-w-[220px]">
             {statusLabel}
           </span>
-          <span className="font-bold text-amber-400 ml-2 font-mono">{percent}%</span>
+          <span className="font-bold text-white ml-2 font-mono">{percent}%</span>
         </div>
       </div>
 
@@ -622,6 +622,7 @@ function AuthModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Sending...");
@@ -641,6 +642,7 @@ function AuthModal({
       setName("");
       setEmail("");
       setPassword("");
+      setShowPassword(false);
       setOtpDigits(["", "", "", "", "", ""]);
       setLoading(false);
       setResendActive(false);
@@ -652,6 +654,7 @@ function AuthModal({
     setAuthMode(newMode);
     setError("");
     setPassword("");
+    setShowPassword(false);
     setOtpDigits(["", "", "", "", "", ""]);
   };
 
@@ -704,6 +707,61 @@ function AuthModal({
     number: /[0-9]/.test(password),
   };
   const isPasswordStrong = passwordChecks.length && passwordChecks.special && passwordChecks.uppercase && passwordChecks.number;
+
+  // Direct login with email + password (standard frictionless login)
+  const handleDirectLogin = async (e) => {
+    if (e) e.preventDefault();
+    setError("");
+
+    const form = e?.currentTarget?.tagName === "FORM" ? e.currentTarget : e?.target?.closest ? e.target.closest("form") : null;
+    const effectiveEmail = (form?.elements?.email?.value || email || "").trim();
+    const effectivePassword = form?.elements?.password?.value || password || "";
+
+    if (effectiveEmail && effectiveEmail !== email) setEmail(effectiveEmail);
+    if (effectivePassword && effectivePassword !== password) setPassword(effectivePassword);
+
+    if (!effectiveEmail || !effectivePassword) {
+      setError("Please enter both email and password.");
+      return;
+    }
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(effectiveEmail)) {
+      setError("Please enter a valid email address (e.g. name@gmail.com).");
+      return;
+    }
+
+    setLoading(true);
+    setLoadingText("Signing in securely...");
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/direct-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: effectiveEmail, password: effectivePassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.token) {
+        setError(data?.error || "Incorrect password. Please verify or use 'Forgot password?'.");
+        setOtpShake(true);
+        setTimeout(() => setOtpShake(false), 500);
+        return;
+      }
+
+      localStorage.setItem("rockgpt-token", data.token);
+      localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+      onSuccess(data.user, data.token);
+      notify(`Welcome back, ${data.user.name}!`);
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError("Unable to connect to the authentication server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRequestOtp = async (e) => {
     if (e) e.preventDefault();
@@ -977,9 +1035,37 @@ function AuthModal({
 
         {step === "credentials" ? (
           <div>
+            {/* Clear Mode Switcher Segmented Tabs */}
+            {authMode !== "forgot" && (
+              <div className="mb-4 grid grid-cols-2 rounded-xl bg-white/[0.05] p-1 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => switchAuthMode("login")}
+                  className={`rounded-lg py-1.5 text-xs font-semibold transition ${
+                    authMode === "login"
+                      ? "bg-white text-black shadow-sm"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchAuthMode("signup")}
+                  className={`rounded-lg py-1.5 text-xs font-semibold transition ${
+                    authMode === "signup"
+                      ? "bg-white text-black shadow-sm"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  Create Account
+                </button>
+              </div>
+            )}
+
             <div className="mb-5 text-center">
-              <div className="mx-auto mb-2.5 grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
-                {authMode === "forgot" ? <KeyRound size={24} /> : <Shield size={24} />}
+              <div className="mx-auto mb-2.5 grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.08] text-white shadow-inner border border-white/10">
+                {authMode === "forgot" ? <KeyRound size={22} /> : <Shield size={22} />}
               </div>
               <h2 className="text-lg font-bold tracking-tight">
                 {isGateLocked
@@ -988,18 +1074,18 @@ function AuthModal({
                   ? "Create Your Account"
                   : authMode === "forgot"
                   ? "Reset Your Password"
-                  : "Welcome to RockGPT"}
+                  : "Sign In to RockGPT"}
               </h2>
               <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
                 {authMode === "signup"
                   ? "Sign up with email to unlock cloud sync & personal memory."
                   : authMode === "forgot"
                   ? "Enter your registered email to receive a password reset code."
-                  : "Sign in to access your chat history and unlocked models."}
+                  : "Sign in with your email and password to access your chats."}
               </p>
             </div>
 
-            <form onSubmit={handleRequestOtp} className="space-y-2.5">
+            <form onSubmit={authMode === "login" ? handleDirectLogin : handleRequestOtp} className="space-y-2.5">
               {authMode === "signup" && (
                 <div className="relative">
                   <User size={15} className="absolute left-3 top-3.5 text-neutral-500" />
@@ -1046,18 +1132,27 @@ function AuthModal({
                     key={authMode}
                     name={authMode === "signup" ? "rockgpt_signup_pwd" : "password"}
                     id="auth-password"
-                    autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+                    autoComplete="off"
+                    spellCheck="false"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onInput={(e) => setPassword(e.target.value)}
                     placeholder={authMode === "signup" ? "Create a strong password (min 8 chars)" : "Password"}
-                    type="password"
-                    className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
+                    type={showPassword ? "text" : "password"}
+                    className={`w-full rounded-xl border py-2.5 pl-9 pr-10 text-xs outline-none transition ${
                       dark
                         ? "border-white/15 bg-white/[0.03] text-white focus:border-white/40"
                         : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
                     }`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-3 text-neutral-400 hover:text-white transition"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
                 </div>
               )}
 
@@ -1067,7 +1162,7 @@ function AuthModal({
                   <button
                     type="button"
                     onClick={() => switchAuthMode("forgot")}
-                    className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 hover:underline transition"
+                    className="text-[11px] font-semibold text-neutral-400 hover:text-white hover:underline transition"
                   >
                     Forgot password?
                   </button>
@@ -1109,7 +1204,7 @@ function AuthModal({
                             setAuthMode("login");
                             setError("");
                           }}
-                          className="mt-1.5 block text-xs font-bold text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                          className="mt-1.5 block text-xs font-bold text-white underline underline-offset-2 hover:text-neutral-300"
                         >
                           ➔ Switch to Sign In & Continue
                         </button>
@@ -1121,7 +1216,7 @@ function AuthModal({
                             setAuthMode("signup");
                             setError("");
                           }}
-                          className="mt-1.5 block text-xs font-bold text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                          className="mt-1.5 block text-xs font-bold text-white underline underline-offset-2 hover:text-neutral-300"
                         >
                           ➔ Switch to Sign Up & Create Account
                         </button>
@@ -1133,7 +1228,7 @@ function AuthModal({
                             setAuthMode("forgot");
                             setError("");
                           }}
-                          className="mt-1.5 block text-xs font-bold text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                          className="mt-1.5 block text-xs font-bold text-white underline underline-offset-2 hover:text-neutral-300"
                         >
                           ➔ Reset Forgotten Password with OTP
                         </button>
@@ -1157,7 +1252,13 @@ function AuthModal({
                   </>
                 ) : (
                   <>
-                    <span>{authMode === "forgot" ? "Send Reset Code" : "Send Verification Code"}</span>
+                    <span>
+                      {authMode === "forgot"
+                        ? "Send Reset Code"
+                        : authMode === "signup"
+                        ? "Send Verification Code"
+                        : "Sign In"}
+                    </span>
                     <ArrowRight size={14} />
                   </>
                 )}
@@ -1256,18 +1357,27 @@ function AuthModal({
                     <input
                       name="newPassword"
                       id="auth-new-password"
-                      autoComplete="new-password"
+                      autoComplete="off"
+                      spellCheck="false"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       onInput={(e) => setPassword(e.target.value)}
                       placeholder="New Password (min 8 chars)"
-                      type="password"
-                      className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
+                      type={showPassword ? "text" : "password"}
+                      className={`w-full rounded-xl border py-2.5 pl-9 pr-10 text-xs outline-none transition ${
                         dark
                           ? "border-white/15 bg-white/[0.03] text-white focus:border-white/40"
                           : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
                       }`}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-3 text-neutral-400 hover:text-white transition"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
 
                   {/* Password strength indicators */}
@@ -3158,48 +3268,70 @@ export default function RockGPT() {
 
       {/* Main Chat Area */}
       <main className="flex min-w-0 flex-1 flex-col">
-        {/* Top Header — Sleek Minimalist Header Matching Reference Image */}
+        {/* Top Header — Seamless Frosted Header Flowing Directly into Canvas */}
         <header
-          className="flex h-[58px] shrink-0 items-center justify-between border-b px-3 sm:px-5"
+          className="flex h-[58px] shrink-0 items-center justify-between px-3 sm:px-5 relative z-30 select-none"
           style={{
-            borderColor: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
-            background: dark ? "#000000" : "#ffffff",
+            background: "transparent",
           }}
         >
-          {/* Left: Circular Menu Button */}
+          {/* Left: Circular Frosted Menu Button */}
           <button
             onClick={() => setSidebarOpen(true)}
             title="Open sidebar"
-            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-95 ${
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm ${
               dark
-                ? "bg-white/[0.08] text-white/90 hover:bg-white/[0.14] hover:text-white"
-                : "bg-black/[0.06] text-neutral-800 hover:bg-black/[0.10]"
+                ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
             }`}
           >
-            <Menu size={20} strokeWidth={2.2} />
+            <Menu size={19} strokeWidth={2.2} />
           </button>
 
-          {/* Center: Minimalist Model Selector */}
+          {/* Center: Futuristic Frosted Model Selector Pill */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setModelDropdownOpen((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] sm:text-base font-semibold tracking-tight transition select-none cursor-pointer active:scale-95 ${
+              className={`group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs sm:text-[13px] font-semibold tracking-tight transition-all select-none cursor-pointer active:scale-95 shadow-sm backdrop-blur-md ${
                 dark
-                  ? "text-white/90 hover:text-white hover:bg-white/[0.05]"
-                  : "text-neutral-800 hover:text-neutral-950 hover:bg-black/[0.05]"
+                  ? "border-white/15 bg-white/[0.07] text-white hover:border-white/30 hover:bg-white/[0.12]"
+                  : "border-neutral-200 bg-neutral-100/90 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
               }`}
             >
-              <span>{selectedModel}</span>
-              <ChevronDown size={14} className={dark ? "text-white/40" : "text-neutral-500"} />
+              {selectedModel === "RockGPT Flash" ? (
+                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-sky-500/20 text-sky-400">
+                  <Zap size={11} className="fill-current" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-amber-500/20 text-amber-400">
+                  <Sparkles size={11} className="fill-current" />
+                </div>
+              )}
+              <span className="font-semibold text-sm">{selectedModel}</span>
+              <span
+                className={`hidden xs:inline-block rounded-full px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider ${
+                  selectedModel === "RockGPT Flash"
+                    ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                    : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                }`}
+              >
+                {selectedModel === "RockGPT Flash" ? "Flash" : "4o Omni"}
+              </span>
+              <ChevronDown
+                size={13}
+                className={`transition-transform duration-200 ${
+                  modelDropdownOpen ? "rotate-180 text-white" : dark ? "text-neutral-400 group-hover:text-white" : "text-neutral-500 group-hover:text-black"
+                }`}
+              />
             </button>
 
             {modelDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
                 <div
-                  className={`absolute left-1/2 -translate-x-1/2 top-11 z-50 w-72 max-w-[90vw] rounded-2xl border p-2 shadow-2xl pop ${
-                    dark ? "border-white/15 bg-[#161616]" : "border-neutral-200 bg-white"
+                  className={`absolute left-1/2 -translate-x-1/2 top-11 z-50 w-72 max-w-[90vw] rounded-2xl border p-2 shadow-2xl pop backdrop-blur-xl ${
+                    dark ? "border-white/15 bg-[#141416]/95" : "border-neutral-200 bg-white/95"
                   }`}
                 >
                   {/* RockGPT 4o option */}
@@ -3253,25 +3385,25 @@ export default function RockGPT() {
                     className={`mt-1 flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
                       selectedModel === "RockGPT Flash"
                         ? dark
-                          ? "bg-blue-500/15 border border-blue-500/30"
-                          : "bg-blue-50 border border-blue-300"
+                          ? "bg-sky-500/15 border border-sky-500/30"
+                          : "bg-sky-50 border border-sky-300"
                         : dark
                         ? "hover:bg-white/5 border border-transparent"
                         : "hover:bg-neutral-50 border border-transparent"
                     }`}
                   >
-                    <Zap size={16} className="mt-0.5 shrink-0 text-blue-500" />
+                    <Zap size={16} className="mt-0.5 shrink-0 text-sky-400 fill-sky-400/20" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
                           RockGPT Flash
                         </span>
                         {selectedModel === "RockGPT Flash" ? (
-                          <span className="flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] font-bold text-blue-400">
+                          <span className="flex items-center gap-1 rounded-full bg-sky-500/20 px-2 py-0.5 text-[9px] font-bold text-sky-400">
                             <Check size={10} /> Active
                           </span>
                         ) : (
-                          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                          <span className="rounded-full bg-sky-500/20 px-1.5 py-0.5 text-[9px] font-bold text-sky-400">
                             Free 20B
                           </span>
                         )}
@@ -3306,22 +3438,24 @@ export default function RockGPT() {
               <button
                 onClick={exportChat}
                 title="Export chat"
-                className={`hidden h-9 w-9 place-items-center rounded-lg transition sm:grid ${
-                  dark ? "text-white/80 hover:bg-white/[.08]" : "text-neutral-700 hover:bg-black/[.06]"
+                className={`hidden h-10 w-10 place-items-center rounded-full border transition sm:grid shadow-sm ${
+                  dark
+                    ? "border-white/10 bg-white/[0.06] text-white/80 hover:bg-white/[0.12] hover:text-white"
+                    : "border-black/10 bg-black/[0.05] text-neutral-700 hover:bg-black/[0.09]"
                 }`}
               >
                 <Download size={16} />
               </button>
             )}
 
-            {/* Circular New Chat Button */}
+            {/* Circular Frosted New Chat Button */}
             <button
               onClick={newChat}
               title="New chat"
-              className={`grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-95 ${
+              className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm ${
                 dark
-                  ? "bg-white/[0.08] text-white/90 hover:bg-white/[0.14] hover:text-white"
-                  : "bg-black/[0.06] text-neutral-800 hover:bg-black/[0.10]"
+                  ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                  : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
               }`}
             >
               <SquarePen size={18} strokeWidth={2.2} />

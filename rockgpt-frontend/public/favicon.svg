@@ -1,25 +1,25 @@
 <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="favAmber" x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
+    <linearGradient id="favPlatinum" x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="25%" stop-color="#fef08a"/>
-      <stop offset="60%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#b45309"/>
+      <stop offset="35%" stop-color="#f1f5f9"/>
+      <stop offset="70%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#64748b"/>
     </linearGradient>
     <filter id="favGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   </defs>
-  <polygon points="50,6 88,27 88,73 50,94 12,73 12,27" fill="#0b0b0f" stroke="url(#favAmber)" stroke-width="3.5" stroke-linejoin="round" filter="url(#favGlow)"/>
-  <path d="M50 6 L50 94 M12 27 L88 73 M12 73 L88 27" stroke="rgba(255,255,255,0.12)" stroke-width="1.2"/>
-  <circle cx="50" cy="50" r="23" fill="rgba(245,158,11,0.08)"/>
-  <path d="M33 26 V74" stroke="url(#favAmber)" stroke-width="7.5" stroke-linecap="round"/>
-  <path d="M33 29 H53 C65 29 72 35 72 43 C72 51 65 57 53 57 H33" stroke="url(#favAmber)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M48 56 L68 74" stroke="url(#favAmber)" stroke-width="7.5" stroke-linecap="round"/>
+  <polygon points="50,6 88,27 88,73 50,94 12,73 12,27" fill="#09090b" stroke="url(#favPlatinum)" stroke-width="3.2" stroke-linejoin="round" filter="url(#favGlow)"/>
+  <path d="M50 6 L50 94 M12 27 L88 73 M12 73 L88 27" stroke="rgba(255,255,255,0.14)" stroke-width="1.2"/>
+  <circle cx="50" cy="50" r="23" fill="rgba(255,255,255,0.05)"/>
+  <path d="M33 26 V74" stroke="url(#favPlatinum)" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M33 29 H53 C65 29 72 35 72 43 C72 51 65 57 53 57 H33" stroke="url(#favPlatinum)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 56 L68 74" stroke="url(#favPlatinum)" stroke-width="7.5" stroke-linecap="round"/>
   <path d="M52 38 Q52 43 57 43 Q52 43 52 48 Q52 43 47 43 Q52 43 52 38 Z" fill="#ffffff" filter="url(#favGlow)"/>
-  <circle cx="52" cy="43" r="1.6" fill="#fffbeb"/>
+  <circle cx="52" cy="43" r="1.6" fill="#ffffff"/>
 </svg>
