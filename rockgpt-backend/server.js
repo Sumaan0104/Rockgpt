@@ -75,10 +75,7 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
 
     if (mode === "signup") {
       if (await User.findOne({ email: em })) return res.status(409).json({ error: "Account already exists. Sign in instead." });
-      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
-      if (!/[A-Z]/.test(password)) return res.status(400).json({ error: "Password must include at least one uppercase letter." });
-      if (!/[0-9]/.test(password)) return res.status(400).json({ error: "Password must include at least one number." });
-      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return res.status(400).json({ error: "Password must include at least one special character." });
+      if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
     if (mode === "login") {
       const u = await User.findOne({ email: em });

@@ -1434,6 +1434,7 @@ export default function RockGPT() {
 
   // Profile Popover State
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [headerProfileOpen, setHeaderProfileOpen] = useState(false);
 
   // --- Auth & Subscription State ---
   const [user, setUser] = useState(null);
@@ -1526,6 +1527,7 @@ export default function RockGPT() {
         setModelDropdownOpen(false);
         setAuthModalOpen(false);
         setProfileMenuOpen(false);
+        setHeaderProfileOpen(false);
       }
     };
     window.addEventListener("keydown", handler);
@@ -2237,6 +2239,19 @@ export default function RockGPT() {
               </button>
             )}
 
+            {/* NEW CHAT BUTTON — top right */}
+            <button
+              onClick={newChat}
+              title="New chat (Ctrl+N)"
+              className={`grid h-9 w-9 place-items-center rounded-lg border transition ${
+                dark
+                  ? "border-white/15 text-white/80 hover:bg-white/[.08]"
+                  : "border-neutral-300 text-neutral-700 hover:bg-black/[.06]"
+              }`}
+            >
+              <Plus size={17} />
+            </button>
+
             <button
               onClick={() => setTheme(dark ? "light" : "dark")}
               title="Toggle theme"
@@ -2247,27 +2262,68 @@ export default function RockGPT() {
               {dark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
 
-            {/* TOP RIGHT PROFILE AVATAR & LOGOUT SHORTCUT */}
-            {user ? (
-              <button
-                onClick={() => setProfileMenuOpen((v) => !v)}
-                title="Account menu & logout"
-                className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white text-xs shadow-sm hover:scale-105 transition"
-              >
-                {user.name.slice(0, 1).toUpperCase()}
-              </button>
-            ) : (
-              <button
-                onClick={() => setAuthModalOpen(true)}
-                className={`rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
-                  dark
-                    ? "border-white/15 text-white hover:bg-white/10"
-                    : "border-neutral-300 text-neutral-800 hover:bg-neutral-100"
-                }`}
-              >
-                Sign in
-              </button>
-            )}
+            {/* TOP RIGHT PROFILE AVATAR WITH PROPER DROPDOWN */}
+            <div className="relative">
+              {user ? (
+                <button
+                  onClick={() => setHeaderProfileOpen((v) => !v)}
+                  title="Account menu & logout"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white text-xs shadow-sm hover:scale-105 transition"
+                >
+                  {user.name.slice(0, 1).toUpperCase()}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  className={`rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
+                    dark
+                      ? "border-white/15 text-white hover:bg-white/10"
+                      : "border-neutral-300 text-neutral-800 hover:bg-neutral-100"
+                  }`}
+                >
+                  Sign in
+                </button>
+              )}
+
+              {/* Header profile dropdown — positioned at top-right */}
+              {headerProfileOpen && user && (
+                <>
+                  <div className="fixed inset-0 z-50" onClick={() => setHeaderProfileOpen(false)} />
+                  <div
+                    className={`absolute right-0 top-11 z-50 w-64 rounded-2xl border p-2 shadow-2xl pop ${
+                      dark ? "border-white/15 bg-[#161616] text-white" : "border-neutral-200 bg-white text-neutral-900 shadow-xl"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 border-b pb-3 px-2 pt-1" style={{ borderColor: dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }}>
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white shadow-sm">
+                        {user.name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-bold">{user.name}</div>
+                        <div className="truncate text-[10px] text-neutral-400">{user.email}</div>
+                        <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                          user.plan === "Plus" || user.plan === "Pro"
+                            ? "bg-amber-500/20 text-amber-400"
+                            : "bg-neutral-500/20 text-neutral-400"
+                        }`}>{user.plan || "Free"} Plan</span>
+                      </div>
+                    </div>
+                    <div className="pt-2 space-y-0.5">
+                      <button onClick={() => { setHeaderProfileOpen(false); setPricingOpen(true); }} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition ${dark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"}`}>
+                        <Crown size={15} className="text-amber-500" /> <span className="flex-1">Upgrade / Subscription</span>
+                      </button>
+                      <button onClick={() => { setHeaderProfileOpen(false); setSettingsOpen(true); }} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition ${dark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"}`}>
+                        <Settings size={15} className="text-neutral-400" /> <span className="flex-1">Settings</span>
+                      </button>
+                      <div className="my-1 border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />
+                      <button onClick={() => { setHeaderProfileOpen(false); logout(); }} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-red-500 hover:bg-red-500/10 transition">
+                        <LogOut size={15} /> <span className="flex-1">Log out of RockGPT</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -2773,6 +2829,7 @@ export default function RockGPT() {
             </div>
 
             <div className="space-y-3">
+              {/* Appearance */}
               <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
                 {dark ? <Moon size={17} /> : <Sun size={17} />}
                 <div className="flex-1">
@@ -2786,6 +2843,71 @@ export default function RockGPT() {
                 >
                   {dark ? "Light" : "Dark"}
                 </button>
+              </div>
+
+              {/* Fast Mode */}
+              <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
+                <Gauge size={17} className="text-blue-500" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Fast Mode</div>
+                  <div className="text-xs" style={{ color: muted }}>Shorter, faster responses for quick tasks</div>
+                </div>
+                <button
+                  onClick={() => { setFastMode((v) => !v); notify(fastMode ? "Fast Mode off" : "Fast Mode on"); }}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    fastMode
+                      ? dark ? "bg-blue-500 text-white" : "bg-blue-600 text-white"
+                      : "border"
+                  }`}
+                  style={!fastMode ? { borderColor: border } : {}}
+                >
+                  {fastMode ? "On" : "Off"}
+                </button>
+              </div>
+
+              {/* Clear All Chats */}
+              <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
+                <Trash2 size={17} className="text-red-400" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Clear All Chats</div>
+                  <div className="text-xs" style={{ color: muted }}>Permanently delete all saved conversations</div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (window.confirm("Are you sure? This will delete ALL chat history forever.")) {
+                      setConversations([]);
+                      newChat();
+                      notify("All chats cleared");
+                    }
+                  }}
+                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/20 transition"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {/* Keyboard Shortcuts */}
+              <div className="rounded-xl border p-3" style={{ borderColor: border }}>
+                <div className="flex items-center gap-3 mb-2.5">
+                  <Code2 size={17} className="text-purple-400" />
+                  <div className="text-sm font-medium">Keyboard Shortcuts</div>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { keys: "Ctrl + N", desc: "New chat" },
+                    { keys: "Ctrl + B", desc: "Toggle sidebar" },
+                    { keys: "Enter", desc: "Send message" },
+                    { keys: "Shift + Enter", desc: "New line in message" },
+                    { keys: "Esc", desc: "Close modals" },
+                  ].map((s, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span style={{ color: muted }}>{s.desc}</span>
+                      <kbd className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                        dark ? "bg-white/10 text-white/70" : "bg-neutral-200 text-neutral-700"
+                      }`}>{s.keys}</kbd>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* ACCOUNT & EXPLICIT LOGOUT SECTION */}
@@ -2828,6 +2950,31 @@ export default function RockGPT() {
                     </button>
                   </div>
                 )}
+              </div>
+
+              {/* About RockGPT */}
+              <div className="rounded-xl border p-3" style={{ borderColor: border }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <RockMark small dark={dark} />
+                  <div>
+                    <div className="text-sm font-bold">RockGPT</div>
+                    <div className="text-[10px]" style={{ color: muted }}>Next-Generation AI Workspace</div>
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs" style={{ color: muted }}>
+                  <div className="flex justify-between">
+                    <span>Version</span>
+                    <span className="font-mono font-semibold" style={{ color: textColor }}>2.1.0</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Developer</span>
+                    <span className="font-semibold" style={{ color: textColor }}>Suman Mansuri (Rock)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Organization</span>
+                    <span className="font-semibold" style={{ color: textColor }}>Aura Crystal Divine</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
