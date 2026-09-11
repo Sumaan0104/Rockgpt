@@ -31,10 +31,33 @@ mongoose
 
 const groq = new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: "https://api.groq.com/openai/v1" });
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+function createTransporter(port = 465, secure = true) {
+  const cleanPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
+  const cleanUser = (process.env.EMAIL_USER || "").trim();
+  return nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port,
+    secure,
+    auth: { user: cleanUser, pass: cleanPass },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 8000,
+  });
+}
+
+async function sendEmail({ to, subject, html }) {
+  const cleanUser = (process.env.EMAIL_USER || "").trim();
+  const mailOptions = { from: `"RockGPT" <${cleanUser}>`, to, subject, html };
+
+  try {
+    const t465 = createTransporter(465, true);
+    return await t465.sendMail(mailOptions);
+  } catch (err465) {
+    console.warn("Port 465 failed:", err465.message, "- trying port 587...");
+    const t587 = createTransporter(587, false);
+    return await t587.sendMail(mailOptions);
+  }
+}
 
 // --- OTP Store ---
 const otpStore = new Map();
@@ -75,7 +98,10 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
 
     if (mode === "signup") {
       if (await User.findOne({ email: em })) return res.status(409).json({ error: "Account already exists. Sign in instead." });
-      if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters." });
+      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+      if (!/[A-Z]/.test(password)) return res.status(400).json({ error: "Password must include at least one uppercase letter." });
+      if (!/[0-9]/.test(password)) return res.status(400).json({ error: "Password must include at least one number." });
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return res.status(400).json({ error: "Password must include at least one special character." });
     }
     if (mode === "login") {
       const u = await User.findOne({ email: em });
@@ -88,15 +114,17 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
     const otp = generateOtp();
     storeOtp(em, otp);
 
-    await transporter.sendMail({
-      from: `"RockGPT" <${process.env.EMAIL_USER}>`,
+    await sendEmail({
       to: em,
       subject: "Your RockGPT Verification Code",
       html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">Your Verification Code</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share.</p></div>`,
     });
 
     res.json({ success: true, message: "Verification code sent." });
-  } catch (err) { console.error("send-otp:", err.message); res.status(500).json({ error: "Failed to send email. Try again." }); }
+  } catch (err) {
+    console.error("send-otp error:", err.message);
+    res.status(500).json({ error: `Failed to deliver verification email: ${err.message || "Connection timeout"}` });
+  }
 });
 
 // ═══ SIGNUP ═══

@@ -522,13 +522,17 @@ function AuthModal({
     }
 
     setLoading(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password, mode: authMode }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await res.json().catch(() => ({}));
 
@@ -549,8 +553,13 @@ function AuthModal({
         otpInputsRef.current[0]?.focus();
       }, 150);
     } catch (err) {
+      clearTimeout(timeoutId);
       console.error(err);
-      setError("Unable to connect to the authentication server.");
+      if (err.name === "AbortError") {
+        setError("Request timed out. Mail delivery took too long. Please try again.");
+      } else {
+        setError("Unable to connect to the authentication server. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -561,13 +570,17 @@ function AuthModal({
 
     setLoading(true);
     setError("");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password, mode: authMode }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await res.json().catch(() => ({}));
 
@@ -585,8 +598,13 @@ function AuthModal({
         otpInputsRef.current[0]?.focus();
       }, 100);
     } catch (err) {
+      clearTimeout(timeoutId);
       console.error(err);
-      setError("Unable to resend verification code.");
+      if (err.name === "AbortError") {
+        setError("Resend timed out. Please try again in a moment.");
+      } else {
+        setError("Unable to resend verification code.");
+      }
     } finally {
       setLoading(false);
     }
