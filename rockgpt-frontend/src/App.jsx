@@ -2881,16 +2881,12 @@ export default function RockGPT() {
           padding: 0; 
           background: ${surface}; 
           overscroll-behavior-y: none;
-          -webkit-user-select: none;
-          -moz-user-select: none;
-          -ms-user-select: none;
-          user-select: none;
         }
         *, *::before, *::after { 
           box-sizing: border-box; 
           -webkit-tap-highlight-color: transparent; 
         }
-        /* Completely eliminate blinking text caret (|) when clicking or tapping text */
+        /* Completely eliminate blinking text caret (|) when clicking or tapping non-editable text */
         *:not(input):not(textarea):not([contenteditable="true"]) {
           caret-color: transparent !important;
         }
@@ -2899,7 +2895,7 @@ export default function RockGPT() {
           -moz-user-select: text !important;
           -ms-user-select: text !important;
           user-select: text !important;
-          caret-color: ${dark ? "#f59e0b" : "#000000"} !important;
+          caret-color: ${dark ? "#ffffff" : "#000000"} !important;
         }
         /* Eliminate browser autofill light blue background */
         input:-webkit-autofill,
@@ -2908,19 +2904,27 @@ export default function RockGPT() {
         input:-webkit-autofill:active {
           -webkit-box-shadow: 0 0 0 1000px ${dark ? "#141414" : "#ffffff"} inset !important;
           -webkit-text-fill-color: ${dark ? "#ffffff" : "#0f172a"} !important;
-          caret-color: ${dark ? "#f59e0b" : "#000000"} !important;
+          caret-color: ${dark ? "#ffffff" : "#000000"} !important;
           transition: background-color 5000s ease-in-out 0s;
         }
-        .selectable-text, .chat-bubble pre, .chat-bubble code, .chat-bubble p {
+        /* Make all message text, replied content, code blocks, and markdown fully selectable with cursor */
+        .selectable-text,
+        .selectable-text *,
+        .message-content,
+        .message-content *,
+        .chat-bubble,
+        .chat-bubble *,
+        .chat-text,
+        .chat-text *,
+        pre, pre *, code, code *, p, h1, h2, h3, h4, h5, h6, li, blockquote, strong, em {
           -webkit-user-select: text !important;
           -moz-user-select: text !important;
           -ms-user-select: text !important;
           user-select: text !important;
         }
-        button, a, [role="button"] {
+        button, a, [role="button"], .select-none {
           -webkit-user-select: none !important;
           user-select: none !important;
-          cursor: pointer;
         }
         textarea::-webkit-scrollbar { width: 0; }
         .thin::-webkit-scrollbar { width: 5px; }
@@ -3586,7 +3590,7 @@ export default function RockGPT() {
                   {m.role === "user" ? (
                     <div className="flex flex-col items-end">
                       <div
-                        className={`chat-bubble max-w-[86%] sm:max-w-[76%] rounded-[22px] rounded-br-[6px] px-4 py-3 text-[15px] sm:text-[16px] leading-relaxed shadow-sm ${
+                        className={`chat-bubble message-content select-text max-w-[86%] sm:max-w-[76%] rounded-[22px] rounded-br-[6px] px-4 py-3 text-[15px] sm:text-[16px] leading-relaxed shadow-sm ${
                           dark
                             ? "bg-[#262626] text-white"
                             : "bg-neutral-200 text-neutral-900"
@@ -3607,12 +3611,12 @@ export default function RockGPT() {
                             📄 {m.attachment.name}
                           </div>
                         )}
-                        <p className="whitespace-pre-wrap">
+                        <p className="whitespace-pre-wrap select-text cursor-text">
                           {m.displayText || (typeof m.content === "string" ? m.content : "")}
                         </p>
                       </div>
 
-                      <div className="mt-1 mr-1 flex items-center gap-1 opacity-60 hover:opacity-100 transition">
+                      <div className="mt-1 mr-1 flex items-center gap-1 opacity-60 hover:opacity-100 transition select-none">
                         <button
                           onClick={() => copyMessage(m)}
                           className={`rounded-lg p-1.5 text-xs transition ${
@@ -3644,6 +3648,7 @@ export default function RockGPT() {
                             value={editText}
                             onChange={(e) => setEditText(e.target.value)}
                             className="min-h-[100px] w-full resize-none bg-transparent text-sm leading-6 outline-none"
+                            style={{ caretColor: dark ? "#ffffff" : "#000000" }}
                           />
                           <div className="flex justify-end gap-2">
                             <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-1.5 text-xs" style={{ color: muted }}>
@@ -3665,12 +3670,12 @@ export default function RockGPT() {
                           </div>
                         </div>
                       ) : (
-                        <div className="w-full text-[15px] sm:text-[16px] leading-relaxed">
+                        <div className="w-full text-[15px] sm:text-[16px] leading-relaxed message-content select-text cursor-text">
                           <MessageContent content={m.content} dark={dark} />
                         </div>
                       )}
 
-                      <div className="mt-2.5 flex items-center gap-1 text-neutral-400">
+                      <div className="mt-2.5 flex items-center gap-1 text-neutral-400 select-none">
                         <button
                           onClick={() => copyMessage(m)}
                           className={`rounded-lg p-1.5 transition ${
@@ -3750,7 +3755,7 @@ export default function RockGPT() {
               {typing && (
                 <div className="rise mb-8 flex items-start gap-3">
                   {/* Avatar Icon */}
-                  <div className="relative shrink-0 mt-0.5">
+                  <div className="relative shrink-0 mt-0.5 select-none">
                     <div
                       className={`grid h-8 w-8 place-items-center rounded-xl border shadow-sm ${
                         dark
@@ -3764,21 +3769,21 @@ export default function RockGPT() {
 
                   <div className="min-w-0 flex-1 pt-0.5">
                     {!streaming ? (
-                      <div className="flex items-center py-1">
-                        <span className={`${dark ? "working-shimmer-text" : "working-shimmer-text-light"} select-none`}>
+                      <div className="flex items-center py-1 select-none">
+                        <span className={`${dark ? "working-shimmer-text" : "working-shimmer-text-light"}`}>
                           Working...
                         </span>
                       </div>
                     ) : (
                       <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className={`${dark ? "working-shimmer-text" : "working-shimmer-text-light"} text-xs font-semibold select-none`}>
+                        <div className="flex items-center gap-2 select-none">
+                          <span className={`${dark ? "working-shimmer-text" : "working-shimmer-text-light"} text-xs font-semibold`}>
                             Working...
                           </span>
                         </div>
-                        <div className={`text-[15px] leading-7 ${dark ? "text-white/90" : "text-neutral-800"}`}>
+                        <div className={`text-[15px] leading-7 message-content select-text cursor-text ${dark ? "text-white/90" : "text-neutral-800"}`}>
                           <MessageContent content={streaming} dark={dark} />
-                          <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-gradient-to-t from-amber-500 to-amber-300 stream-cursor align-middle shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                          <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-white stream-cursor align-middle shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
                         </div>
                       </div>
                     )}
@@ -3898,7 +3903,7 @@ export default function RockGPT() {
                 className={`min-w-0 flex-1 resize-none bg-transparent py-1 text-[15px] sm:text-base leading-6 outline-none ${
                   dark ? "text-white placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
-                style={{ minHeight: "26px", maxHeight: "140px" }}
+                style={{ minHeight: "26px", maxHeight: "140px", caretColor: dark ? "#ffffff" : "#000000" }}
               />
 
               {/* Right actions inside capsule */}
