@@ -269,7 +269,6 @@ function MessageContent({ content, dark }) {
 function RockLogo({ size = 32, dark = true, animated = false, className = "" }) {
   const uid = useMemo(() => `rl-${size}-${Math.random().toString(36).slice(2, 6)}`, [size]);
   const gradAmber = `ga-${uid}`;
-  const gradCyan = `gc-${uid}`;
   const filterGlow = `fg-${uid}`;
 
   return (
@@ -283,26 +282,17 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
       style={{ overflow: "visible" }}
     >
       <defs>
-        {/* Warm Golden Amber Crystal Gradient */}
-        <linearGradient id={gradAmber} x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#fffbeb" />
-          <stop offset="25%" stopColor="#fde047" />
-          <stop offset="55%" stopColor="#f59e0b" />
-          <stop offset="85%" stopColor="#d97706" />
-          <stop offset="100%" stopColor="#92400e" />
+        {/* Luminous Platinum to Warm Golden Amber Gradient */}
+        <linearGradient id={gradAmber} x1="15" y1="8" x2="85" y2="92" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="25%" stopColor="#fef08a" />
+          <stop offset="60%" stopColor="#f59e0b" />
+          <stop offset="100%" stopColor="#b45309" />
         </linearGradient>
 
-        {/* Electric Cyan/Indigo Radiant Gradient */}
-        <linearGradient id={gradCyan} x1="85" y1="15" x2="15" y2="85" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#38bdf8" />
-          <stop offset="45%" stopColor="#60a5fa" />
-          <stop offset="80%" stopColor="#818cf8" />
-          <stop offset="100%" stopColor="#c084fc" />
-        </linearGradient>
-
-        {/* Dynamic Glow Filter */}
+        {/* Dynamic Bloom Filter */}
         <filter id={filterGlow} x="-20%" y="-20%" width="140%" height="140%" filterUnits="userSpaceOnUse">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
@@ -310,10 +300,10 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
         </filter>
       </defs>
 
-      {/* Hexagonal Crystal Shield */}
+      {/* Hexagonal Quantum Crystal Shield */}
       <polygon
-        points="50,5 90,27 90,73 50,95 10,73 10,27"
-        fill={dark ? "#0e0f14" : "#ffffff"}
+        points="50,6 88,27 88,73 50,94 12,73 12,27"
+        fill={dark ? "#0b0b0f" : "#ffffff"}
         stroke={`url(#${gradAmber})`}
         strokeWidth="3.5"
         strokeLinejoin="round"
@@ -322,8 +312,8 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
 
       {/* Internal Facet Geometric Precision Lines */}
       <path
-        d="M50 5 L50 95 M10 27 L90 73 M10 73 L90 27"
-        stroke={dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}
+        d="M50 6 L50 94 M12 27 L88 73 M12 73 L88 27"
+        stroke={dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"}
         strokeWidth="1.2"
       />
 
@@ -331,43 +321,43 @@ function RockLogo({ size = 32, dark = true, animated = false, className = "" }) 
       <circle
         cx="50"
         cy="50"
-        r="22"
-        fill={dark ? "rgba(245,158,11,0.09)" : "rgba(245,158,11,0.06)"}
+        r="23"
+        fill={dark ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.05)"}
       />
 
-      {/* Modern High-Tech "R" Monogram */}
-      {/* 1. Left Vertical Pillar */}
+      {/* Unified Master "R" Monogram */}
+      {/* 1. Vertical Pillar */}
       <path
-        d="M32 25 V75"
+        d="M33 26 V74"
         stroke={`url(#${gradAmber})`}
-        strokeWidth="7"
+        strokeWidth="7.5"
         strokeLinecap="round"
       />
 
       {/* 2. Sweeping Dynamic Upper Loop */}
       <path
-        d="M32 28 H54 C66 28 73 34 73 42 C73 50 66 56 54 56 H32"
+        d="M33 29 H53 C65 29 72 35 72 43 C72 51 65 57 53 57 H33"
         stroke={`url(#${gradAmber})`}
-        strokeWidth="7"
+        strokeWidth="7.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* 3. Aerodynamic Diagonal Power Leg */}
+      {/* 3. Aerodynamic Diagonal Power Leg — Unified Matching Gold */}
       <path
-        d="M50 55 L70 75"
-        stroke={`url(#${gradCyan})`}
-        strokeWidth="7"
+        d="M48 56 L68 74"
+        stroke={`url(#${gradAmber})`}
+        strokeWidth="7.5"
         strokeLinecap="round"
       />
 
-      {/* 4. Center Radiant Quantum Sparkle */}
+      {/* 4. Center Radiant Quantum AI Spark */}
       <path
-        d="M52 38 Q52 42 56 42 Q52 42 52 46 Q52 42 48 42 Q52 42 52 38 Z"
+        d="M52 38 Q52 43 57 43 Q52 43 52 48 Q52 43 47 43 Q52 43 52 38 Z"
         fill="#ffffff"
         filter={`url(#${filterGlow})`}
       />
-      <circle cx="52" cy="42" r="1.5" fill="#fef08a" />
+      <circle cx="52" cy="43" r="1.6" fill="#fffbeb" />
     </svg>
   );
 }
@@ -433,26 +423,26 @@ function IntroScreen({ onDone }) {
       `}</style>
       {/* Ambient Pulsing Atmospheric Light Pools */}
       <div
-        className="absolute h-[340px] w-[340px] sm:h-[460px] sm:w-[460px] rounded-full bg-gradient-to-tr from-amber-500/20 via-yellow-400/15 to-cyan-500/20 blur-[90px] animate-pulse"
+        className="absolute h-[340px] w-[340px] sm:h-[460px] sm:w-[460px] rounded-full bg-gradient-to-tr from-amber-500/15 via-white/[0.04] to-amber-600/15 blur-[90px] animate-pulse"
         style={{ animationDuration: "3s" }}
       />
-      <div className="absolute h-60 w-60 rounded-full bg-cyan-500/10 blur-[80px] -top-8 -right-8" />
+      <div className="absolute h-60 w-60 rounded-full bg-white/[0.03] blur-[80px] -top-8 -right-8" />
       <div className="absolute h-60 w-60 rounded-full bg-amber-500/10 blur-[80px] -bottom-8 -left-8" />
 
       {/* Gentle Constellation Starlight Dust */}
       <div className="absolute top-[20%] left-[18%] h-1.5 w-1.5 rounded-full bg-amber-400/70 animate-ping" style={{ animationDuration: "2.4s" }} />
-      <div className="absolute top-[30%] right-[18%] h-1.5 w-1.5 rounded-full bg-cyan-400/70 animate-pulse" style={{ animationDuration: "1.8s" }} />
+      <div className="absolute top-[30%] right-[18%] h-1.5 w-1.5 rounded-full bg-white/70 animate-pulse" style={{ animationDuration: "1.8s" }} />
       <div className="absolute bottom-[28%] left-[22%] h-2 w-2 rounded-full bg-yellow-300/60 animate-pulse" style={{ animationDuration: "2.8s" }} />
-      <div className="absolute bottom-[32%] right-[24%] h-1 w-1 rounded-full bg-purple-400/60 animate-ping" style={{ animationDuration: "2s" }} />
+      <div className="absolute bottom-[32%] right-[24%] h-1 w-1 rounded-full bg-amber-200/60 animate-ping" style={{ animationDuration: "2s" }} />
 
       {/* Center 3D Floating Crystal Emblem */}
       <div className="relative mb-6 sm:mb-8 grid place-items-center">
         {/* Outer Concentric Ethereal Halo Rings */}
         <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full border border-amber-400/20 animate-[spin_14s_linear_infinite]" />
-        <div className="absolute h-32 w-32 sm:h-40 sm:w-40 rounded-full border border-dashed border-cyan-400/25 animate-[spin_10s_linear_infinite_reverse]" />
+        <div className="absolute h-32 w-32 sm:h-40 sm:w-40 rounded-full border border-dashed border-white/15 animate-[spin_10s_linear_infinite_reverse]" />
 
         {/* Radiant Center Glow Orb */}
-        <div className="absolute h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-tr from-amber-500/35 via-yellow-400/25 to-cyan-400/35 blur-xl animate-pulse" />
+        <div className="absolute h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-tr from-amber-500/30 via-yellow-400/20 to-white/20 blur-xl animate-pulse" />
 
         {/* Floating RockLogo */}
         <div className="relative z-10 animate-[logoFloat_3s_ease-in-out_infinite]">
@@ -472,7 +462,7 @@ function IntroScreen({ onDone }) {
           <span>v4.2 Turbo • Quantum AI</span>
         </div>
 
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-amber-100 to-amber-300 bg-clip-text text-transparent drop-shadow-sm">
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-amber-200 bg-clip-text text-transparent drop-shadow-sm">
           RockGPT
         </h1>
         <p className="mt-1 text-[11px] sm:text-xs font-mono tracking-[0.2em] text-neutral-400 uppercase">
@@ -484,11 +474,11 @@ function IntroScreen({ onDone }) {
       <div className="mt-7 sm:mt-9 w-64 sm:w-76 px-2">
         <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07] p-0.5 border border-white/10 shadow-inner">
           <div
-            className="relative h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-cyan-400 shadow-[0_0_15px_rgba(245,158,11,0.8)] transition-all duration-75 ease-out"
+            className="relative h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-300 to-white shadow-[0_0_15px_rgba(245,158,11,0.8)] transition-all duration-75 ease-out"
             style={{ width: `${percent}%` }}
           >
             {/* White-Hot Laser Tip */}
-            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_10px_#ffffff,0_0_18px_#38bdf8]" />
+            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_10px_#ffffff,0_0_18px_#fde047]" />
           </div>
         </div>
 
@@ -534,7 +524,7 @@ function UserProfileMenu({
         {user ? (
           <div>
             <div className="flex items-center gap-2.5 border-b pb-3 px-2 pt-1" style={{ borderColor: dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }}>
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white shadow-sm">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white shadow-sm">
                 {user.name ? user.name.slice(0, 1).toUpperCase() : "U"}
               </div>
               <div className="min-w-0 flex-1">
@@ -3072,32 +3062,32 @@ export default function RockGPT() {
                 setSidebarOpen(false);
                 setPricingOpen(true);
               }}
-              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all active:scale-[0.98] ${
+              className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-sm font-medium transition-all active:scale-[0.98] ${
                 dark
-                  ? "border-yellow-400/30 bg-yellow-400/[0.08] text-yellow-300 hover:bg-yellow-400/[0.14]"
-                  : "border-amber-500/40 bg-amber-500/[0.10] text-amber-800 hover:bg-amber-500/[0.16]"
+                  ? "border-white/10 bg-white/[0.05] text-white hover:border-white/20 hover:bg-white/[0.08]"
+                  : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
               }`}
             >
-              <Crown size={17} className={dark ? "text-yellow-400" : "text-amber-600"} />
+              <Crown size={17} className="text-amber-400" />
               <div className="flex-1 text-left">
-                <div className={`leading-none text-[13px] font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
+                <div className="leading-tight text-[13px] font-semibold">
                   {isPaidUser ? "Manage Subscription" : "Upgrade plan"}
                 </div>
-                <div className={`text-[10px] ${dark ? "text-yellow-300/80" : "text-amber-700"}`}>
+                <div className="text-[11px] text-neutral-400">
                   {isPaidUser ? `Current: ${user.plan}` : "Unlock RockGPT 4o"}
                 </div>
               </div>
-              <ChevronRight size={14} className={dark ? "text-yellow-400/60" : "text-amber-600/60"} />
+              <ChevronRight size={14} className="text-neutral-500" />
             </button>
 
-            {/* Theme Switcher in Sidebar (Requested: Light/Dark mode in slide bar) */}
+            {/* Theme Switcher in Sidebar */}
             <div
               className={`flex items-center justify-between rounded-xl border p-1.5 transition ${
                 dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-100"
               }`}
             >
               <div className="flex items-center gap-2 pl-2">
-                {dark ? <Moon size={15} className="text-amber-400" /> : <Sun size={15} className="text-amber-500" />}
+                {dark ? <Moon size={15} className="text-white/80" /> : <Sun size={15} className="text-neutral-800" />}
                 <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>Theme</span>
               </div>
               <div className="flex items-center gap-1">
@@ -3117,7 +3107,7 @@ export default function RockGPT() {
                   onClick={() => setTheme("dark")}
                   className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                     dark
-                      ? "bg-amber-500 text-black shadow-sm font-bold"
+                      ? "bg-white text-black shadow-sm font-semibold"
                       : "text-neutral-500 hover:text-neutral-900"
                   }`}
                 >
@@ -3139,7 +3129,7 @@ export default function RockGPT() {
                 dark ? "hover:bg-white/[0.06]" : "hover:bg-black/[0.05]"
               }`}
             >
-              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white text-xs shadow-sm">
+              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm">
                 {user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={13} />}
               </div>
               <div className="min-w-0 flex-1 text-left">
@@ -3301,13 +3291,13 @@ export default function RockGPT() {
             {!isPaidUser && (
               <button
                 onClick={() => setPricingOpen(true)}
-                className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
+                className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 shadow-sm ${
                   dark
-                    ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20"
-                    : "border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20"
+                    ? "border-white/15 bg-white/[0.08] text-white hover:bg-white/[0.14]"
+                    : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:bg-neutral-200"
                 }`}
               >
-                <Crown size={14} className={dark ? "text-yellow-400" : "text-amber-600"} />
+                <Crown size={14} className="text-amber-400" />
                 <span className="font-semibold">Upgrade</span>
               </button>
             )}
@@ -3343,7 +3333,7 @@ export default function RockGPT() {
                 <button
                   onClick={() => setHeaderProfileOpen((v) => !v)}
                   title="Account menu & logout"
-                  className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white text-xs shadow-sm hover:scale-105 transition"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm hover:scale-105 transition"
                 >
                   {user.name.slice(0, 1).toUpperCase()}
                 </button>
@@ -3369,7 +3359,7 @@ export default function RockGPT() {
                     }`}
                   >
                     <div className="flex items-center gap-2.5 border-b pb-3 px-2 pt-1" style={{ borderColor: dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }}>
-                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-tr from-amber-500 to-purple-600 font-bold text-white shadow-sm">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white shadow-sm">
                         {user.name.slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -3823,13 +3813,13 @@ export default function RockGPT() {
                     type="button"
                     onClick={toggleRecording}
                     title="Voice mode"
-                    className="grid h-9 w-9 place-items-center rounded-full bg-[#2563eb] text-white hover:bg-blue-600 active:scale-95 transition shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                    className="grid h-9 w-9 place-items-center rounded-full bg-white text-black hover:bg-neutral-200 active:scale-95 transition shadow-sm"
                   >
                     <span className="flex items-center gap-0.5 h-3.5">
-                      <span className="w-[2.5px] h-2 bg-white rounded-full animate-pulse" style={{ animationDuration: "0.8s" }} />
-                      <span className="w-[2.5px] h-3.5 bg-white rounded-full animate-pulse" style={{ animationDuration: "1.2s" }} />
-                      <span className="w-[2.5px] h-2.5 bg-white rounded-full animate-pulse" style={{ animationDuration: "0.9s" }} />
-                      <span className="w-[2.5px] h-1.5 bg-white rounded-full animate-pulse" style={{ animationDuration: "1.4s" }} />
+                      <span className="w-[2.5px] h-2 bg-black rounded-full animate-pulse" style={{ animationDuration: "0.8s" }} />
+                      <span className="w-[2.5px] h-3.5 bg-black rounded-full animate-pulse" style={{ animationDuration: "1.2s" }} />
+                      <span className="w-[2.5px] h-2.5 bg-black rounded-full animate-pulse" style={{ animationDuration: "0.9s" }} />
+                      <span className="w-[2.5px] h-1.5 bg-black rounded-full animate-pulse" style={{ animationDuration: "1.4s" }} />
                     </span>
                   </button>
                 )}
