@@ -461,6 +461,7 @@ function AuthModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("Sending...");
 
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [otpTimer, setOtpTimer] = useState(45);
@@ -547,8 +548,11 @@ function AuthModal({
     }
 
     setLoading(true);
+    setLoadingText("Sending verification code...");
+    const t1 = setTimeout(() => setLoadingText("Connecting to server (Render free tier waking up)..."), 3500);
+    const t2 = setTimeout(() => setLoadingText("Generating secure verification code..."), 12000);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
@@ -558,6 +562,8 @@ function AuthModal({
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      clearTimeout(t1);
+      clearTimeout(t2);
 
       const data = await res.json().catch(() => ({}));
 
@@ -582,9 +588,11 @@ function AuthModal({
       }, 150);
     } catch (err) {
       clearTimeout(timeoutId);
+      clearTimeout(t1);
+      clearTimeout(t2);
       console.error(err);
       if (err.name === "AbortError") {
-        setError("Request timed out. Please try again.");
+        setError("Server response took too long. Please tap Send again.");
       } else {
         setError("Unable to connect to the authentication server. Please try again.");
       }
@@ -597,9 +605,10 @@ function AuthModal({
     if (!resendActive || loading) return;
 
     setLoading(true);
+    setLoadingText("Resending code...");
     setError("");
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
@@ -867,7 +876,10 @@ function AuthModal({
                 }`}
               >
                 {loading ? (
-                  <Loader2 size={15} className="animate-spin" />
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>{loadingText}</span>
+                  </>
                 ) : (
                   <>
                     <span>Send Verification Code</span>
