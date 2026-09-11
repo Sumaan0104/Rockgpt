@@ -6,7 +6,7 @@ import {
   Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
   Lock, Volume2, VolumeX, Pin, Share2, Compass, Code2, BookOpen, PenTool,
-  Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck
+  Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck, CreditCard
 } from "lucide-react";
 
 const BACKEND_URL = "https://rockgpt.onrender.com";
@@ -1525,13 +1525,50 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
 }
 
 /* =========================================================================
-   UPI CHECKOUT MODAL
+   RAZORPAY SCRIPT DYNAMIC LOADER
    ========================================================================= */
-function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
+function loadRazorpayScript() {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const existing = document.getElementById("razorpay-checkout-script");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true));
+      existing.addEventListener("error", () => resolve(false));
+      return;
+    }
+    const script = document.createElement("script");
+    script.id = "razorpay-checkout-script";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
+/* =========================================================================
+   COMPREHENSIVE CHECKOUT MODAL (AUTOMATED RAZORPAY + DIRECT UPI)
+   ========================================================================= */
+function UpiCheckoutModal({
+  plan,
+  onClose,
+  notify,
+  user,
+  dark = true,
+  authToken,
+  onPaymentSuccess,
+  onOpenAuth,
+}) {
+  const [activeTab, setActiveTab] = useState("auto"); // "auto" | "manual"
   const [copied, setCopied] = useState(false);
   const [utrNumber, setUtrNumber] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submittingManual, setSubmittingManual] = useState(false);
+  const [submittedManual, setSubmittedManual] = useState(false);
+  const [payingRazorpay, setPayingRazorpay] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   if (!plan) return null;
 
@@ -1546,16 +1583,132 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleRazorpayCheckout = async () => {
+    if (!user || !authToken) {
+      notify("Please sign in or create an account first so your subscription is attached to your account.");
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
+
+    setPayingRazorpay(true);
+
+    try {
+      const scriptReady = await loadRazorpayScript();
+      if (!scriptReady) {
+        notify("Unable to load Razorpay checkout script. Please use direct UPI QR transfer.");
+        setActiveTab("manual");
+        setPayingRazorpay(false);
+        return;
+      }
+
+      // Step 1: Request backend to create Razorpay Order
+      const orderRes = await fetch(`${BACKEND_URL}/api/payment/create-order`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          planId: plan.id,
+          billingCycle: plan.billingCycle,
+        }),
+      });
+
+      const orderData = await orderRes.json();
+
+      if (!orderRes.ok || !orderData.orderId) {
+        // If server indicates Razorpay keys are not configured yet, fallback gracefully
+        const errorMsg = orderData.error || "Automated payment setup in progress.";
+        notify(errorMsg);
+        setActiveTab("manual");
+        setPayingRazorpay(false);
+        return;
+      }
+
+      // Step 2: Open Razorpay interactive checkout popup
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: "RockGPT AI",
+        description: `Upgrade to ${plan.name} (${plan.billingCycle === "yearly" ? "Annual" : "Monthly"})`,
+        image: "https://api.dicebear.com/7.x/bottts/svg?seed=RockGPT",
+        order_id: orderData.orderId,
+        prefill: {
+          name: user.name || "",
+          email: user.email || "",
+        },
+        theme: {
+          color: "#f59e0b",
+        },
+        handler: async function (response) {
+          // Step 3: Verify cryptographic HMAC-SHA256 signature on backend
+          setVerifyingPayment(true);
+          try {
+            const verifyRes = await fetch(`${BACKEND_URL}/api/payment/verify-payment`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authToken}`,
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                planId: plan.id,
+                billingCycle: plan.billingCycle,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.ok && verifyData.success) {
+              if (onPaymentSuccess) {
+                onPaymentSuccess(verifyData.user, verifyData.token);
+              }
+              notify(`🎉 Payment verified! Welcome to RockGPT ${verifyData.user.plan}!`);
+              onClose();
+            } else {
+              notify(verifyData.error || "Verification failed. Please contact support with Ref: " + response.razorpay_payment_id);
+            }
+          } catch (verifyErr) {
+            console.error("Verification error:", verifyErr);
+            notify("Network verification failed: " + verifyErr.message);
+          } finally {
+            setVerifyingPayment(false);
+            setPayingRazorpay(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setPayingRazorpay(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (failRes) {
+        setPayingRazorpay(false);
+        notify("Payment failed: " + (failRes.error?.description || "Transaction cancelled"));
+      });
+      rzp.open();
+    } catch (err) {
+      console.error("Checkout init error:", err);
+      notify("Payment initiation error: " + err.message);
+      setPayingRazorpay(false);
+    }
+  };
+
   const handleSubmitProof = (e) => {
     e.preventDefault();
     if (!utrNumber.trim()) {
       notify("Please enter your 12-digit UPI reference/UTR number");
       return;
     }
-    setSubmitting(true);
+    setSubmittingManual(true);
     setTimeout(() => {
-      setSubmitting(false);
-      setSubmitted(true);
+      setSubmittingManual(false);
+      setSubmittedManual(true);
       notify("Payment submitted! Verifying your transaction.");
     }, 1200);
   };
@@ -1566,21 +1719,43 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
       onClick={onClose}
     >
       <div
-        className={`pop relative my-auto max-h-[92vh] w-full max-w-[440px] overflow-y-auto thin rounded-3xl border p-5 shadow-[0_0_60px_rgba(0,0,0,0.9)] sm:max-h-[88vh] sm:p-6 ${
+        className={`pop relative my-auto max-h-[92vh] w-full max-w-[480px] overflow-y-auto thin rounded-3xl border p-5 shadow-[0_0_60px_rgba(0,0,0,0.9)] sm:max-h-[88vh] sm:p-6 ${
           dark ? "border-white/15 bg-[#141414] text-white" : "border-neutral-200 bg-white text-neutral-900"
         }`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Verification Loader Overlay */}
+        {verifyingPayment && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-3xl bg-black/90 p-6 text-center backdrop-blur-md">
+            <Loader2 size={44} className="animate-spin text-amber-400" />
+            <h3 className="mt-4 text-base font-bold text-white">Verifying Secure Payment</h3>
+            <p className="mt-1 text-xs text-neutral-400">
+              Validating cryptographic HMAC-SHA256 signature with Razorpay...
+            </p>
+            <p className="mt-2 font-mono text-[11px] text-amber-400">
+              Unlocking RockGPT 4o model in MongoDB...
+            </p>
+          </div>
+        )}
+
+        {/* Modal Header */}
         <div className={`flex items-center justify-between border-b pb-3 ${dark ? "border-white/10" : "border-neutral-200"}`}>
           <div>
-            <span className={`text-[10px] font-semibold uppercase tracking-wider ${dark ? "text-yellow-400" : "text-amber-600"}`}>
-              UPI Checkout
-            </span>
-            <h3 className="text-lg font-bold">Upgrade to {plan.name}</h3>
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                dark ? "border border-amber-500/30 bg-amber-500/10 text-amber-400" : "bg-amber-100 text-amber-800"
+              }`}>
+                {plan.name} Tier
+              </span>
+              <span className={`text-[11px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
+                {plan.billingCycle === "yearly" ? "Annual Plan (Save 20%)" : "Monthly Plan"}
+              </span>
+            </div>
+            <h3 className="mt-0.5 text-lg font-bold sm:text-xl">Checkout & Upgrade</h3>
           </div>
           <button
             onClick={onClose}
-            className={`grid h-8 w-8 place-items-center rounded-full ${
+            className={`grid h-8 w-8 place-items-center rounded-full transition-colors ${
               dark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800"
             }`}
           >
@@ -1588,115 +1763,270 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
           </button>
         </div>
 
-        {submitted ? (
-          <div className="py-8 text-center">
-            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
-              <CheckCircle2 size={32} />
-            </div>
-            <h4 className="text-base font-bold">Transaction Reference Saved!</h4>
-            <p className={`mt-2 text-xs leading-relaxed ${dark ? "text-white/60" : "text-neutral-600"}`}>
-              Thank you! Reference (<strong className={dark ? "text-white" : "text-neutral-900"}>{utrNumber}</strong>) received for <strong>{user?.email || "guest user"}</strong>. Your account will be upgraded within 15 minutes.
-            </p>
-            <button
-              onClick={onClose}
-              className={`mt-6 w-full rounded-xl py-2.5 text-xs font-semibold ${
-                dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
-              }`}
-            >
-              Done & Return to Chat
-            </button>
-          </div>
-        ) : (
+        {/* Tabs: Automated Pay vs Direct UPI QR */}
+        <div className="mt-3.5 grid grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-1 text-xs font-semibold">
+          <button
+            onClick={() => setActiveTab("auto")}
+            className={`flex items-center justify-center gap-1.5 rounded-lg py-2 transition-all ${
+              activeTab === "auto"
+                ? dark
+                  ? "bg-amber-500 text-black shadow-md font-bold"
+                  : "bg-neutral-900 text-white shadow-md font-bold"
+                : dark
+                ? "text-white/60 hover:text-white"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <Zap size={14} className={activeTab === "auto" ? "fill-current" : ""} />
+            <span>⚡ Instant Auto-Pay</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("manual")}
+            className={`flex items-center justify-center gap-1.5 rounded-lg py-2 transition-all ${
+              activeTab === "manual"
+                ? dark
+                  ? "bg-white text-black shadow-md font-bold"
+                  : "bg-neutral-900 text-white shadow-md font-bold"
+                : dark
+                ? "text-white/60 hover:text-white"
+                : "text-neutral-500 hover:text-neutral-900"
+            }`}
+          >
+            <QrCode size={14} />
+            <span>Direct UPI QR</span>
+          </button>
+        </div>
+
+        {/* TAB 1: AUTOMATED RAZORPAY CHECKOUT */}
+        {activeTab === "auto" && (
           <div className="mt-4 space-y-4">
+            {/* Price Summary Banner */}
             <div
-              className={`flex items-center justify-between rounded-xl border p-3 ${
-                dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-50"
+              className={`flex items-center justify-between rounded-2xl border p-3.5 ${
+                dark ? "border-amber-500/30 bg-amber-500/[0.06]" : "border-amber-200 bg-amber-50/70"
               }`}
             >
               <div>
-                <div className="text-xs font-medium">{plan.name} Plan ({plan.billingCycle})</div>
-                <div className={`text-[11px] ${dark ? "text-white/50" : "text-neutral-500"}`}>One-time payment</div>
+                <div className="text-xs font-bold">RockGPT {plan.name} Subscription</div>
+                <div className={`text-[11px] ${dark ? "text-white/60" : "text-neutral-600"}`}>
+                  {plan.billingCycle === "yearly" ? "Billed annually (₹" + plan.activePrice + "/mo)" : "Billed monthly"}
+                </div>
               </div>
               <div className="text-right">
-                <div className="text-lg font-extrabold">₹{totalAmount}</div>
-                <div className="text-[10px] text-emerald-500 font-semibold">Incl. all taxes</div>
+                <div className="text-2xl font-extrabold tracking-tight text-amber-400">₹{totalAmount}</div>
+                <div className="text-[10px] font-semibold text-emerald-500">Instant Activation</div>
               </div>
             </div>
 
-            <div className="block sm:hidden">
-              <a
-                href={upiLink}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-xs font-bold text-white shadow-lg active:scale-95"
-              >
-                <Smartphone size={16} /> Pay via Any UPI App (GPay / PhonePe / Paytm)
-              </a>
-              <div className={`my-2 text-center text-[10px] uppercase tracking-wider ${dark ? "text-white/40" : "text-neutral-400"}`}>
-                or scan QR code below
+            {/* Unauthenticated Guest Warning */}
+            {!user ? (
+              <div className={`rounded-2xl border p-4 text-center ${dark ? "border-amber-500/20 bg-amber-500/5" : "border-amber-200 bg-amber-50"}`}>
+                <div className="mx-auto mb-2 grid h-10 w-10 place-items-center rounded-full bg-amber-500/10 text-amber-400">
+                  <Lock size={18} />
+                </div>
+                <h4 className="text-xs font-bold">Sign In Required to Upgrade</h4>
+                <p className={`mt-1 text-[11px] leading-relaxed ${dark ? "text-white/60" : "text-neutral-600"}`}>
+                  Please sign in or create an account first so your subscription can be saved and activated immediately on your profile.
+                </p>
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onOpenAuth) onOpenAuth();
+                  }}
+                  className="mt-3.5 inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-black shadow-md hover:bg-amber-400"
+                >
+                  <User size={13} /> Sign In / Sign Up Now
+                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Account info pill */}
+                <div className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs ${
+                  dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-50"
+                }`}>
+                  <span className={dark ? "text-white/50" : "text-neutral-500"}>Upgrading account:</span>
+                  <span className="font-semibold text-amber-400 truncate max-w-[220px]">{user.email}</span>
+                </div>
 
-            <div
-              className={`flex flex-col items-center justify-center rounded-xl border p-3 ${
-                dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-200 bg-neutral-50"
-              }`}
-            >
-              <img
-                src={dynamicQrUrl}
-                alt="UPI QR Code"
-                className="h-40 w-40 rounded-xl border border-neutral-300/30 bg-white p-2 shadow-inner"
-              />
-              <p className={`mt-2 text-[11px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
-                Scan with Google Pay, PhonePe, Paytm, or CRED
-              </p>
-            </div>
+                {/* Supported Payment Channels */}
+                <div className={`rounded-2xl border p-3.5 text-xs ${
+                  dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-200 bg-neutral-50"
+                }`}>
+                  <div className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${dark ? "text-white/50" : "text-neutral-500"}`}>
+                    Supported Instant Payment Methods
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                    <div className={`rounded-lg border p-2 ${dark ? "border-white/10 bg-white/5" : "border-neutral-200 bg-white"}`}>
+                      <Smartphone size={15} className="mx-auto mb-1 text-emerald-400" />
+                      <span className="font-semibold">UPI Apps</span>
+                      <div className="text-[9px] text-neutral-400">GPay, PhonePe, Paytm</div>
+                    </div>
+                    <div className={`rounded-lg border p-2 ${dark ? "border-white/10 bg-white/5" : "border-neutral-200 bg-white"}`}>
+                      <CreditCard size={15} className="mx-auto mb-1 text-blue-400" />
+                      <span className="font-semibold">Cards</span>
+                      <div className="text-[9px] text-neutral-400">Visa, MC, RuPay</div>
+                    </div>
+                    <div className={`rounded-lg border p-2 ${dark ? "border-white/10 bg-white/5" : "border-neutral-200 bg-white"}`}>
+                      <Globe size={15} className="mx-auto mb-1 text-purple-400" />
+                      <span className="font-semibold">NetBanking</span>
+                      <div className="text-[9px] text-neutral-400">50+ Indian Banks</div>
+                    </div>
+                  </div>
 
-            <div
-              className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
-                dark ? "border-white/10 bg-white/[0.04]" : "border-neutral-200 bg-neutral-50"
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className={`text-[10px] ${dark ? "text-white/40" : "text-neutral-500"}`}>UPI ID</div>
-                <div className="truncate font-mono text-xs font-semibold">{UPI_ID}</div>
+                  <ul className="mt-3 space-y-1.5 text-[11px]">
+                    <li className="flex items-center gap-2 text-emerald-400">
+                      <CheckCircle2 size={13} className="shrink-0" />
+                      <span><strong>Instant unlock:</strong> RockGPT 4o is activated immediately after payment</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-emerald-400">
+                      <CheckCircle2 size={13} className="shrink-0" />
+                      <span><strong>Zero waiting:</strong> Database automatically upgraded in ~3 seconds</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-emerald-400">
+                      <CheckCircle2 size={13} className="shrink-0" />
+                      <span><strong>Safe & Encrypted:</strong> 256-bit bank-grade cryptographic security</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Instant Checkout Button */}
+                <button
+                  onClick={handleRazorpayCheckout}
+                  disabled={payingRazorpay || verifyingPayment}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 py-3.5 text-xs font-extrabold uppercase tracking-wider text-black shadow-[0_0_30px_rgba(245,158,11,0.35)] transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50"
+                >
+                  {payingRazorpay ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin text-black" />
+                      <span>Launching Secure Gateway...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={16} className="fill-current text-black" />
+                      <span>Pay ₹{totalAmount} Instantly with Razorpay</span>
+                      <ArrowRight size={15} className="text-black" />
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: MANUAL DIRECT UPI QR CODE (FALLBACK) */}
+        {activeTab === "manual" && (
+          <div className="mt-4">
+            {submittedManual ? (
+              <div className="py-8 text-center">
+                <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
+                  <CheckCircle2 size={32} />
+                </div>
+                <h4 className="text-base font-bold">Transaction Reference Saved!</h4>
+                <p className={`mt-2 text-xs leading-relaxed ${dark ? "text-white/60" : "text-neutral-600"}`}>
+                  Thank you! Reference (<strong className={dark ? "text-white" : "text-neutral-900"}>{utrNumber}</strong>) received for <strong>{user?.email || "guest user"}</strong>. Your account will be verified and upgraded.
+                </p>
+                <button
+                  onClick={onClose}
+                  className={`mt-6 w-full rounded-xl py-2.5 text-xs font-semibold ${
+                    dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
+                  }`}
+                >
+                  Done & Return to Chat
+                </button>
               </div>
-              <button
-                onClick={copyUpi}
-                className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${
-                  dark
-                    ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
-                    : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100"
-                }`}
-              >
-                {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                <span>{copied ? "Copied" : "Copy"}</span>
-              </button>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <div
+                  className={`flex items-center justify-between rounded-xl border p-3 ${
+                    dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-50"
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs font-medium">{plan.name} Plan ({plan.billingCycle})</div>
+                    <div className={`text-[11px] ${dark ? "text-white/50" : "text-neutral-500"}`}>Direct UPI transfer</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-extrabold">₹{totalAmount}</div>
+                    <div className="text-[10px] text-emerald-500 font-semibold">Incl. all taxes</div>
+                  </div>
+                </div>
 
-            <form onSubmit={handleSubmitProof} className="space-y-2 pt-1">
-              <label className={`block text-[11px] font-medium ${dark ? "text-white/70" : "text-neutral-700"}`}>
-                Confirm payment: Enter 12-digit UTR / Ref Number
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. 329482910482"
-                value={utrNumber}
-                onChange={(e) => setUtrNumber(e.target.value)}
-                className={`w-full rounded-xl border px-3 py-2.5 text-xs outline-none transition ${
-                  dark
-                    ? "border-white/15 bg-transparent text-white placeholder:text-white/30 focus:border-white/50"
-                    : "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-600"
-                }`}
-              />
-              <button
-                type="submit"
-                disabled={submitting}
-                className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
-                  dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
-                }`}
-              >
-                {submitting ? <Loader2 size={14} className="animate-spin" /> : "Verify & Activate Plan"}
-              </button>
-            </form>
+                <div className="block sm:hidden">
+                  <a
+                    href={upiLink}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-xs font-bold text-white shadow-lg active:scale-95"
+                  >
+                    <Smartphone size={16} /> Pay via Any UPI App (GPay / PhonePe / Paytm)
+                  </a>
+                  <div className={`my-2 text-center text-[10px] uppercase tracking-wider ${dark ? "text-white/40" : "text-neutral-400"}`}>
+                    or scan QR code below
+                  </div>
+                </div>
+
+                <div
+                  className={`flex flex-col items-center justify-center rounded-xl border p-3 ${
+                    dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-200 bg-neutral-50"
+                  }`}
+                >
+                  <img
+                    src={dynamicQrUrl}
+                    alt="UPI QR Code"
+                    className="h-40 w-40 rounded-xl border border-neutral-300/30 bg-white p-2 shadow-inner"
+                  />
+                  <p className={`mt-2 text-[11px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
+                    Scan with Google Pay, PhonePe, Paytm, or CRED
+                  </p>
+                </div>
+
+                <div
+                  className={`flex items-center justify-between rounded-xl border px-3 py-2 ${
+                    dark ? "border-white/10 bg-white/[0.04]" : "border-neutral-200 bg-neutral-50"
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[10px] ${dark ? "text-white/40" : "text-neutral-500"}`}>UPI ID</div>
+                    <div className="truncate font-mono text-xs font-semibold">{UPI_ID}</div>
+                  </div>
+                  <button
+                    onClick={copyUpi}
+                    className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${
+                      dark
+                        ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                        : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100"
+                    }`}
+                  >
+                    {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                    <span>{copied ? "Copied" : "Copy"}</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubmitProof} className="space-y-2 pt-1">
+                  <label className={`block text-[11px] font-medium ${dark ? "text-white/70" : "text-neutral-700"}`}>
+                    Confirm payment: Enter 12-digit UTR / Ref Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 329482910482"
+                    value={utrNumber}
+                    onChange={(e) => setUtrNumber(e.target.value)}
+                    className={`w-full rounded-xl border px-3 py-2.5 text-xs outline-none transition ${
+                      dark
+                        ? "border-white/15 bg-transparent text-white placeholder:text-white/30 focus:border-white/50"
+                        : "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-600"
+                    }`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={submittingManual}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
+                      dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
+                    }`}
+                  >
+                    {submittingManual ? <Loader2 size={14} className="animate-spin" /> : "Submit UTR & Request Verification"}
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1782,12 +2112,24 @@ export default function RockGPT() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem("rockgpt-token") || null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
-  const isPaidUser = Boolean(user && (user.plan === "Plus" || user.plan === "Pro"));
+  const isPaidUser = Boolean(
+    user &&
+    (user.plan === "Plus" ||
+     user.plan === "Pro" ||
+     user.plan?.toLowerCase() === "plus" ||
+     user.plan?.toLowerCase() === "pro")
+  );
 
   const [selectedModel, setSelectedModel] = useState(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
-      const isPaid = Boolean(savedUser && (savedUser.plan === "Plus" || savedUser.plan === "Pro"));
+      const isPaid = Boolean(
+        savedUser &&
+        (savedUser.plan === "Plus" ||
+         savedUser.plan === "Pro" ||
+         savedUser.plan?.toLowerCase() === "plus" ||
+         savedUser.plan?.toLowerCase() === "pro")
+      );
       const savedModel = localStorage.getItem("rockgpt-model");
       if (savedModel === "RockGPT 4o" && isPaid) return "RockGPT 4o";
       return "RockGPT Flash";
@@ -1974,6 +2316,17 @@ export default function RockGPT() {
     } catch {
       setConversations([]);
     }
+  };
+
+  const handlePaymentSuccess = (updatedUser, token) => {
+    setUser(updatedUser);
+    if (token) {
+      setAuthToken(token);
+      localStorage.setItem("rockgpt-token", token);
+    }
+    localStorage.setItem("rockgpt-user", JSON.stringify(updatedUser));
+    setSelectedModel("RockGPT 4o");
+    localStorage.setItem("rockgpt-model", "RockGPT 4o");
   };
 
   // EXPLICIT LOGOUT FUNCTION
@@ -3352,13 +3705,20 @@ export default function RockGPT() {
         }}
       />
 
-      {/* UPI Checkout Modal */}
+      {/* Automated Razorpay & Direct UPI Checkout Modal */}
       <UpiCheckoutModal
         plan={payingPlan}
         onClose={() => setPayingPlan(null)}
         notify={notify}
         user={user}
         dark={dark}
+        authToken={authToken}
+        onPaymentSuccess={handlePaymentSuccess}
+        onOpenAuth={() => {
+          setPayingPlan(null);
+          setGateLocked(false);
+          setAuthModalOpen(true);
+        }}
       />
 
       {/* Auth Modal with OTP */}

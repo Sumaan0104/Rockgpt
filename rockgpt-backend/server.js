@@ -261,7 +261,7 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
       success: true,
       message: "Password reset successfully.",
       token,
-      user: { id: user._id, name: user.name, email: user.email, plan: user.plan },
+      user: { id: user._id, name: user.name, email: user.email, plan: user.plan, planExpiresAt: user.planExpiresAt },
     });
   } catch (err) {
     console.error("Reset password error:", err.message);
@@ -289,7 +289,7 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
     const user = new User({ name: name.trim(), email: em, password: await bcrypt.hash(password, 12), plan: "Free" });
     await user.save();
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
-    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, plan: user.plan } });
+    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, plan: user.plan, planExpiresAt: user.planExpiresAt } });
   } catch (err) { console.error("Signup:", err.message); res.status(500).json({ error: "Signup failed." }); }
 });
 
@@ -304,8 +304,15 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     const user = await User.findOne({ email: em });
     if (!user) return res.status(401).json({ error: "No account found." });
     if (!(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: "Incorrect password." });
+    
+    // Check if subscription expired
+    if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date() && user.plan !== "Free") {
+      user.plan = "Free";
+      await user.save();
+    }
+
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, plan: user.plan } });
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, plan: user.plan, planExpiresAt: user.planExpiresAt } });
   } catch (err) { console.error("Login:", err.message); res.status(500).json({ error: "Login failed." }); }
 });
 
@@ -315,7 +322,14 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
     if (!user) return res.status(404).json({ error: "User not found." });
-    res.json({ user: { id: user._id, name: user.name, email: user.email, plan: user.plan } });
+
+    // Check if subscription expired
+    if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date() && user.plan !== "Free") {
+      user.plan = "Free";
+      await user.save();
+    }
+
+    res.json({ user: { id: user._id, name: user.name, email: user.email, plan: user.plan, planExpiresAt: user.planExpiresAt } });
   } catch { res.status(500).json({ error: "Something went wrong." }); }
 });
 
@@ -346,6 +360,182 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
   } catch (err) {
     console.error("Chat error:", err.message);
     try { res.write(`data: ${JSON.stringify({ error: "AI service temporarily unavailable." })}\n\n`); res.end(); } catch {}
+  }
+});
+
+// ═══ PAYMENT SYSTEM (RAZORPAY AUTOMATION) ═══
+const PLAN_PRICING = {
+  plus: {
+    monthly: 149 * 100, // 14900 paise = ₹149
+    yearly: 119 * 12 * 100, // 142800 paise = ₹1,428
+    name: "Plus",
+  },
+  pro: {
+    monthly: 399 * 100, // 39900 paise = ₹399
+    yearly: 319 * 12 * 100, // 382800 paise = ₹3,828
+    name: "Pro",
+  },
+};
+
+// Check if Razorpay credentials are configured
+app.get("/api/payment/config", (req, res) => {
+  const keyId = process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.trim() : null;
+  const isConfigured = Boolean(keyId && process.env.RAZORPAY_KEY_SECRET);
+  res.json({
+    configured: isConfigured,
+    keyId: keyId,
+  });
+});
+
+// Create Razorpay Order
+app.post("/api/payment/create-order", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Please log in or create an account to upgrade your subscription." });
+    }
+
+    const { planId, billingCycle = "monthly" } = req.body;
+    const planKey = (planId || "").toLowerCase();
+    const cycle = billingCycle === "yearly" ? "yearly" : "monthly";
+
+    if (!PLAN_PRICING[planKey]) {
+      return res.status(400).json({ error: "Invalid subscription plan selected." });
+    }
+
+    const keyId = process.env.RAZORPAY_KEY_ID ? process.env.RAZORPAY_KEY_ID.trim() : "";
+    const keySecret = process.env.RAZORPAY_KEY_SECRET ? process.env.RAZORPAY_KEY_SECRET.trim() : "";
+
+    if (!keyId || !keySecret) {
+      return res.status(503).json({
+        error: "Razorpay automated payments are not yet activated on this server. Please use manual UPI QR code transfer or set RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET in Render.",
+        fallback: true,
+      });
+    }
+
+    const planConfig = PLAN_PRICING[planKey];
+    const amountInPaise = planConfig[cycle];
+    const authHeader = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+
+    const orderRes = await fetch("https://api.razorpay.com/v1/orders", {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: amountInPaise,
+        currency: "INR",
+        receipt: `rcpt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+        notes: {
+          userId: req.user.id,
+          userEmail: req.user.email,
+          plan: planConfig.name,
+          billingCycle: cycle,
+        },
+      }),
+    });
+
+    const orderData = await orderRes.json();
+    if (!orderRes.ok) {
+      console.error("Razorpay order creation error:", orderData);
+      return res.status(500).json({
+        error: orderData.error?.description || `Razorpay order creation failed (HTTP ${orderRes.status})`,
+      });
+    }
+
+    res.json({
+      success: true,
+      orderId: orderData.id,
+      amount: orderData.amount,
+      currency: orderData.currency,
+      keyId,
+      planName: planConfig.name,
+      billingCycle: cycle,
+    });
+  } catch (err) {
+    console.error("create-order error:", err.message);
+    res.status(500).json({ error: `Payment order error: ${err.message}` });
+  }
+});
+
+// Verify Payment Signature & Instantly Upgrade MongoDB User Plan
+app.post("/api/payment/verify-payment", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Please log in to verify payment." });
+    }
+
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId, billingCycle } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ error: "Missing required payment verification details." });
+    }
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET ? process.env.RAZORPAY_KEY_SECRET.trim() : "";
+    if (!keySecret) {
+      return res.status(500).json({ error: "Server payment verification secret is missing." });
+    }
+
+    // Cryptographic signature check: HMAC-SHA256 of order_id + "|" + payment_id using secret
+    const expectedSignature = crypto
+      .createHmac("sha256", keySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ error: "Security alert: Payment signature verification failed." });
+    }
+
+    // Determine plan and expiration
+    const planName = (planId || "").toLowerCase() === "pro" ? "Pro" : "Plus";
+    const daysToAdd = billingCycle === "yearly" ? 365 : 30;
+    const planExpiresAt = new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000);
+
+    // Upgrade user in MongoDB
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        plan: planName,
+        planExpiresAt,
+        razorpayPaymentId: razorpay_payment_id,
+        razorpayOrderId: razorpay_order_id,
+      },
+      { new: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    // Issue fresh JWT token
+    const token = jwt.sign(
+      { id: updatedUser._id, email: updatedUser.email },
+      JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    // Send confirmation email asynchronously
+    sendEmail({
+      to: updatedUser.email,
+      subject: `🎉 Your RockGPT ${planName} Plan is Live!`,
+      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#f59e0b;color:#000;font-weight:900;font-size:22px;width:52px;height:52px;line-height:52px;border-radius:16px;">R</div></div><h2 style="text-align:center;color:#fff;">RockGPT ${planName} Activated!</h2><p style="text-align:center;color:#aaa;font-size:14px;">Your payment was verified and RockGPT 4o is now unlocked on your account.</p><div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:20px 0;"><p style="margin:6px 0;color:#aaa;font-size:13px;">Plan: <strong style="color:#fff;">RockGPT ${planName}</strong></p><p style="margin:6px 0;color:#aaa;font-size:13px;">Billing: <strong style="color:#fff;">${billingCycle === "yearly" ? "Annual (12 Months)" : "Monthly (30 Days)"}</strong></p><p style="margin:6px 0;color:#aaa;font-size:13px;">Payment Ref: <span style="font-family:monospace;color:#f59e0b;">${razorpay_payment_id}</span></p><p style="margin:6px 0;color:#aaa;font-size:13px;">Valid Until: <strong style="color:#fff;">${planExpiresAt.toLocaleDateString()}</strong></p></div><p style="text-align:center;color:#777;font-size:12px;">Thank you for supporting RockGPT. Enjoy unlimited intelligence!</p></div>`,
+    }).catch((e) => console.warn("Email dispatch error on upgrade:", e.message));
+
+    res.json({
+      success: true,
+      message: `🎉 Payment verified! Upgraded to RockGPT ${planName}.`,
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        plan: updatedUser.plan,
+        planExpiresAt: updatedUser.planExpiresAt,
+      },
+      token,
+    });
+  } catch (err) {
+    console.error("verify-payment error:", err.message);
+    res.status(500).json({ error: `Payment verification error: ${err.message}` });
   }
 });
 
