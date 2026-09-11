@@ -1,25 +1,45 @@
 <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="favPlatinum" x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="35%" stop-color="#f1f5f9"/>
-      <stop offset="70%" stop-color="#cbd5e1"/>
-      <stop offset="100%" stop-color="#64748b"/>
+    <radialGradient id="favCoreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9"/>
+      <stop offset="45%" stop-color="#2563eb" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="favGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="60%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#818cf8"/>
     </linearGradient>
-    <filter id="favGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur"/>
+    <linearGradient id="favGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="65%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="favGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="70%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <filter id="favBloomGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   </defs>
-  <polygon points="50,6 88,27 88,73 50,94 12,73 12,27" fill="#09090b" stroke="url(#favPlatinum)" stroke-width="3.2" stroke-linejoin="round" filter="url(#favGlow)"/>
-  <path d="M50 6 L50 94 M12 27 L88 73 M12 73 L88 27" stroke="rgba(255,255,255,0.14)" stroke-width="1.2"/>
-  <circle cx="50" cy="50" r="23" fill="rgba(255,255,255,0.05)"/>
-  <path d="M33 26 V74" stroke="url(#favPlatinum)" stroke-width="7.5" stroke-linecap="round"/>
-  <path d="M33 29 H53 C65 29 72 35 72 43 C72 51 65 57 53 57 H33" stroke="url(#favPlatinum)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M48 56 L68 74" stroke="url(#favPlatinum)" stroke-width="7.5" stroke-linecap="round"/>
-  <path d="M52 38 Q52 43 57 43 Q52 43 52 48 Q52 43 47 43 Q52 43 52 38 Z" fill="#ffffff" filter="url(#favGlow)"/>
-  <circle cx="52" cy="43" r="1.6" fill="#ffffff"/>
+  <rect width="100" height="100" rx="26" fill="#070709"/>
+  <circle cx="50" cy="50" r="34" fill="url(#favCoreGlow)"/>
+  <!-- 6 Pinwheel Origami Petals -->
+  <g id="favPetals">
+    <g transform="rotate(0 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#favGrad1)" opacity="0.95"/></g>
+    <g transform="rotate(60 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#favGrad2)" opacity="0.95"/></g>
+    <g transform="rotate(120 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#favGrad2)" opacity="0.95"/></g>
+    <g transform="rotate(180 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#favGrad3)" opacity="0.95"/></g>
+    <g transform="rotate(240 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#favGrad1)" opacity="0.95"/></g>
+    <g transform="rotate(300 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#favGrad3)" opacity="0.95"/></g>
+  </g>
+  <!-- Radiant 4-pointed AI Core Star -->
+  <path d="M50 35 Q50 50 65 50 Q50 50 50 65 Q50 50 35 50 Q50 50 50 35 Z" fill="#ffffff" filter="url(#favBloomGlow)"/>
+  <circle cx="50" cy="50" r="2.5" fill="#ffffff"/>
 </svg>
