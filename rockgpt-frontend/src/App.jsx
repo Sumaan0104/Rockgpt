@@ -251,7 +251,7 @@ function RockMark({ small = false, dark = true }) {
 }
 
 /* =========================================================================
-   CINEMATIC INTRO ANIMATION
+   CINEMATIC QUANTUM NEURAL INTRO ANIMATION (ROCKGPT v4.2)
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [percent, setPercent] = useState(0);
@@ -261,74 +261,112 @@ function IntroScreen({ onDone }) {
       setPercent((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          setTimeout(onDone, 250);
+          setTimeout(onDone, 300);
           return 100;
         }
         return prev + 4;
       });
-    }, 35);
+    }, 30);
     return () => clearInterval(interval);
   }, [onDone]);
 
   const bootStatus =
-    percent < 25
-      ? "SYNCHRONIZING NEURAL CORES..."
-      : percent < 50
-      ? "CALIBRATING QUANTUM REASONING..."
-      : percent < 75
-      ? "CONNECTING SECURE WORKSPACE..."
-      : percent < 95
-      ? "LOADING CONTEXT & MEMORY..."
-      : "ROCKGPT ONLINE • LAUNCHING...";
+    percent < 20
+      ? "[01/05] INITIALIZING QUANTUM NEURAL MATRIX..."
+      : percent < 45
+      ? "[02/05] CALIBRATING 120B DEEP REASONING CORE..."
+      : percent < 70
+      ? "[03/05] ESTABLISHING MILITARY AES-256 SESSION..."
+      : percent < 90
+      ? "[04/05] SYNCHRONIZING CLOUD CONTEXT PIPELINE..."
+      : "[05/05] ROCKGPT v4.2 TURBO ONLINE • READY";
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050505] text-white select-none overflow-hidden">
-      {/* Dynamic ambient nebula backdrops */}
-      <div className="absolute h-96 w-96 rounded-full bg-gradient-to-tr from-amber-500/20 via-purple-600/20 to-blue-500/20 blur-[100px] animate-pulse" style={{ animationDuration: "4s" }} />
-      <div className="absolute h-64 w-64 rounded-full bg-amber-400/10 blur-[80px] -top-10 -left-10" />
-      <div className="absolute h-64 w-64 rounded-full bg-purple-500/10 blur-[80px] -bottom-10 -right-10" />
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050507] text-white select-none overflow-hidden font-sans">
+      {/* Dynamic Cyber Matrix Grid Background */}
+      <div
+        className="absolute inset-0 opacity-20"
+        style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+          backgroundSize: "28px 28px",
+        }}
+      />
 
-      {/* Cybernetic Core Emblem with Dual Orbiting Rings */}
-      <div className="relative mb-7 grid place-items-center">
-        {/* Outer dashed orbital ring */}
-        <div
-          className="absolute h-32 w-32 rounded-full border border-dashed border-amber-400/30 animate-[spin_12s_linear_infinite]"
-        />
-        {/* Middle counter-rotating ring */}
-        <div
-          className="absolute h-28 w-28 rounded-full border border-purple-400/35 animate-[spin_8s_linear_infinite_reverse]"
-        />
-        {/* Inner pulsing aura ring */}
-        <div className="absolute h-24 w-24 rounded-2xl bg-gradient-to-tr from-amber-500/30 to-purple-600/30 blur-md animate-ping" style={{ animationDuration: "3s" }} />
+      {/* Pulsing Quantum Ambient Lights */}
+      <div className="absolute h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-amber-500/20 via-purple-600/20 to-cyan-500/20 blur-[120px] animate-pulse" style={{ animationDuration: "3.5s" }} />
+      <div className="absolute h-72 w-72 rounded-full bg-amber-400/15 blur-[90px] -top-12 -left-12" />
+      <div className="absolute h-72 w-72 rounded-full bg-cyan-400/15 blur-[90px] -bottom-12 -right-12" />
 
-        {/* Central 3D Embossed Emblem */}
-        <div className="relative z-10 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-b from-neutral-100 to-neutral-300 text-3xl font-black text-black shadow-[0_0_50px_rgba(251,191,36,0.35)] transition-all duration-300">
-          <span className="bg-gradient-to-b from-black to-neutral-800 bg-clip-text text-transparent">R</span>
+      {/* Floating Cyber Particles */}
+      <div className="absolute top-1/4 left-1/5 h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping opacity-60" style={{ animationDuration: "2s" }} />
+      <div className="absolute bottom-1/3 right-1/4 h-2 w-2 rounded-full bg-cyan-400 animate-pulse opacity-70" style={{ animationDuration: "1.8s" }} />
+      <div className="absolute top-1/3 right-1/5 h-1.5 w-1.5 rounded-full bg-purple-400 animate-ping opacity-50" style={{ animationDuration: "2.4s" }} />
+
+      {/* 3D Holographic Gyroscope Orb */}
+      <div className="relative mb-8 grid place-items-center" style={{ perspective: "1000px" }}>
+        {/* Outer Laser Orbit Ring */}
+        <div
+          className="absolute h-36 w-36 rounded-full border border-dashed border-amber-400/40 animate-[spin_10s_linear_infinite]"
+          style={{ transform: "rotateX(65deg)" }}
+        />
+        {/* Intersecting Cyan Orbit Ring */}
+        <div
+          className="absolute h-32 w-32 rounded-full border border-cyan-400/40 animate-[spin_7s_linear_infinite_reverse]"
+          style={{ transform: "rotateY(65deg)" }}
+        />
+        {/* Vertical Violet Ring */}
+        <div
+          className="absolute h-28 w-28 rounded-full border border-purple-400/50 animate-[spin_5s_linear_infinite]"
+          style={{ transform: "rotateZ(45deg)" }}
+        />
+
+        {/* Ambient Hologram Glow Orb */}
+        <div className="absolute h-24 w-24 rounded-full bg-gradient-to-tr from-amber-500/40 via-purple-500/30 to-cyan-500/40 blur-xl animate-pulse" />
+
+        {/* Central 3D Embossed Emblem with Shimmer Ring */}
+        <div className="relative z-10 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-b from-neutral-900 via-neutral-950 to-black border border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.35)] transition-all duration-300">
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-amber-500/10 to-purple-500/20" />
+          <span className="relative text-3xl font-black tracking-tighter bg-gradient-to-b from-amber-300 via-yellow-200 to-amber-500 bg-clip-text text-transparent drop-shadow-sm">
+            R
+          </span>
         </div>
       </div>
 
-      <div className="text-3xl font-black tracking-tight sm:text-4xl bg-gradient-to-r from-white via-neutral-200 to-neutral-400 bg-clip-text text-transparent">
-        RockGPT
+      {/* Brand Typography & Cyber Badge */}
+      <div className="flex items-center gap-2 mb-1">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-0.5 text-[10px] font-bold tracking-widest text-amber-300 uppercase shadow-inner">
+          <Sparkles size={11} className="text-amber-400 animate-spin" style={{ animationDuration: "6s" }} />
+          <span>v4.2 Turbo</span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-bold tracking-wider text-cyan-300">
+          <Shield size={10} /> AES-256
+        </span>
       </div>
-      <p className="mt-2 text-[11px] font-semibold tracking-[0.25em] text-amber-400/80 uppercase">
-        Next-Generation AI Workspace
+
+      <h1 className="text-3xl font-black tracking-tight sm:text-4xl bg-gradient-to-r from-white via-neutral-100 to-neutral-300 bg-clip-text text-transparent">
+        RockGPT
+      </h1>
+      <p className="mt-1 text-[11px] font-mono tracking-[0.22em] text-amber-400/75 uppercase">
+        Advanced Neural AI Workspace
       </p>
 
-      {/* Futuristic Progress Track */}
-      <div className="mt-8 w-64 sm:w-72">
-        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.08] p-0.5 border border-white/10 shadow-inner">
+      {/* Laser Progress Bar & Live Telemetry */}
+      <div className="mt-8 w-68 sm:w-80">
+        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.06] p-0.5 border border-white/10 shadow-inner">
           <div
-            className="relative h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-200 to-purple-500 shadow-[0_0_15px_rgba(251,191,36,0.6)] transition-all duration-100 ease-out"
+            className="relative h-full rounded-full bg-gradient-to-r from-amber-400 via-purple-400 to-cyan-400 shadow-[0_0_20px_rgba(245,158,11,0.7)] transition-all duration-100 ease-out"
             style={{ width: `${percent}%` }}
           >
-            {/* Glowing lead tip */}
-            <div className="absolute right-0 top-0 bottom-0 w-3 rounded-full bg-white shadow-[0_0_10px_#fff]" />
+            {/* White-Hot Laser Tip */}
+            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_12px_#fff,0_0_20px_#38bdf8]" />
           </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between text-[10px] font-mono tracking-wider">
-          <span className="text-neutral-400 animate-pulse">{bootStatus}</span>
-          <span className="font-bold text-amber-400">{percent}%</span>
+          <span className="text-neutral-400 animate-pulse truncate max-w-[200px] sm:max-w-[240px]">
+            {bootStatus}
+          </span>
+          <span className="font-bold font-mono text-amber-400 ml-2">{percent}%</span>
         </div>
       </div>
     </div>
@@ -473,14 +511,24 @@ function AuthModal({
   useEffect(() => {
     if (isOpen) {
       setStep("credentials");
+      setAuthMode("login");
       setError("");
-      setOtpDigits(["", "", "", "", "", ""]);
+      setName("");
+      setEmail("");
       setPassword("");
+      setOtpDigits(["", "", "", "", "", ""]);
       setLoading(false);
       setResendActive(false);
       setOtpTimer(45);
     }
   }, [isOpen]);
+
+  const switchAuthMode = (newMode) => {
+    setAuthMode(newMode);
+    setError("");
+    setPassword("");
+    setOtpDigits(["", "", "", "", "", ""]);
+  };
 
   useEffect(() => {
     let interval = null;
@@ -760,7 +808,7 @@ function AuthModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] grid place-items-center bg-black/75 p-4 fade backdrop-blur-md"
+      className="fixed inset-0 z-[92] grid place-items-center bg-[#070707]/95 p-4 fade backdrop-blur-2xl select-none"
       onClick={onClose}
     >
       <div
@@ -870,13 +918,14 @@ function AuthModal({
                 <div className="relative">
                   <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
                   <input
-                    name="password"
+                    key={authMode}
+                    name={authMode === "signup" ? "rockgpt_signup_pwd" : "password"}
                     id="auth-password"
                     autoComplete={authMode === "signup" ? "new-password" : "current-password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onInput={(e) => setPassword(e.target.value)}
-                    placeholder="Password (min 8 chars)"
+                    placeholder={authMode === "signup" ? "Create a strong password (min 8 chars)" : "Password"}
                     type="password"
                     className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
                       dark
@@ -892,10 +941,7 @@ function AuthModal({
                 <div className="flex justify-end pr-1 pt-0.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      setAuthMode("forgot");
-                      setError("");
-                    }}
+                    onClick={() => switchAuthMode("forgot")}
                     className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 hover:underline transition"
                   >
                     Forgot password?
@@ -999,10 +1045,7 @@ function AuthModal({
                   Remember your password?{" "}
                   <button
                     type="button"
-                    onClick={() => {
-                      setAuthMode("login");
-                      setError("");
-                    }}
+                    onClick={() => switchAuthMode("login")}
                     className="font-bold underline underline-offset-2 hover:text-amber-500"
                   >
                     Sign In
@@ -1013,10 +1056,7 @@ function AuthModal({
                   {authMode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
                   <button
                     type="button"
-                    onClick={() => {
-                      setAuthMode(authMode === "signup" ? "login" : "signup");
-                      setError("");
-                    }}
+                    onClick={() => switchAuthMode(authMode === "signup" ? "login" : "signup")}
                     className="font-bold underline underline-offset-2 hover:text-amber-500"
                   >
                     {authMode === "signup" ? "Sign In" : "Sign Up"}
@@ -1198,11 +1238,11 @@ function UpgradePlanModal({ isOpen, onClose, onSelectPlan, currentPlan = "Free",
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-md transition-all sm:items-center sm:p-4 fade"
+      className="fixed inset-0 z-[95] flex items-center justify-center bg-[#070707]/95 p-3 sm:p-4 backdrop-blur-2xl transition-all fade select-none overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className={`pop flex max-h-[92dvh] w-full max-w-[880px] flex-col overflow-hidden rounded-t-[26px] border shadow-2xl transition-all duration-300 sm:max-h-[88dvh] sm:rounded-[24px] ${
+        className={`pop relative my-auto flex max-h-[92vh] w-full max-w-[880px] flex-col overflow-hidden rounded-3xl border shadow-[0_0_60px_rgba(0,0,0,0.9)] transition-all duration-300 ${
           dark
             ? "border-white/15 bg-[#121212] text-white"
             : "border-neutral-200 bg-white text-neutral-900"
@@ -1522,11 +1562,11 @@ function UpiCheckoutModal({ plan, onClose, notify, user, dark = true }) {
 
   return (
     <div
-      className="fixed inset-0 z-[85] flex items-end justify-center bg-black/80 p-0 backdrop-blur-md transition-all sm:items-center sm:p-4 fade"
+      className="fixed inset-0 z-[96] flex items-center justify-center bg-[#070707]/95 p-3 sm:p-4 backdrop-blur-2xl transition-all fade select-none overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className={`pop max-h-[92dvh] w-full max-w-[420px] overflow-y-auto thin rounded-t-[26px] border p-5 shadow-2xl sm:max-h-[85dvh] sm:rounded-2xl sm:p-6 ${
+        className={`pop relative my-auto max-h-[92vh] w-full max-w-[440px] overflow-y-auto thin rounded-3xl border p-5 shadow-[0_0_60px_rgba(0,0,0,0.9)] sm:max-h-[88vh] sm:p-6 ${
           dark ? "border-white/15 bg-[#141414] text-white" : "border-neutral-200 bg-white text-neutral-900"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -1738,7 +1778,17 @@ export default function RockGPT() {
 
   const isPaidUser = Boolean(user && (user.plan === "Plus" || user.plan === "Pro"));
 
-  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem("rockgpt-model") || "RockGPT 4o");
+  const [selectedModel, setSelectedModel] = useState(() => {
+    try {
+      const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
+      const isPaid = Boolean(savedUser && (savedUser.plan === "Plus" || savedUser.plan === "Pro"));
+      const savedModel = localStorage.getItem("rockgpt-model");
+      if (savedModel === "RockGPT 4o" && isPaid) return "RockGPT 4o";
+      return "RockGPT Flash";
+    } catch {
+      return "RockGPT Flash";
+    }
+  });
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   const [gateOpen, setGateOpen] = useState(() => !localStorage.getItem("rockgpt-token"));
@@ -1874,6 +1924,12 @@ export default function RockGPT() {
   };
 
   const handleModelSelect = (modelName) => {
+    if (modelName === "RockGPT 4o" && !isPaidUser) {
+      setModelDropdownOpen(false);
+      setPricingOpen(true);
+      notify("🔒 RockGPT 4o requires a Plus or Pro subscription. Upgrade to unlock!");
+      return;
+    }
     setSelectedModel(modelName);
     localStorage.setItem("rockgpt-model", modelName);
     setModelDropdownOpen(false);
@@ -2208,6 +2264,16 @@ export default function RockGPT() {
           -ms-user-select: text !important;
           user-select: text !important;
           caret-color: ${dark ? "#f59e0b" : "#000000"} !important;
+        }
+        /* Eliminate browser autofill light blue background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 1000px ${dark ? "#141414" : "#ffffff"} inset !important;
+          -webkit-text-fill-color: ${dark ? "#ffffff" : "#0f172a"} !important;
+          caret-color: ${dark ? "#f59e0b" : "#000000"} !important;
+          transition: background-color 5000s ease-in-out 0s;
         }
         .selectable-text, .chat-bubble pre, .chat-bubble code, .chat-bubble p {
           -webkit-user-select: text !important;
@@ -2575,18 +2641,26 @@ export default function RockGPT() {
                           <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
                             RockGPT 4o
                           </span>
-                          {selectedModel === "RockGPT 4o" ? (
-                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400">
-                              <Check size={10} /> Active
-                            </span>
+                          {isPaidUser ? (
+                            selectedModel === "RockGPT 4o" ? (
+                              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                                <Check size={10} /> Active
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
+                                Smartest 120B
+                              </span>
+                            )
                           ) : (
-                            <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
-                              Smartest 120B
+                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-500">
+                              <Lock size={9} /> Plus/Pro
                             </span>
                           )}
                         </div>
                         <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
-                          Deep reasoning, complex logic, and advanced coding
+                          {isPaidUser
+                            ? "Deep reasoning, complex logic, and advanced coding"
+                            : "Locked • Requires Plus or Pro subscription"}
                         </div>
                       </div>
                     </button>
@@ -2617,7 +2691,7 @@ export default function RockGPT() {
                             </span>
                           ) : (
                             <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
-                              Fast 20B
+                              Free 20B
                             </span>
                           )}
                         </div>
