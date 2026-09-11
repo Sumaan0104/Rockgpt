@@ -262,140 +262,246 @@ function MessageContent({ content, dark }) {
   return <div className="space-y-1 text-[15px]">{output}</div>;
 }
 
-function RockMark({ small = false, dark = true }) {
+/* =========================================================================
+   ROCKGPT MASTER LOGO: QUANTUM CRYSTAL & "R" MONOGRAM EMBLEM
+   ========================================================================= */
+function RockLogo({ size = 32, dark = true, animated = false, className = "" }) {
+  const uid = useMemo(() => `rl-${size}-${Math.random().toString(36).slice(2, 6)}`, [size]);
+  const gradAmber = `ga-${uid}`;
+  const gradCyan = `gc-${uid}`;
+  const filterGlow = `fg-${uid}`;
+
   return (
-    <div
-      className={`grid shrink-0 place-items-center rounded-[10px] font-black shadow-sm transition-all duration-300 ${
-        small ? "h-7 w-7 text-[11px]" : "h-9 w-9 text-sm"
-      } ${
-        dark
-          ? "border border-white/15 bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.15)]"
-          : "border border-neutral-300 bg-neutral-900 text-white shadow-sm"
-      }`}
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={`shrink-0 select-none ${animated ? "transition-transform hover:scale-105" : ""} ${className}`}
+      style={{ overflow: "visible" }}
     >
-      R
-    </div>
+      <defs>
+        {/* Warm Golden Amber Crystal Gradient */}
+        <linearGradient id={gradAmber} x1="15" y1="10" x2="85" y2="90" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fffbeb" />
+          <stop offset="25%" stopColor="#fde047" />
+          <stop offset="55%" stopColor="#f59e0b" />
+          <stop offset="85%" stopColor="#d97706" />
+          <stop offset="100%" stopColor="#92400e" />
+        </linearGradient>
+
+        {/* Electric Cyan/Indigo Radiant Gradient */}
+        <linearGradient id={gradCyan} x1="85" y1="15" x2="15" y2="85" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="45%" stopColor="#60a5fa" />
+          <stop offset="80%" stopColor="#818cf8" />
+          <stop offset="100%" stopColor="#c084fc" />
+        </linearGradient>
+
+        {/* Dynamic Glow Filter */}
+        <filter id={filterGlow} x="-20%" y="-20%" width="140%" height="140%" filterUnits="userSpaceOnUse">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* Hexagonal Crystal Shield */}
+      <polygon
+        points="50,5 90,27 90,73 50,95 10,73 10,27"
+        fill={dark ? "#0e0f14" : "#ffffff"}
+        stroke={`url(#${gradAmber})`}
+        strokeWidth="3.5"
+        strokeLinejoin="round"
+        filter={`url(#${filterGlow})`}
+      />
+
+      {/* Internal Facet Geometric Precision Lines */}
+      <path
+        d="M50 5 L50 95 M10 27 L90 73 M10 73 L90 27"
+        stroke={dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"}
+        strokeWidth="1.2"
+      />
+
+      {/* Ambient Inner Core Glow */}
+      <circle
+        cx="50"
+        cy="50"
+        r="22"
+        fill={dark ? "rgba(245,158,11,0.09)" : "rgba(245,158,11,0.06)"}
+      />
+
+      {/* Modern High-Tech "R" Monogram */}
+      {/* 1. Left Vertical Pillar */}
+      <path
+        d="M32 25 V75"
+        stroke={`url(#${gradAmber})`}
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+
+      {/* 2. Sweeping Dynamic Upper Loop */}
+      <path
+        d="M32 28 H54 C66 28 73 34 73 42 C73 50 66 56 54 56 H32"
+        stroke={`url(#${gradAmber})`}
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* 3. Aerodynamic Diagonal Power Leg */}
+      <path
+        d="M50 55 L70 75"
+        stroke={`url(#${gradCyan})`}
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+
+      {/* 4. Center Radiant Quantum Sparkle */}
+      <path
+        d="M52 38 Q52 42 56 42 Q52 42 52 46 Q52 42 48 42 Q52 42 52 38 Z"
+        fill="#ffffff"
+        filter={`url(#${filterGlow})`}
+      />
+      <circle cx="52" cy="42" r="1.5" fill="#fef08a" />
+    </svg>
   );
 }
 
+function RockMark({ small = false, size, dark = true, animated = false }) {
+  const s = size || (small ? 26 : 34);
+  return <RockLogo size={s} dark={dark} animated={animated} />;
+}
+
 /* =========================================================================
-   CINEMATIC QUANTUM NEURAL INTRO ANIMATION (ROCKGPT v4.2)
+   SIMPLE, UNIQUE & LUXURIOUS INTRO ANIMATION (MOBILE & DESKTOP TUNED)
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [percent, setPercent] = useState(0);
+  const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
+    // Smooth 1.8-second natural progression
     const interval = setInterval(() => {
       setPercent((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          setTimeout(onDone, 300);
+          setExiting(true);
+          setTimeout(onDone, 380);
           return 100;
         }
-        return prev + 4;
+        return prev + 2;
       });
-    }, 30);
+    }, 28);
     return () => clearInterval(interval);
   }, [onDone]);
 
-  const bootStatus =
-    percent < 20
-      ? "[01/05] INITIALIZING QUANTUM NEURAL MATRIX..."
-      : percent < 45
-      ? "[02/05] CALIBRATING 120B DEEP REASONING CORE..."
-      : percent < 70
-      ? "[03/05] ESTABLISHING MILITARY AES-256 SESSION..."
-      : percent < 90
-      ? "[04/05] SYNCHRONIZING CLOUD CONTEXT PIPELINE..."
-      : "[05/05] ROCKGPT v4.2 TURBO ONLINE • READY";
+  const handleSkip = () => {
+    setExiting(true);
+    setTimeout(onDone, 180);
+  };
+
+  const statusLabel =
+    percent < 30
+      ? "Initializing Quantum Core..."
+      : percent < 65
+      ? "Calibrating Neural Pathways..."
+      : percent < 95
+      ? "Connecting Secure Workspace..."
+      : "RockGPT Online • Ready";
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050507] text-white select-none overflow-hidden font-sans">
-      {/* Dynamic Cyber Matrix Grid Background */}
+    <div
+      onClick={handleSkip}
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070709] text-white select-none overflow-hidden transition-all duration-400 cursor-pointer ${
+        exiting ? "opacity-0 scale-105 pointer-events-none" : "opacity-100 scale-100"
+      }`}
+      style={{
+        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+      }}
+    >
+      <style>{`
+        @keyframes logoFloat {
+          0%, 100% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-7px) scale(1.02); }
+        }
+      `}</style>
+      {/* Ambient Pulsing Atmospheric Light Pools */}
       <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)`,
-          backgroundSize: "28px 28px",
-        }}
+        className="absolute h-[340px] w-[340px] sm:h-[460px] sm:w-[460px] rounded-full bg-gradient-to-tr from-amber-500/20 via-yellow-400/15 to-cyan-500/20 blur-[90px] animate-pulse"
+        style={{ animationDuration: "3s" }}
       />
+      <div className="absolute h-60 w-60 rounded-full bg-cyan-500/10 blur-[80px] -top-8 -right-8" />
+      <div className="absolute h-60 w-60 rounded-full bg-amber-500/10 blur-[80px] -bottom-8 -left-8" />
 
-      {/* Pulsing Quantum Ambient Lights */}
-      <div className="absolute h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-amber-500/20 via-purple-600/20 to-cyan-500/20 blur-[120px] animate-pulse" style={{ animationDuration: "3.5s" }} />
-      <div className="absolute h-72 w-72 rounded-full bg-amber-400/15 blur-[90px] -top-12 -left-12" />
-      <div className="absolute h-72 w-72 rounded-full bg-cyan-400/15 blur-[90px] -bottom-12 -right-12" />
+      {/* Gentle Constellation Starlight Dust */}
+      <div className="absolute top-[20%] left-[18%] h-1.5 w-1.5 rounded-full bg-amber-400/70 animate-ping" style={{ animationDuration: "2.4s" }} />
+      <div className="absolute top-[30%] right-[18%] h-1.5 w-1.5 rounded-full bg-cyan-400/70 animate-pulse" style={{ animationDuration: "1.8s" }} />
+      <div className="absolute bottom-[28%] left-[22%] h-2 w-2 rounded-full bg-yellow-300/60 animate-pulse" style={{ animationDuration: "2.8s" }} />
+      <div className="absolute bottom-[32%] right-[24%] h-1 w-1 rounded-full bg-purple-400/60 animate-ping" style={{ animationDuration: "2s" }} />
 
-      {/* Floating Cyber Particles */}
-      <div className="absolute top-1/4 left-1/5 h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping opacity-60" style={{ animationDuration: "2s" }} />
-      <div className="absolute bottom-1/3 right-1/4 h-2 w-2 rounded-full bg-cyan-400 animate-pulse opacity-70" style={{ animationDuration: "1.8s" }} />
-      <div className="absolute top-1/3 right-1/5 h-1.5 w-1.5 rounded-full bg-purple-400 animate-ping opacity-50" style={{ animationDuration: "2.4s" }} />
+      {/* Center 3D Floating Crystal Emblem */}
+      <div className="relative mb-6 sm:mb-8 grid place-items-center">
+        {/* Outer Concentric Ethereal Halo Rings */}
+        <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full border border-amber-400/20 animate-[spin_14s_linear_infinite]" />
+        <div className="absolute h-32 w-32 sm:h-40 sm:w-40 rounded-full border border-dashed border-cyan-400/25 animate-[spin_10s_linear_infinite_reverse]" />
 
-      {/* 3D Holographic Gyroscope Orb */}
-      <div className="relative mb-8 grid place-items-center" style={{ perspective: "1000px" }}>
-        {/* Outer Laser Orbit Ring */}
-        <div
-          className="absolute h-36 w-36 rounded-full border border-dashed border-amber-400/40 animate-[spin_10s_linear_infinite]"
-          style={{ transform: "rotateX(65deg)" }}
-        />
-        {/* Intersecting Cyan Orbit Ring */}
-        <div
-          className="absolute h-32 w-32 rounded-full border border-cyan-400/40 animate-[spin_7s_linear_infinite_reverse]"
-          style={{ transform: "rotateY(65deg)" }}
-        />
-        {/* Vertical Violet Ring */}
-        <div
-          className="absolute h-28 w-28 rounded-full border border-purple-400/50 animate-[spin_5s_linear_infinite]"
-          style={{ transform: "rotateZ(45deg)" }}
-        />
+        {/* Radiant Center Glow Orb */}
+        <div className="absolute h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-gradient-to-tr from-amber-500/35 via-yellow-400/25 to-cyan-400/35 blur-xl animate-pulse" />
 
-        {/* Ambient Hologram Glow Orb */}
-        <div className="absolute h-24 w-24 rounded-full bg-gradient-to-tr from-amber-500/40 via-purple-500/30 to-cyan-500/40 blur-xl animate-pulse" />
-
-        {/* Central 3D Embossed Emblem with Shimmer Ring */}
-        <div className="relative z-10 grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-b from-neutral-900 via-neutral-950 to-black border border-amber-400/50 shadow-[0_0_40px_rgba(245,158,11,0.35)] transition-all duration-300">
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-amber-500/10 to-purple-500/20" />
-          <span className="relative text-3xl font-black tracking-tighter bg-gradient-to-b from-amber-300 via-yellow-200 to-amber-500 bg-clip-text text-transparent drop-shadow-sm">
-            R
-          </span>
+        {/* Floating RockLogo */}
+        <div className="relative z-10 animate-[logoFloat_3s_ease-in-out_infinite]">
+          <RockLogo
+            size={84}
+            dark={true}
+            animated={false}
+            className="drop-shadow-[0_0_35px_rgba(245,158,11,0.55)] sm:w-[100px] sm:h-[100px]"
+          />
         </div>
       </div>
 
-      {/* Brand Typography & Cyber Badge */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-0.5 text-[10px] font-bold tracking-widest text-amber-300 uppercase shadow-inner">
+      {/* Brand Typography & Tagline */}
+      <div className="text-center px-4">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-0.5 text-[10px] font-bold tracking-widest text-amber-300 uppercase shadow-inner mb-2">
           <Sparkles size={11} className="text-amber-400 animate-spin" style={{ animationDuration: "6s" }} />
-          <span>v4.2 Turbo</span>
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-bold tracking-wider text-cyan-300">
-          <Shield size={10} /> AES-256
-        </span>
+          <span>v4.2 Turbo • Quantum AI</span>
+        </div>
+
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-amber-100 to-amber-300 bg-clip-text text-transparent drop-shadow-sm">
+          RockGPT
+        </h1>
+        <p className="mt-1 text-[11px] sm:text-xs font-mono tracking-[0.2em] text-neutral-400 uppercase">
+          Next-Generation Intelligence
+        </p>
       </div>
 
-      <h1 className="text-3xl font-black tracking-tight sm:text-4xl bg-gradient-to-r from-white via-neutral-100 to-neutral-300 bg-clip-text text-transparent">
-        RockGPT
-      </h1>
-      <p className="mt-1 text-[11px] font-mono tracking-[0.22em] text-amber-400/75 uppercase">
-        Advanced Neural AI Workspace
-      </p>
-
-      {/* Laser Progress Bar & Live Telemetry */}
-      <div className="mt-8 w-68 sm:w-80">
-        <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/[0.06] p-0.5 border border-white/10 shadow-inner">
+      {/* Sleek Minimalist Laser Progress Bar */}
+      <div className="mt-7 sm:mt-9 w-64 sm:w-76 px-2">
+        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07] p-0.5 border border-white/10 shadow-inner">
           <div
-            className="relative h-full rounded-full bg-gradient-to-r from-amber-400 via-purple-400 to-cyan-400 shadow-[0_0_20px_rgba(245,158,11,0.7)] transition-all duration-100 ease-out"
+            className="relative h-full rounded-full bg-gradient-to-r from-amber-500 via-yellow-400 to-cyan-400 shadow-[0_0_15px_rgba(245,158,11,0.8)] transition-all duration-75 ease-out"
             style={{ width: `${percent}%` }}
           >
             {/* White-Hot Laser Tip */}
-            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_12px_#fff,0_0_20px_#38bdf8]" />
+            <div className="absolute right-0 top-0 bottom-0 w-2.5 rounded-full bg-white shadow-[0_0_10px_#ffffff,0_0_18px_#38bdf8]" />
           </div>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-[10px] font-mono tracking-wider">
-          <span className="text-neutral-400 animate-pulse truncate max-w-[200px] sm:max-w-[240px]">
-            {bootStatus}
+        <div className="mt-2.5 flex items-center justify-between text-[10px] font-mono tracking-wider">
+          <span className="text-neutral-400 animate-pulse truncate max-w-[180px] sm:max-w-[220px]">
+            {statusLabel}
           </span>
-          <span className="font-bold font-mono text-amber-400 ml-2">{percent}%</span>
+          <span className="font-bold text-amber-400 ml-2 font-mono">{percent}%</span>
         </div>
+      </div>
+
+      {/* Discrete Skip Indicator */}
+      <div className="absolute bottom-6 sm:bottom-8 text-[11px] text-neutral-500 font-mono tracking-wider hover:text-white transition">
+        Tap anywhere to enter ➔
       </div>
     </div>
   );
@@ -2066,9 +2172,7 @@ function UpiCheckoutModal({
    MAIN ROCKGPT APP
    ========================================================================= */
 export default function RockGPT() {
-  const [showIntro, setShowIntro] = useState(() => {
-    return !sessionStorage.getItem("rockgpt-intro-seen");
-  });
+  const [showIntro, setShowIntro] = useState(true);
   const [conversations, setConversations] = useState(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
@@ -2658,7 +2762,6 @@ export default function RockGPT() {
     return (
       <IntroScreen
         onDone={() => {
-          sessionStorage.setItem("rockgpt-intro-seen", "true");
           setShowIntro(false);
         }}
       />
@@ -2729,6 +2832,10 @@ export default function RockGPT() {
         @keyframes fadeOut { from {opacity:1} to {opacity:0; visibility:hidden} }
         @keyframes rise { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:translateY(0)} }
         @keyframes pop { from {opacity:0; transform:scale(.96) translateY(6px)} to {opacity:1; transform:scale(1) translateY(0)} }
+        @keyframes logoFloat {
+          0%, 100% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-7px) scale(1.02); }
+        }
         @keyframes pulseGlow { 0% { box-shadow: 0 0 10px rgba(245,158,11,0.2); } 50% { box-shadow: 0 0 25px rgba(245,158,11,0.45); } 100% { box-shadow: 0 0 10px rgba(245,158,11,0.2); } }
         .pulse-glow { animation: pulseGlow 3s ease-in-out infinite; }
         @keyframes blink { 50% { opacity:.35 } }
