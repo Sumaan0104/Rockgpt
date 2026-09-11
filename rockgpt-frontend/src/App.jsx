@@ -524,7 +524,7 @@ function AuthModal({
     if (e) e.preventDefault();
     setError("");
 
-    if (!email.trim() || !password.trim() || (authMode === "signup" && !name.trim())) {
+    if (!email.trim() || (authMode !== "forgot" && !password.trim()) || (authMode === "signup" && !name.trim())) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -542,7 +542,7 @@ function AuthModal({
     }
 
     // Enforce minimum length on login too
-    if (password.length < 8) {
+    if (authMode === "login" && password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
     }
@@ -573,6 +573,9 @@ function AuthModal({
       }
 
       setStep("otp");
+      if (authMode === "forgot") {
+        setPassword("");
+      }
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
@@ -662,14 +665,26 @@ function AuthModal({
       return;
     }
 
+    if (authMode === "forgot") {
+      if (!isPasswordStrong) {
+        setError("New password must be 8+ characters with uppercase, number, and special character.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
-      const endpoint = authMode === "signup" ? "/api/auth/signup" : "/api/auth/login";
-      const body =
-        authMode === "signup"
-          ? { name: name.trim(), email: email.trim(), password, otp: enteredOtp }
-          : { email: email.trim(), password, otp: enteredOtp };
+      let endpoint = "/api/auth/login";
+      let body = { email: email.trim(), password, otp: enteredOtp };
+
+      if (authMode === "signup") {
+        endpoint = "/api/auth/signup";
+        body = { name: name.trim(), email: email.trim(), password, otp: enteredOtp };
+      } else if (authMode === "forgot") {
+        endpoint = "/api/auth/reset-password";
+        body = { email: email.trim(), otp: enteredOtp, newPassword: password };
+      }
 
       const res = await fetch(`${BACKEND_URL}${endpoint}`, {
         method: "POST",
@@ -689,8 +704,13 @@ function AuthModal({
       }
 
       localStorage.setItem("rockgpt-token", data.token);
+      localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
       onSuccess(data.user, data.token);
-      notify(`Welcome${authMode === "signup" ? "" : " back"}, ${data.user.name}!`);
+      notify(
+        authMode === "forgot"
+          ? "🎉 Password reset successfully! Welcome back."
+          : `Welcome${authMode === "signup" ? "" : " back"}, ${data.user.name}!`
+      );
       onClose();
     } catch (err) {
       console.error(err);
@@ -748,18 +768,22 @@ function AuthModal({
           <div>
             <div className="mb-5 text-center">
               <div className="mx-auto mb-2.5 grid h-12 w-12 place-items-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
-                <Shield size={24} />
+                {authMode === "forgot" ? <KeyRound size={24} /> : <Shield size={24} />}
               </div>
               <h2 className="text-lg font-bold tracking-tight">
                 {isGateLocked
                   ? "Preserve Your Workspace"
                   : authMode === "signup"
                   ? "Create Your Account"
+                  : authMode === "forgot"
+                  ? "Reset Your Password"
                   : "Welcome to RockGPT"}
               </h2>
               <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
                 {authMode === "signup"
                   ? "Sign up with email to unlock cloud sync & personal memory."
+                  : authMode === "forgot"
+                  ? "Enter your registered email to receive a password reset code."
                   : "Sign in to access your chat history and unlocked models."}
               </p>
             </div>
@@ -796,20 +820,38 @@ function AuthModal({
                 />
               </div>
 
-              <div className="relative">
-                <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password (min 8 chars)"
-                  type="password"
-                  className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
-                    dark
-                      ? "border-white/15 bg-white/[0.03] text-white focus:border-white/40"
-                      : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
-                  }`}
-                />
-              </div>
+              {authMode !== "forgot" && (
+                <div className="relative">
+                  <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password (min 8 chars)"
+                    type="password"
+                    className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
+                      dark
+                        ? "border-white/15 bg-white/[0.03] text-white focus:border-white/40"
+                        : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
+                    }`}
+                  />
+                </div>
+              )}
+
+              {/* Forgot password link under password input on login */}
+              {authMode === "login" && (
+                <div className="flex justify-end pr-1 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("forgot");
+                      setError("");
+                    }}
+                    className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 hover:underline transition"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
               {/* Password strength indicator — only show during signup when user starts typing */}
               {authMode === "signup" && password.length > 0 && (
@@ -863,6 +905,18 @@ function AuthModal({
                           ➔ Switch to Sign Up & Create Account
                         </button>
                       )}
+                      {(error.includes("Forgot password") || error.includes("Incorrect password")) && authMode === "login" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode("forgot");
+                            setError("");
+                          }}
+                          className="mt-1.5 block text-xs font-bold text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                        >
+                          ➔ Reset Forgotten Password with OTP
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -882,7 +936,7 @@ function AuthModal({
                   </>
                 ) : (
                   <>
-                    <span>Send Verification Code</span>
+                    <span>{authMode === "forgot" ? "Send Reset Code" : "Send Verification Code"}</span>
                     <ArrowRight size={14} />
                   </>
                 )}
@@ -890,19 +944,35 @@ function AuthModal({
             </form>
 
             <div className="mt-4 text-center">
-              <p className={`text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
-                {authMode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode(authMode === "signup" ? "login" : "signup");
-                    setError("");
-                  }}
-                  className="font-bold underline underline-offset-2 hover:text-amber-500"
-                >
-                  {authMode === "signup" ? "Sign In" : "Sign Up"}
-                </button>
-              </p>
+              {authMode === "forgot" ? (
+                <p className={`text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
+                  Remember your password?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setError("");
+                    }}
+                    className="font-bold underline underline-offset-2 hover:text-amber-500"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              ) : (
+                <p className={`text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
+                  {authMode === "signup" ? "Already have an account?" : "Don't have an account?"}{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode(authMode === "signup" ? "login" : "signup");
+                      setError("");
+                    }}
+                    className="font-bold underline underline-offset-2 hover:text-amber-500"
+                  >
+                    {authMode === "signup" ? "Sign In" : "Sign Up"}
+                  </button>
+                </p>
+              )}
 
               {allowGuest && !isGateLocked && (
                 <button
@@ -924,7 +994,9 @@ function AuthModal({
                 <ShieldCheck size={28} />
                 <div className="absolute -inset-1 -z-10 animate-ping rounded-2xl bg-amber-500/10" style={{ animationDuration: "2s" }} />
               </div>
-              <h2 className="text-lg font-bold tracking-tight">Enter Security Code</h2>
+              <h2 className="text-lg font-bold tracking-tight">
+                {authMode === "forgot" ? "Reset Your Password" : "Enter Security Code"}
+              </h2>
               <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
                 Check your inbox! We've sent a 6-digit code to <br />
                 <strong className={dark ? "text-white" : "text-neutral-900"}>{email}</strong>
@@ -977,16 +1049,65 @@ function AuthModal({
                 ))}
               </div>
 
+              {/* Set New Password field during password reset */}
+              {authMode === "forgot" && (
+                <div className="space-y-2 pt-1 text-left">
+                  <label className={`block text-[11px] font-semibold uppercase tracking-wider ${dark ? "text-neutral-400" : "text-neutral-600"}`}>
+                    Enter New Password
+                  </label>
+                  <div className="relative">
+                    <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
+                    <input
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="New Password (min 8 chars)"
+                      type="password"
+                      className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
+                        dark
+                          ? "border-white/15 bg-white/[0.03] text-white focus:border-white/40"
+                          : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
+                      }`}
+                    />
+                  </div>
+
+                  {/* Password strength indicators */}
+                  <div className={`rounded-xl border p-2.5 space-y-1 ${dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-200 bg-neutral-50"}`}>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: dark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.4)" }}>New Password Requirements</div>
+                    {[
+                      { ok: passwordChecks.length, label: "At least 8 characters" },
+                      { ok: passwordChecks.uppercase, label: "One uppercase letter (A-Z)" },
+                      { ok: passwordChecks.number, label: "One number (0-9)" },
+                      { ok: passwordChecks.special, label: "One special character (!@#$...)" },
+                    ].map((r, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        {r.ok ? (
+                          <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                        ) : (
+                          <div className={`h-3 w-3 rounded-full border shrink-0 ${dark ? "border-white/20" : "border-neutral-300"}`} />
+                        )}
+                        <span className={`text-[11px] ${r.ok ? (dark ? "text-emerald-400" : "text-emerald-600") : (dark ? "text-neutral-500" : "text-neutral-400")}`}>{r.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {error && <p className="text-center text-xs text-red-500">{error}</p>}
 
               <button
                 type="submit"
-                disabled={loading || otpDigits.join("").length < 6}
+                disabled={loading || otpDigits.join("").length < 6 || (authMode === "forgot" && !isPasswordStrong)}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 ${
                   dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
                 }`}
               >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : "Verify Code & Proceed"}
+                {loading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : authMode === "forgot" ? (
+                  "Reset Password & Sign In"
+                ) : (
+                  "Verify Code & Proceed"
+                )}
               </button>
             </form>
 

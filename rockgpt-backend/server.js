@@ -93,7 +93,9 @@ function authMiddleware(req, res, next) {
 app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
   try {
     const { name, email, password, mode } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
+    if (!email || (mode !== "forgot" && !password)) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
     const em = email.trim().toLowerCase();
 
     // Strict RFC 5322 email regex
@@ -129,7 +131,12 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
       const u = await User.findOne({ email: em });
       if (!u) return res.status(401).json({ error: "No account found with this email. Please sign up first." });
       const passMatch = await bcrypt.compare(password, u.password);
-      if (!passMatch) return res.status(401).json({ error: "Incorrect password for this account. Please verify and try again." });
+      if (!passMatch) return res.status(401).json({ error: "Incorrect password for this account. Click 'Forgot password?' to reset it." });
+    }
+
+    if (mode === "forgot") {
+      const u = await User.findOne({ email: em });
+      if (!u) return res.status(404).json({ error: "No account registered with this email. Please check spelling or create an account." });
     }
 
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(500).json({ error: "Email service not configured." });
@@ -137,17 +144,55 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
     const otp = generateOtp();
     storeOtp(em, otp);
 
+    const emailSubject = mode === "forgot" ? "Reset Your RockGPT Password" : "Your RockGPT Verification Code";
+
     // Attempt email delivery in background without blocking response
     sendEmail({
       to: em,
-      subject: "Your RockGPT Verification Code",
-      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">Your Verification Code</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share.</p></div>`,
+      subject: emailSubject,
+      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">${emailSubject}</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this 6-digit code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share.</p></div>`,
     }).catch((e) => console.warn("Email dispatch note (Render firewall block):", e.message));
 
     res.json({ success: true, message: "Verification code sent.", previewCode: otp });
   } catch (err) {
     console.error("send-otp error:", err.message);
     res.status(500).json({ error: `Authentication error: ${err.message}` });
+  }
+});
+
+// ═══ RESET PASSWORD ═══
+app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) return res.status(400).json({ error: "All fields are required." });
+    const em = email.trim().toLowerCase();
+
+    // Verify OTP
+    const otpR = verifyStoredOtp(em, otp);
+    if (!otpR.valid) return res.status(400).json({ error: otpR.error });
+
+    // Validate new password strength
+    if (newPassword.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    if (!/[A-Z]/.test(newPassword)) return res.status(400).json({ error: "Password must include at least one uppercase letter (A-Z)." });
+    if (!/[0-9]/.test(newPassword)) return res.status(400).json({ error: "Password must include at least one number (0-9)." });
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(newPassword)) return res.status(400).json({ error: "Password must include at least one special character (!@#$...)." });
+
+    const user = await User.findOne({ email: em });
+    if (!user) return res.status(404).json({ error: "User account not found." });
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    await user.save();
+
+    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
+    res.json({
+      success: true,
+      message: "Password reset successfully.",
+      token,
+      user: { id: user._id, name: user.name, email: user.email, plan: user.plan },
+    });
+  } catch (err) {
+    console.error("Reset password error:", err.message);
+    res.status(500).json({ error: "Failed to reset password. Please try again." });
   }
 });
 
