@@ -2,59 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/rockgpt-mark.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#0b0b0b" />
+    <meta name="theme-color" content="#070709" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="RockGPT" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preload" as="image" href="/rockgpt-mark.png" />
+    <link rel="preload" as="image" href="/rockgpt-logo.png" />
     <title>RockGPT</title>
   </head>
   <body style="margin: 0; background: #070709; color: white;">
     <div id="root">
       <div style="display: flex; height: 100dvh; width: 100vw; align-items: center; justify-content: center; background: #070709; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; user-select: none;">
-        <svg width="84" height="84" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="animation: bootGlow 2.2s ease-in-out infinite; filter: drop-shadow(0 0 28px rgba(56,189,248,0.45));">
-          <defs>
-            <radialGradient id="bootCoreGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9"/>
-              <stop offset="45%" stop-color="#2563eb" stop-opacity="0.5"/>
-              <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="bGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="60%" stop-color="#2563eb"/>
-              <stop offset="100%" stop-color="#818cf8"/>
-            </linearGradient>
-            <linearGradient id="bGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#60a5fa"/>
-              <stop offset="65%" stop-color="#a855f7"/>
-              <stop offset="100%" stop-color="#c084fc"/>
-            </linearGradient>
-            <linearGradient id="bGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="70%" stop-color="#0284c7"/>
-              <stop offset="100%" stop-color="#1d4ed8"/>
-            </linearGradient>
-          </defs>
-          <circle cx="50" cy="50" r="34" fill="url(#bootCoreGlow)"/>
-          <g transform="rotate(0 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#bGrad1)" opacity="0.95"/></g>
-          <g transform="rotate(60 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#bGrad2)" opacity="0.95"/></g>
-          <g transform="rotate(120 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#bGrad2)" opacity="0.95"/></g>
-          <g transform="rotate(180 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#bGrad3)" opacity="0.95"/></g>
-          <g transform="rotate(240 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#bGrad1)" opacity="0.95"/></g>
-          <g transform="rotate(300 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill="url(#bGrad3)" opacity="0.95"/></g>
-          <path d="M50 35 Q50 50 65 50 Q50 50 50 65 Q50 50 35 50 Q50 50 50 35 Z" fill="#ffffff"/>
-          <circle cx="50" cy="50" r="2.5" fill="#ffffff"/>
-        </svg>
-        <div style="margin-top: 18px; font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: #ffffff;">RockGPT</div>
-        <div style="margin-top: 4px; font-size: 10px; font-family: monospace; letter-spacing: 0.22em; color: #38bdf8; text-transform: uppercase;">Intelligence</div>
+        <div style="position: relative; display: grid; place-items: center; width: 88px; height: 88px;">
+          <img src="/rockgpt-mark.png" alt="RockGPT" width="88" height="88" style="width: 88px; height: 88px; object-fit: contain; filter: drop-shadow(0 0 16px rgba(255,255,255,0.25)); animation: bootGlow 1.8s ease-in-out infinite;" />
+        </div>
+        <div style="margin-top: 20px; font-weight: 800; font-size: 24px; letter-spacing: 0.22em; color: #ffffff; text-transform: uppercase;">ROCKGPT</div>
+        <div style="margin-top: 6px; font-size: 10px; font-family: monospace; letter-spacing: 0.28em; color: #a1a1aa; text-transform: uppercase;">INITIALIZING</div>
       </div>
       <style>
         @keyframes bootGlow {
-          0%, 100% { transform: scale(1); opacity: 0.92; }
-          50% { transform: scale(1.03); opacity: 1; filter: drop-shadow(0 0 35px rgba(56,189,248,0.7)); }
+          0%, 100% { transform: scale(1); opacity: 0.95; filter: drop-shadow(0 0 14px rgba(255,255,255,0.2)); }
+          50% { transform: scale(1.02); opacity: 1; filter: drop-shadow(0 0 24px rgba(255,255,255,0.45)); }
         }
       </style>
     </div>

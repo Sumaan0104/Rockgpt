@@ -264,11 +264,11 @@ function MessageContent({ content, dark }) {
 }
 
 /* =========================================================================
-   ROCKGPT MASTER LOGO: 6-PETAL CYBER-CRYSTAL ORIGAMI BLOOM & AI STAR
-   Visual Identity: Cyan (#38bdf8) -> Electric Blue (#2563eb) -> Violet (#8b5cf6) -> Purple (#a855f7)
+   ROCKGPT OFFICIAL MASTER LOGO: FUTURISTIC AI CHATBOT / ROBOT (BLACK & WHITE)
+   Aesthetic: Minimal, Monochrome, Futuristic AI Robot with Glowing Visor & Headphones
    States: idle | thinking | generating | voice | completed
    ========================================================================= */
-function RockLogo({ size = 32, dark = true, state = "idle", animated = false, className = "" }) {
+function RockLogo({ size = 32, dark = true, state = "idle", animated = false, markOnly = false, className = "" }) {
   const [imgErr, setImgErr] = useState(false);
   const uid = useMemo(() => `rl-${size}-${Math.random().toString(36).slice(2, 6)}`, [size]);
 
@@ -277,6 +277,8 @@ function RockLogo({ size = 32, dark = true, state = "idle", animated = false, cl
   const isVoice = state === "voice";
   const isCompleted = state === "completed";
 
+  const imgSrc = markOnly ? "/rockgpt-mark.png" : "/rockgpt-logo.png";
+
   return (
     <div
       className={`relative inline-flex items-center justify-center shrink-0 select-none overflow-visible ${
@@ -284,55 +286,55 @@ function RockLogo({ size = 32, dark = true, state = "idle", animated = false, cl
       } ${isCompleted ? "rock-logo-completed" : ""} ${className}`}
       style={{ width: size, height: size }}
     >
-      {/* Generating: Soft rotating gradient energy ring (Section 9: cyan -> blue -> violet -> purple) */}
+      {/* Generating: Soft rotating monochrome silver/white energy ring */}
       {isGenerating && (
         <div
-          className="absolute -inset-1 rounded-full pointer-events-none opacity-85 blur-[2.5px]"
+          className="absolute -inset-1 rounded-full pointer-events-none opacity-80 blur-[2px]"
           style={{
-            background: "conic-gradient(from 0deg, #38bdf8, #2563eb, #8b5cf6, #a855f7, #38bdf8)",
-            animation: "rockRingSpin 2.4s linear infinite",
+            background: "conic-gradient(from 0deg, rgba(255,255,255,0.85), rgba(160,160,160,0.4), rgba(255,255,255,0.1), rgba(255,255,255,0.85))",
+            animation: "rockRingSpin 2.2s linear infinite",
           }}
         />
       )}
 
-      {/* Voice Mode: Audio-reactive soft pulse aura (Section 10) */}
+      {/* Voice Mode: Audio-reactive monochrome halo */}
       {isVoice && (
         <div
           className="absolute -inset-1.5 rounded-full pointer-events-none blur-[4px]"
           style={{
-            background: "radial-gradient(circle, rgba(56,189,248,0.55) 0%, rgba(139,92,246,0.3) 65%, transparent 100%)",
+            background: "radial-gradient(circle, rgba(255,255,255,0.5) 0%, rgba(180,180,180,0.2) 65%, transparent 100%)",
             animation: "rockVoicePulse 1.2s ease-in-out infinite",
           }}
         />
       )}
 
-      {/* Thinking State: Ambient shifting glow (Section 8: cyan -> blue -> violet -> blue -> cyan, 2.8s) */}
+      {/* Thinking State: Ambient soft monochrome glow */}
       {isThinking && (
         <div
           className="absolute -inset-1 rounded-full pointer-events-none blur-[5px]"
           style={{
-            background: "radial-gradient(circle, rgba(56,189,248,0.45) 0%, rgba(139,92,246,0.25) 70%, transparent 100%)",
-            animation: "rockThinkingAura 2.8s ease-in-out infinite",
+            background: "radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(160,160,160,0.15) 70%, transparent 100%)",
+            animation: "rockThinkingAura 2.6s ease-in-out infinite",
           }}
         />
       )}
 
       {!imgErr ? (
         <img
-          src="/rockgpt-logo.png"
+          src={imgSrc}
           alt="RockGPT"
           width={size}
           height={size}
           onError={() => setImgErr(true)}
-          className="relative z-10 w-full h-full object-contain rounded-full select-none pointer-events-none transition-all duration-250"
+          className="relative z-10 w-full h-full object-contain rounded-full select-none pointer-events-none transition-all duration-200"
           style={{
             filter: isThinking
-              ? "drop-shadow(0 0 10px rgba(56,189,248,0.65)) drop-shadow(0 0 16px rgba(139,92,246,0.4))"
+              ? "drop-shadow(0 0 10px rgba(255,255,255,0.55)) drop-shadow(0 0 16px rgba(255,255,255,0.25))"
               : isGenerating
-              ? "drop-shadow(0 0 12px rgba(56,189,248,0.75))"
+              ? "drop-shadow(0 0 12px rgba(255,255,255,0.65))"
               : isVoice
-              ? "drop-shadow(0 0 14px rgba(56,189,248,0.8))"
-              : "drop-shadow(0 0 8px rgba(56,189,248,0.25))",
+              ? "drop-shadow(0 0 14px rgba(255,255,255,0.7))"
+              : "drop-shadow(0 0 6px rgba(255,255,255,0.18))",
           }}
           loading="eager"
         />
@@ -346,46 +348,15 @@ function RockLogo({ size = 32, dark = true, state = "idle", animated = false, cl
           className="relative z-10 shrink-0 select-none"
           style={{ overflow: "visible" }}
         >
-          <defs>
-            <radialGradient id={`coreGlow-${uid}`} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9" />
-              <stop offset="45%" stopColor="#2563eb" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#000000" stopOpacity="0" />
-            </radialGradient>
-            <linearGradient id={`grad1-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="60%" stopColor="#2563eb" />
-              <stop offset="100%" stopColor="#8b5cf6" />
-            </linearGradient>
-            <linearGradient id={`grad2-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#60a5fa" />
-              <stop offset="65%" stopColor="#a855f7" />
-              <stop offset="100%" stopColor="#c084fc" />
-            </linearGradient>
-            <linearGradient id={`grad3-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8" />
-              <stop offset="70%" stopColor="#0284c7" />
-              <stop offset="100%" stopColor="#1d4ed8" />
-            </linearGradient>
-            <filter id={`bloomGlow-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          <circle cx="50" cy="50" r="34" fill={`url(#coreGlow-${uid})`} />
-          <g>
-            <g transform="rotate(0 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill={`url(#grad1-${uid})`} opacity="0.95" /></g>
-            <g transform="rotate(60 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill={`url(#grad2-${uid})`} opacity="0.95" /></g>
-            <g transform="rotate(120 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill={`url(#grad2-${uid})`} opacity="0.95" /></g>
-            <g transform="rotate(180 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill={`url(#grad3-${uid})`} opacity="0.95" /></g>
-            <g transform="rotate(240 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill={`url(#grad1-${uid})`} opacity="0.95" /></g>
-            <g transform="rotate(300 50 50)"><path d="M50 10 C68 10 84 22 84 38 C84 46 76 52 64 48 C56 45 52 35 50 10 Z" fill={`url(#grad3-${uid})`} opacity="0.95" /></g>
-          </g>
-          <path d="M50 35 Q50 50 65 50 Q50 50 50 65 Q50 50 35 50 Q50 50 50 35 Z" fill="#ffffff" filter={`url(#bloomGlow-${uid})`} />
-          <circle cx="50" cy="50" r="2.5" fill="#ffffff" />
+          <rect width="100" height="100" rx="26" fill="#070709" />
+          <circle cx="50" cy="50" r="36" fill="#141416" stroke="rgba(255,255,255,0.2)" strokeWidth="3" />
+          <rect x="18" y="40" width="8" height="20" rx="4" fill="#ffffff" />
+          <rect x="74" y="40" width="8" height="20" rx="4" fill="#ffffff" />
+          <rect x="30" y="38" width="40" height="24" rx="10" fill="#000000" stroke="#ffffff" strokeWidth="2.5" />
+          <path d="M38 50 Q43 44 48 50" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          <path d="M52 50 Q57 44 62 50" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          <line x1="64" y1="28" x2="64" y2="18" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="64" cy="16" r="3.5" fill="#ffffff" />
         </svg>
       )}
     </div>
@@ -394,30 +365,30 @@ function RockLogo({ size = 32, dark = true, state = "idle", animated = false, cl
 
 function RockMark({ small = false, size, dark = true, state = "idle", animated = false, className = "" }) {
   const s = size || (small ? 26 : 34);
-  return <RockLogo size={s} dark={dark} state={state} animated={animated} className={className} />;
+  return <RockLogo size={s} dark={dark} state={state} animated={animated} markOnly={true} className={className} />;
 }
 
 /* =========================================================================
-   INTRO ANIMATION — EXACT 1700ms SEQUENCE (SECTION 3)
-   0–300ms: Ambient center glow appears behind logo (opacity 0->1, scale 0.95->1)
-   300–800ms: Logo materialization (opacity 0->1, scale 0.88->1, blur 8px->0)
-   800–1100ms: Intelligence activation (four-point center star brightness 100%->130%->100% ONCE)
-   1100–1400ms: Brand reveal (ROCKGPT opacity 0->1, translateY 8px->0)
-   1400–1700ms: UI transition (dissolves into chat UI without hard cut)
+   INTRO ANIMATION — OFFICIAL 1.5–2.0s INITIALIZING SEQUENCE
+   Phase 1 (0–250ms): Near-black calm, logo opacity 0, scale 0.94, blur 6px
+   Phase 2 (250–700ms): Logo materialization: opacity 0->1, scale 0.94->1, blur 6px->0 (cubic-bezier)
+   Phase 3 (700–1000ms): AI Activation (ONCE): soft white glow, scale 1 -> 1.015 -> 1
+   Phase 4 (1000–1350ms): Brand text reveal: ROCKGPT (opacity 0->1, translateY 8px->0)
+   Phase 5 (1350–1700ms): Smooth dissolve into chat UI without hard cuts
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
-    // 1400ms: Begin dissolving into the chat UI
+    // 1350ms: Begin dissolving into the chat UI
     const exitTimer = setTimeout(() => {
       setExiting(true);
-    }, 1400);
+    }, 1350);
 
-    // 1720ms: Smoothly completed, unmount overlay
+    // 1680ms: Transition complete, unmount overlay completely from DOM
     const doneTimer = setTimeout(() => {
       onDone();
-    }, 1720);
+    }, 1680);
 
     return () => {
       clearTimeout(exitTimer);
@@ -427,14 +398,14 @@ function IntroScreen({ onDone }) {
 
   const handleSkip = () => {
     setExiting(true);
-    setTimeout(onDone, 120);
+    setTimeout(onDone, 100);
   };
 
   return (
     <div
       onClick={handleSkip}
       className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070709] text-white select-none overflow-hidden cursor-pointer ${
-        exiting ? "opacity-0 blur-[3px] pointer-events-none" : "opacity-100"
+        exiting ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
       style={{
         transition: "opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), filter 300ms cubic-bezier(0.22, 1, 0.36, 1)",
@@ -443,75 +414,77 @@ function IntroScreen({ onDone }) {
       }}
     >
       <style>{`
-        /* 0-300ms Ambient Center Glow (opacity 0->1, scale 0.95->1) & 800-1100ms Pulse */
+        /* 0–250ms Ambient Backdrop Glow & 700-1000ms Single Activation Glow */
         @keyframes introAmbientSequence {
           0% { opacity: 0; transform: scale(0.95); }
-          17.6% { opacity: 0.75; transform: scale(1); } /* 300ms */
-          47.1% { opacity: 0.75; transform: scale(1); } /* 800ms */
-          55.9% { opacity: 1; transform: scale(1.18); filter: drop-shadow(0 0 32px rgba(56,189,248,0.7)) drop-shadow(0 0 18px rgba(139,92,246,0.5)); } /* 950ms peak */
-          64.7% { opacity: 0.45; transform: scale(1); } /* 1100ms settled */
-          82.4% { opacity: 0.45; } /* 1400ms */
-          100% { opacity: 0; transform: scale(1.04); } /* 1700ms */
+          14.7% { opacity: 0.6; transform: scale(1); } /* 250ms */
+          41.2% { opacity: 0.6; transform: scale(1); } /* 700ms */
+          52.9% { opacity: 1; transform: scale(1.12); filter: drop-shadow(0 0 30px rgba(255,255,255,0.45)); } /* 900ms peak */
+          58.8% { opacity: 0.4; transform: scale(1); } /* 1000ms settled */
+          79.4% { opacity: 0.4; } /* 1350ms */
+          100% { opacity: 0; transform: scale(1.03); } /* 1700ms */
         }
 
-        /* 300-800ms: Logo Materialization & 800-1100ms: Intelligence Activation (ONCE) */
+        /* 250–700ms: Logo Materialization & 700–1000ms: AI Activation (ONCE) */
         @keyframes introLogoSequence {
-          0%, 17.6% { opacity: 0; transform: scale(0.88); filter: blur(8px) brightness(1); } /* 0-300ms */
-          47.1% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1) drop-shadow(0 0 16px rgba(56,189,248,0.45)); } /* 800ms */
-          55.9% { opacity: 1; transform: scale(1.025); filter: blur(0px) brightness(1.3) drop-shadow(0 0 30px rgba(56,189,248,0.75)) drop-shadow(0 0 18px rgba(139,92,246,0.6)); } /* 950ms peak */
-          64.7% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1.0) drop-shadow(0 0 16px rgba(56,189,248,0.35)); } /* 1100ms */
-          82.4% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1.0); } /* 1400ms */
-          100% { opacity: 0; transform: scale(1.02); filter: blur(3px); } /* 1700ms */
+          0%, 14.7% { opacity: 0; transform: scale(0.94); filter: blur(6px) brightness(0.9); } /* 0-250ms */
+          41.2% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1) drop-shadow(0 0 14px rgba(255,255,255,0.25)); } /* 700ms */
+          52.9% { opacity: 1; transform: scale(1.015); filter: blur(0px) brightness(1.22) drop-shadow(0 0 24px rgba(255,255,255,0.55)); } /* 900ms peak activation */
+          58.8% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1.0) drop-shadow(0 0 14px rgba(255,255,255,0.2)); } /* 1000ms settled */
+          79.4% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1.0); } /* 1350ms */
+          100% { opacity: 0; transform: scale(1.02); filter: blur(2px); } /* 1700ms */
         }
 
-        /* 1100-1400ms: Brand Reveal: ROCKGPT (opacity 0->1, translateY 8px->0) */
+        /* 1000–1350ms: Brand Reveal: ROCKGPT (opacity 0->1, translateY 8px->0) */
         @keyframes introBrandSequence {
-          0%, 64.7% { opacity: 0; transform: translateY(8px); } /* 0-1100ms */
-          82.4% { opacity: 1; transform: translateY(0); } /* 1400ms */
-          100% { opacity: 0; transform: translateY(-3px); } /* 1700ms */
+          0%, 58.8% { opacity: 0; transform: translateY(8px); } /* 0-1000ms */
+          79.4% { opacity: 1; transform: translateY(0); } /* 1350ms */
+          100% { opacity: 0; transform: translateY(-2px); } /* 1700ms */
         }
       `}</style>
 
-      {/* 0-300ms: Subtle Ambient Cyan-Blue Glow behind center position */}
+      {/* Subtle Ambient Monochrome Center Glow behind logo position */}
       <div
-        className="absolute h-[320px] w-[320px] sm:h-[420px] sm:w-[420px] rounded-full pointer-events-none"
+        className="absolute h-[320px] w-[320px] sm:h-[400px] sm:w-[400px] rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(circle, rgba(56,189,248,0.2) 0%, rgba(37,99,235,0.14) 40%, rgba(139,92,246,0.08) 70%, transparent 100%)",
-          filter: "blur(60px)",
+          background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(180,180,180,0.06) 45%, transparent 70%)",
+          filter: "blur(50px)",
           animation: "introAmbientSequence 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
         }}
       />
 
-      {/* 300–800ms: Logo Materialization & 800–1100ms: Intelligence Activation */}
+      {/* 250–700ms Logo Materialization & 700–1000ms AI Activation */}
       <div className="relative mb-5 sm:mb-6 grid place-items-center">
         <div
-          className="relative z-10"
+          className="relative z-10 w-[96px] h-[96px] sm:w-[108px] sm:h-[108px] aspect-square"
           style={{
             animation: "introLogoSequence 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
           }}
         >
-          <RockLogo
-            size={96}
-            dark={true}
-            state="idle"
-            className="sm:w-[108px] sm:h-[108px]"
+          <img
+            src="/rockgpt-mark.png"
+            alt="RockGPT"
+            width={108}
+            height={108}
+            className="w-full h-full object-contain select-none pointer-events-none"
+            loading="eager"
           />
         </div>
       </div>
 
-      {/* 1100–1400ms: Brand Reveal: ROCKGPT (opacity 0->1, translateY 8px->0) */}
+      {/* 1000–1350ms: Brand Reveal: ROCKGPT */}
       <div
         className="text-center px-4 overflow-hidden py-1"
         style={{
           animation: "introBrandSequence 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
         }}
       >
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_20px_rgba(56,189,248,0.35)]">
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_16px_rgba(255,255,255,0.25)]">
           RockGPT
         </h1>
 
-        <div className="mt-2 text-[11px] sm:text-xs font-mono tracking-[0.28em] text-sky-400 uppercase">
-          Next-Generation Intelligence
+        <div className="mt-2 text-[10px] sm:text-xs font-mono tracking-[0.28em] text-neutral-400 uppercase">
+          Initializing Intelligence
         </div>
       </div>
 
@@ -3010,7 +2983,7 @@ export default function RockGPT() {
         .card-stagger-2 { animation: rise 240ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both; }
         .card-stagger-3 { animation: rise 240ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both; }
 
-        /* Staggered Pulsing Thinking Dots (Section 7: Cyan -> Blue -> Violet) */
+        /* Staggered Pulsing Thinking Dots (Monochrome White -> Silver) */
         @keyframes thinkingDot {
           0%, 80%, 100% { opacity: 0.25; transform: scale(0.85) translateY(0); }
           40% { opacity: 1; transform: scale(1.15) translateY(-2px); }
@@ -3019,65 +2992,65 @@ export default function RockGPT() {
         .thinking-dot-2 { animation: thinkingDot 1.4s ease-in-out infinite; animation-delay: 0.22s; }
         .thinking-dot-3 { animation: thinkingDot 1.4s ease-in-out infinite; animation-delay: 0.44s; }
 
-        /* AI Active State Thinking Aura (Section 8: Cyan -> Blue -> Violet -> Blue -> Cyan, 2-4s) */
+        /* AI Active State Thinking Aura (Monochrome Soft White / Silver Glow) */
         @keyframes rockThinkingAura {
           0%, 100% {
-            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45)) drop-shadow(0 0 14px rgba(37, 99, 235, 0.25));
+            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.22)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.12));
             transform: scale(1);
           }
           50% {
-            filter: drop-shadow(0 0 14px rgba(139, 92, 246, 0.55)) drop-shadow(0 0 20px rgba(56, 189, 248, 0.35));
-            transform: scale(1.02);
+            filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.45)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
+            transform: scale(1.015);
           }
         }
 
-        /* Image Generation / Creating Energy Ring (Section 9: Cyan -> Blue -> Violet -> Purple) */
+        /* Image Generation / Creating Energy Ring (Monochrome Soft Silver / White) */
         @keyframes rockRingSpin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
 
-        /* Voice Mode Audio-Reactive Pulse (Section 10) */
+        /* Voice Mode Audio-Reactive Pulse (Monochrome White Halo) */
         @keyframes rockVoicePulse {
           0%, 100% {
             transform: scale(1);
-            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4)) drop-shadow(0 0 16px rgba(139, 92, 246, 0.2));
+            filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.3)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.15));
           }
           50% {
-            transform: scale(1.05);
-            filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.75)) drop-shadow(0 0 26px rgba(139, 92, 246, 0.5));
+            transform: scale(1.03);
+            filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.65)) drop-shadow(0 0 22px rgba(255, 255, 255, 0.35));
           }
         }
 
-        /* One-Time Completion Pulse (Section 18) */
+        /* One-Time Completion Pulse (Monochrome) */
         @keyframes rockCompletePulse {
-          0% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.3)); }
-          40% { transform: scale(1.06); filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.7)) drop-shadow(0 0 24px rgba(139, 92, 246, 0.4)); }
-          100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.3)); }
+          0% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2)); }
+          40% { transform: scale(1.03); filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.6)); }
+          100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2)); }
         }
         .rock-logo-completed {
           animation: rockCompletePulse 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
-        /* Button Micro-Interactions (Section 5) */
+        /* Button Micro-Interactions (Section 23: Hover 1.01, Press 0.98) */
         .btn-interactive {
           transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out;
         }
         .btn-interactive:hover:not(:disabled) {
-          transform: translateY(-1px) scale(1.015);
-          box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+          transform: translateY(-1px) scale(1.01);
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.12);
         }
         .btn-interactive:active:not(:disabled) {
           transform: translateY(0px) scale(0.98);
         }
 
-        /* Input Box Cyan-Blue-Violet Glow (Section 15) */
+        /* Input Box Monochrome Soft Glow (Section 4 & 15) */
         .rock-input-capsule {
           transition: border-color 200ms ease-out, box-shadow 200ms ease-out, background-color 200ms ease-out;
         }
         .rock-input-capsule:focus-within {
-          border-color: rgba(56, 189, 248, 0.4) !important;
-          box-shadow: 0 0 18px rgba(56, 189, 248, 0.14), 0 0 32px rgba(139, 92, 246, 0.08) !important;
+          border-color: rgba(255, 255, 255, 0.28) !important;
+          box-shadow: 0 0 20px rgba(255, 255, 255, 0.08) !important;
         }
 
         /* Accessibility: prefers-reduced-motion (Section 21) */
@@ -3446,20 +3419,20 @@ export default function RockGPT() {
               }`}
             >
               {selectedModel === "RockGPT Flash" ? (
-                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-sky-500/20 text-sky-400">
+                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-white/10 text-white">
                   <Zap size={11} className="fill-current" />
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-amber-500/20 text-amber-400">
+                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-white/15 text-white">
                   <Sparkles size={11} className="fill-current" />
                 </div>
               )}
               <span className="font-semibold text-sm">{selectedModel}</span>
               <span
                 className={`hidden xs:inline-block rounded-full px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider ${
-                  selectedModel === "RockGPT Flash"
-                    ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
-                    : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                  dark
+                    ? "bg-white/10 text-neutral-300 border border-white/20"
+                    : "bg-black/5 text-neutral-700 border border-black/10"
                 }`}
               >
                 {selectedModel === "RockGPT Flash" ? "Flash" : "4o Omni"}
@@ -3487,14 +3460,14 @@ export default function RockGPT() {
                     className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
                       selectedModel === "RockGPT 4o"
                         ? dark
-                          ? "bg-amber-500/15 border border-amber-500/30"
-                          : "bg-amber-50 border border-amber-300"
+                          ? "bg-white/10 border border-white/25"
+                          : "bg-neutral-100 border border-neutral-300"
                         : dark
                         ? "hover:bg-white/5 border border-transparent"
                         : "hover:bg-neutral-50 border border-transparent"
                     }`}
                   >
-                    <Sparkles size={16} className={`mt-0.5 shrink-0 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
+                    <Sparkles size={16} className={`mt-0.5 shrink-0 ${dark ? "text-white" : "text-neutral-800"}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
@@ -3502,16 +3475,16 @@ export default function RockGPT() {
                         </span>
                         {isPaidUser ? (
                           selectedModel === "RockGPT 4o" ? (
-                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                            <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold text-white">
                               <Check size={10} /> Active
                             </span>
                           ) : (
-                            <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
+                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-neutral-300">
                               Smartest 120B
                             </span>
                           )
                         ) : (
-                          <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-500">
+                          <span className="flex items-center gap-1 rounded-full bg-neutral-500/20 px-2 py-0.5 text-[9px] font-bold text-neutral-400">
                             <Lock size={9} /> Plus/Pro
                           </span>
                         )}
@@ -3531,25 +3504,25 @@ export default function RockGPT() {
                     className={`mt-1 flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
                       selectedModel === "RockGPT Flash"
                         ? dark
-                          ? "bg-sky-500/15 border border-sky-500/30"
-                          : "bg-sky-50 border border-sky-300"
+                          ? "bg-white/10 border border-white/25"
+                          : "bg-neutral-100 border border-neutral-300"
                         : dark
                         ? "hover:bg-white/5 border border-transparent"
                         : "hover:bg-neutral-50 border border-transparent"
                     }`}
                   >
-                    <Zap size={16} className="mt-0.5 shrink-0 text-sky-400 fill-sky-400/20" />
+                    <Zap size={16} className="mt-0.5 shrink-0 text-white fill-white/20" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
                           RockGPT Flash
                         </span>
                         {selectedModel === "RockGPT Flash" ? (
-                          <span className="flex items-center gap-1 rounded-full bg-sky-500/20 px-2 py-0.5 text-[9px] font-bold text-sky-400">
+                          <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold text-white">
                             <Check size={10} /> Active
                           </span>
                         ) : (
-                          <span className="rounded-full bg-sky-500/20 px-1.5 py-0.5 text-[9px] font-bold text-sky-400">
+                          <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-neutral-300">
                             Free 20B
                           </span>
                         )}
@@ -3698,11 +3671,11 @@ export default function RockGPT() {
                   }}
                   className={`card-stagger-1 btn-interactive flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left border border-transparent transition select-none ${
                     dark
-                      ? "text-white/90 hover:border-sky-500/25 hover:bg-white/[0.08] active:bg-white/[0.10]"
-                      : "text-neutral-800 hover:border-sky-500/25 hover:bg-black/[0.06] active:bg-black/[0.08]"
+                      ? "text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:bg-white/[0.10]"
+                      : "text-neutral-800 hover:border-black/15 hover:bg-black/[0.05] active:bg-black/[0.08]"
                   }`}
                 >
-                  <Code2 size={20} className={dark ? "text-sky-400" : "text-sky-600"} strokeWidth={2} />
+                  <Code2 size={20} className={dark ? "text-neutral-300" : "text-neutral-700"} strokeWidth={2} />
                   <span className="text-[15px] font-medium tracking-normal">Write code or debug</span>
                 </button>
 
@@ -3714,11 +3687,11 @@ export default function RockGPT() {
                   }}
                   className={`card-stagger-2 btn-interactive flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left border border-transparent transition select-none ${
                     dark
-                      ? "text-white/90 hover:border-blue-500/25 hover:bg-white/[0.08] active:bg-white/[0.10]"
-                      : "text-neutral-800 hover:border-blue-500/25 hover:bg-black/[0.06] active:bg-black/[0.08]"
+                      ? "text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:bg-white/[0.10]"
+                      : "text-neutral-800 hover:border-black/15 hover:bg-black/[0.05] active:bg-black/[0.08]"
                   }`}
                 >
-                  <PenLine size={20} className={dark ? "text-blue-400" : "text-blue-600"} strokeWidth={2} />
+                  <PenLine size={20} className={dark ? "text-neutral-300" : "text-neutral-700"} strokeWidth={2} />
                   <span className="text-[15px] font-medium tracking-normal">Write or edit</span>
                 </button>
 
@@ -3730,11 +3703,11 @@ export default function RockGPT() {
                   }}
                   className={`card-stagger-3 btn-interactive flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left border border-transparent transition select-none ${
                     dark
-                      ? "text-white/90 hover:border-purple-500/25 hover:bg-white/[0.08] active:bg-white/[0.10]"
-                      : "text-neutral-800 hover:border-purple-500/25 hover:bg-black/[0.06] active:bg-black/[0.08]"
+                      ? "text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:bg-white/[0.10]"
+                      : "text-neutral-800 hover:border-black/15 hover:bg-black/[0.05] active:bg-black/[0.08]"
                   }`}
                 >
-                  <Sparkles size={20} className={dark ? "text-purple-400" : "text-purple-600"} strokeWidth={2} />
+                  <Sparkles size={20} className={dark ? "text-neutral-300" : "text-neutral-700"} strokeWidth={2} />
                   <span className="text-[15px] font-medium tracking-normal">Ask anything or analyze</span>
                 </button>
               </div>
@@ -3915,8 +3888,8 @@ export default function RockGPT() {
                     <div
                       className={`grid h-8 w-8 place-items-center rounded-xl border shadow-sm overflow-visible ${
                         dark
-                          ? "border-sky-500/20 bg-[#121214] shadow-[0_0_14px_rgba(56,189,248,0.2)]"
-                          : "border-sky-300 bg-white shadow-sm"
+                          ? "border-white/15 bg-[#121214] shadow-[0_0_12px_rgba(255,255,255,0.08)]"
+                          : "border-neutral-200 bg-white shadow-sm"
                       }`}
                     >
                       <RockMark size={22} dark={dark} state={streaming ? "generating" : "thinking"} />
@@ -3930,26 +3903,26 @@ export default function RockGPT() {
                           RockGPT is thinking
                         </span>
                         <span className="inline-flex items-center gap-1 ml-0.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-sky-400 thinking-dot-1" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-400 thinking-dot-2" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-purple-400 thinking-dot-3" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-white thinking-dot-1" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-neutral-400 thinking-dot-2" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-neutral-600 thinking-dot-3" />
                         </span>
                       </div>
                     ) : (
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2 select-none">
-                          <span className={`text-xs font-semibold tracking-tight ${dark ? "text-sky-400" : "text-sky-600"}`}>
+                          <span className={`text-xs font-semibold tracking-tight ${dark ? "text-neutral-300" : "text-neutral-700"}`}>
                             RockGPT is responding
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <span className="h-1 w-1 rounded-full bg-sky-400 thinking-dot-1" />
-                            <span className="h-1 w-1 rounded-full bg-blue-400 thinking-dot-2" />
-                            <span className="h-1 w-1 rounded-full bg-purple-400 thinking-dot-3" />
+                            <span className="h-1 w-1 rounded-full bg-white thinking-dot-1" />
+                            <span className="h-1 w-1 rounded-full bg-neutral-400 thinking-dot-2" />
+                            <span className="h-1 w-1 rounded-full bg-neutral-600 thinking-dot-3" />
                           </span>
                         </div>
                         <div className={`text-[15px] leading-7 message-content select-text cursor-text ${dark ? "text-white/90" : "text-neutral-800"}`}>
                           <MessageContent content={streaming} dark={dark} />
-                          <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-white stream-cursor align-middle shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
+                          <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-white stream-cursor align-middle shadow-[0_0_6px_rgba(255,255,255,0.8)]" />
                         </div>
                       </div>
                     )}
@@ -4079,9 +4052,9 @@ export default function RockGPT() {
                   type="button"
                   onClick={toggleRecording}
                   title="Voice input"
-                  className={`grid h-9 w-9 place-items-center rounded-full transition ${
+                  className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition ${
                     recording
-                      ? "bg-gradient-to-tr from-sky-500 via-blue-600 to-purple-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.5)] animate-pulse"
+                      ? "bg-white text-black shadow-[0_0_18px_rgba(255,255,255,0.45)] animate-pulse"
                       : dark
                       ? "text-white/70 hover:bg-white/10 hover:text-white"
                       : "text-neutral-600 hover:bg-black/5 hover:text-black"
@@ -4120,15 +4093,15 @@ export default function RockGPT() {
                     title="Voice mode"
                     className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition shadow-sm active:scale-[0.92] ${
                       recording
-                        ? "bg-gradient-to-tr from-sky-500 via-blue-600 to-purple-600 text-white shadow-[0_0_18px_rgba(56,189,248,0.5)] animate-pulse"
+                        ? "bg-white text-black shadow-[0_0_18px_rgba(255,255,255,0.45)] animate-pulse"
                         : "bg-white text-black hover:bg-neutral-200"
                     }`}
                   >
                     <span className="flex items-center gap-0.5 h-3.5">
-                      <span className={`w-[2.5px] h-2 rounded-full ${recording ? "bg-white" : "bg-black"} animate-pulse`} style={{ animationDuration: "0.8s" }} />
-                      <span className={`w-[2.5px] h-3.5 rounded-full ${recording ? "bg-white" : "bg-black"} animate-pulse`} style={{ animationDuration: "1.2s" }} />
-                      <span className={`w-[2.5px] h-2.5 rounded-full ${recording ? "bg-white" : "bg-black"} animate-pulse`} style={{ animationDuration: "0.9s" }} />
-                      <span className={`w-[2.5px] h-1.5 rounded-full ${recording ? "bg-white" : "bg-black"} animate-pulse`} style={{ animationDuration: "1.4s" }} />
+                      <span className="w-[2.5px] h-2 rounded-full bg-black animate-pulse" style={{ animationDuration: "0.8s" }} />
+                      <span className="w-[2.5px] h-3.5 rounded-full bg-black animate-pulse" style={{ animationDuration: "1.2s" }} />
+                      <span className="w-[2.5px] h-2.5 rounded-full bg-black animate-pulse" style={{ animationDuration: "0.9s" }} />
+                      <span className="w-[2.5px] h-1.5 rounded-full bg-black animate-pulse" style={{ animationDuration: "1.4s" }} />
                     </span>
                   </button>
                 )}
