@@ -4177,9 +4177,8 @@ export default function RockGPT() {
                     <span>Developer</span>
                     <span className="font-semibold" style={{ color: textColor }}>Suman Mansuri (Rock)</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Organization</span>
-                    <span className="font-semibold" style={{ color: textColor }}>Aura Crystal Divine</span>
+                  <div className="pt-2 border-t text-[11px] italic leading-relaxed text-center" style={{ borderColor: border, color: muted }}>
+                    “Code is not just syntax; it is the art of sculpting intelligence out of pure imagination.”
                   </div>
                 </div>
               </div>
