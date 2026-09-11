@@ -31,32 +31,78 @@ mongoose
 
 const groq = new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: "https://api.groq.com/openai/v1" });
 
-function createTransporter(port = 465, secure = true) {
-  const cleanPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
+// Universal Email Delivery Service:
+// 1. Brevo HTTPS API (Port 443 - works directly on Render free tier without firewall blocks)
+// 2. Resend HTTPS API (Port 443 - works directly on Render free tier)
+// 3. Gmail SMTP via Nodemailer (Port 465 - works on Vercel, VPS, localhost)
+async function sendEmail({ to, subject, html }) {
   const cleanUser = (process.env.EMAIL_USER || "").trim();
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port,
-    secure,
+
+  // 1. Brevo REST API (HTTPS over Port 443)
+  if (process.env.BREVO_API_KEY) {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": process.env.BREVO_API_KEY.trim(),
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: "RockGPT", email: cleanUser || "noreply@rockgpt.ai" },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || `Brevo API HTTP ${res.status}`);
+    }
+    return data;
+  }
+
+  // 2. Resend REST API (HTTPS over Port 443)
+  if (process.env.RESEND_API_KEY) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `RockGPT <${process.env.RESEND_FROM || "onboarding@resend.dev"}>`,
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || `Resend API HTTP ${res.status}`);
+    }
+    return data;
+  }
+
+  // 3. Gmail SMTP via Nodemailer
+  const cleanPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
+  if (!cleanUser || !cleanPass) {
+    throw new Error("Email service is not configured. Missing EMAIL_USER / EMAIL_PASS or BREVO_API_KEY.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
     auth: { user: cleanUser, pass: cleanPass },
     connectionTimeout: 8000,
     greetingTimeout: 8000,
     socketTimeout: 8000,
   });
-}
 
-async function sendEmail({ to, subject, html }) {
-  const cleanUser = (process.env.EMAIL_USER || "").trim();
-  const mailOptions = { from: `"RockGPT" <${cleanUser}>`, to, subject, html };
-
-  try {
-    const t465 = createTransporter(465, true);
-    return await t465.sendMail(mailOptions);
-  } catch (err465) {
-    console.warn("Port 465 failed:", err465.message, "- trying port 587...");
-    const t587 = createTransporter(587, false);
-    return await t587.sendMail(mailOptions);
-  }
+  return await transporter.sendMail({
+    from: `"RockGPT" <${cleanUser}>`,
+    to,
+    subject,
+    html,
+  });
 }
 
 // --- OTP Store ---
@@ -139,21 +185,38 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
       if (!u) return res.status(404).json({ error: "No account registered with this email. Please check spelling or create an account." });
     }
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(500).json({ error: "Email service not configured." });
-
     const otp = generateOtp();
-    storeOtp(em, otp);
-
     const emailSubject = mode === "forgot" ? "Reset Your RockGPT Password" : "Your RockGPT Verification Code";
 
-    // Attempt email delivery in background without blocking response
-    sendEmail({
-      to: em,
-      subject: emailSubject,
-      html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">${emailSubject}</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this 6-digit code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share.</p></div>`,
-    }).catch((e) => console.warn("Email dispatch note (Render firewall block):", e.message));
+    try {
+      await sendEmail({
+        to: em,
+        subject: emailSubject,
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">${emailSubject}</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this 6-digit code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share.</p></div>`,
+      });
 
-    res.json({ success: true, message: "Verification code sent.", previewCode: otp });
+      // Email was successfully dispatched! Now store OTP for verification.
+      storeOtp(em, otp);
+
+      res.json({ success: true, message: "Verification code sent to your email inbox." });
+    } catch (emailErr) {
+      console.error("send-otp email error:", emailErr.message);
+      const isFirewallBlocked =
+        emailErr.message.includes("ETIMEDOUT") ||
+        emailErr.message.includes("timeout") ||
+        emailErr.code === "ETIMEDOUT";
+
+      if (isFirewallBlocked) {
+        return res.status(503).json({
+          error:
+            "Email blocked by host firewall: Render free tier blocks outbound SMTP ports 465/587. Please add BREVO_API_KEY in Render environment variables for instant HTTPS email delivery.",
+        });
+      }
+
+      return res.status(500).json({
+        error: `Failed to deliver verification email: ${emailErr.message}`,
+      });
+    }
   } catch (err) {
     console.error("send-otp error:", err.message);
     res.status(500).json({ error: `Authentication error: ${err.message}` });

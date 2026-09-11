@@ -467,7 +467,6 @@ function AuthModal({
   const [otpTimer, setOtpTimer] = useState(45);
   const [resendActive, setResendActive] = useState(false);
   const [otpShake, setOtpShake] = useState(false);
-  const [otpHint, setOtpHint] = useState("");
   const otpInputsRef = useRef([]);
 
   useEffect(() => {
@@ -579,12 +578,7 @@ function AuthModal({
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
-      if (data?.previewCode) {
-        setOtpHint(data.previewCode);
-        notify("🔐 Verification code generated!");
-      } else {
-        notify("🔐 Verification code sent to your email.");
-      }
+      notify("🔐 Verification code sent to your email.");
 
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
@@ -632,10 +626,7 @@ function AuthModal({
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
       setResendActive(false);
-      if (data?.previewCode) {
-        setOtpHint(data.previewCode);
-      }
-      notify("New verification code sent.");
+      notify("New verification code sent to your email.");
 
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
@@ -1001,25 +992,6 @@ function AuthModal({
                 Check your inbox! We've sent a 6-digit code to <br />
                 <strong className={dark ? "text-white" : "text-neutral-900"}>{email}</strong>
               </p>
-
-              {otpHint && (
-                <div className={`mt-3 flex items-center justify-between rounded-xl border px-3 py-2 text-xs ${
-                  dark ? "border-amber-400/30 bg-amber-400/10 text-amber-300" : "border-amber-500/30 bg-amber-50 text-amber-900"
-                }`}>
-                  <span className="font-mono font-semibold">Security code: {otpHint}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOtpDigits(otpHint.slice(0, 6).split(""));
-                    }}
-                    className={`rounded-lg px-2 py-1 text-[10px] font-bold tracking-wide uppercase transition ${
-                      dark ? "bg-amber-400 text-black hover:bg-amber-300" : "bg-amber-600 text-white hover:bg-amber-700"
-                    }`}
-                  >
-                    Auto-Fill
-                  </button>
-                </div>
-              )}
             </div>
 
             <form onSubmit={handleVerifyOtp} className="space-y-4">
