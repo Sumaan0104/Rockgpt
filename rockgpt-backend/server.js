@@ -92,21 +92,44 @@ function authMiddleware(req, res, next) {
 // ═══ SEND OTP ═══
 app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
   try {
-    const { email, password, mode } = req.body;
+    const { name, email, password, mode } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
     const em = email.trim().toLowerCase();
 
-    if (mode === "signup") {
-      if (await User.findOne({ email: em })) return res.status(409).json({ error: "Account already exists. Sign in instead." });
-      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
-      if (!/[A-Z]/.test(password)) return res.status(400).json({ error: "Password must include at least one uppercase letter." });
-      if (!/[0-9]/.test(password)) return res.status(400).json({ error: "Password must include at least one number." });
-      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return res.status(400).json({ error: "Password must include at least one special character." });
+    // Strict RFC 5322 email regex
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(em)) {
+      return res.status(400).json({ error: "Please enter a valid email address (e.g. name@gmail.com)." });
     }
+
+    if (mode === "signup") {
+      if (!name || name.trim().length < 2) {
+        return res.status(400).json({ error: "Full Name is required (minimum 2 characters)." });
+      }
+
+      // Check if username/name is already taken by another person
+      const existingName = await User.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } });
+      if (existingName) {
+        return res.status(409).json({ error: `The name "${name.trim()}" is already taken by another user. Please pick a unique name.` });
+      }
+
+      // Check if email already registered
+      const existingEmail = await User.findOne({ email: em });
+      if (existingEmail) {
+        return res.status(409).json({ error: `This email (${em}) is already registered. Please sign in instead.` });
+      }
+
+      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+      if (!/[A-Z]/.test(password)) return res.status(400).json({ error: "Password must include at least one uppercase letter (A-Z)." });
+      if (!/[0-9]/.test(password)) return res.status(400).json({ error: "Password must include at least one number (0-9)." });
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) return res.status(400).json({ error: "Password must include at least one special character (!@#$...)." });
+    }
+
     if (mode === "login") {
       const u = await User.findOne({ email: em });
-      if (!u) return res.status(401).json({ error: "No account found with this email." });
-      if (!(await bcrypt.compare(password, u.password))) return res.status(401).json({ error: "Incorrect password." });
+      if (!u) return res.status(401).json({ error: "No account found with this email. Please sign up first." });
+      const passMatch = await bcrypt.compare(password, u.password);
+      if (!passMatch) return res.status(401).json({ error: "Incorrect password for this account. Please verify and try again." });
     }
 
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return res.status(500).json({ error: "Email service not configured." });
@@ -136,7 +159,15 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
     const em = email.trim().toLowerCase();
     const otpR = verifyStoredOtp(em, otp);
     if (!otpR.valid) return res.status(400).json({ error: otpR.error });
-    if (await User.findOne({ email: em })) return res.status(409).json({ error: "Account already exists." });
+
+    // Double check name and email uniqueness before saving
+    if (await User.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } })) {
+      return res.status(409).json({ error: `The name "${name.trim()}" is already taken. Please choose another.` });
+    }
+    if (await User.findOne({ email: em })) {
+      return res.status(409).json({ error: "Account already exists. Please sign in instead." });
+    }
+
     const user = new User({ name: name.trim(), email: em, password: await bcrypt.hash(password, 12), plan: "Free" });
     await user.save();
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });

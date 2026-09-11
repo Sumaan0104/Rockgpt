@@ -528,8 +528,9 @@ function AuthModal({
       return;
     }
 
-    if (!/\S+@\S+\.\S+/.test(email.trim())) {
-      setError("Please provide a valid email address.");
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      setError("Please provide a valid email address (e.g. name@gmail.com).");
       return;
     }
 
@@ -553,7 +554,7 @@ function AuthModal({
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, mode: authMode }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, mode: authMode }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -604,7 +605,7 @@ function AuthModal({
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, mode: authMode }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, mode: authMode }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -823,7 +824,40 @@ function AuthModal({
                 </div>
               )}
 
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {error && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-2.5 text-xs text-red-400">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5 text-red-400" />
+                    <div className="flex-1">
+                      <span>{error}</span>
+                      {error.includes("sign in instead") && authMode === "signup" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode("login");
+                            setError("");
+                          }}
+                          className="mt-1.5 block text-xs font-bold text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                        >
+                          ➔ Switch to Sign In & Continue
+                        </button>
+                      )}
+                      {error.includes("sign up first") && authMode === "login" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode("signup");
+                            setError("");
+                          }}
+                          className="mt-1.5 block text-xs font-bold text-amber-400 underline underline-offset-2 hover:text-amber-300"
+                        >
+                          ➔ Switch to Sign Up & Create Account
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
