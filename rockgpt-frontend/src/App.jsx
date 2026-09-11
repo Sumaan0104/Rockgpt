@@ -6,7 +6,8 @@ import {
   Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
   Lock, Volume2, VolumeX, Pin, Share2, Compass, Code2, BookOpen, PenTool,
-  Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck, CreditCard
+  Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck, CreditCard,
+  SquarePen, PenLine
 } from "lucide-react";
 
 const BACKEND_URL = "https://rockgpt.onrender.com";
@@ -3167,144 +3168,140 @@ export default function RockGPT() {
 
       {/* Main Chat Area */}
       <main className="flex min-w-0 flex-1 flex-col">
-        {/* Top Header */}
+        {/* Top Header — Sleek Minimalist Header Matching Reference Image */}
         <header
-          className="flex h-[56px] shrink-0 items-center justify-between border-b px-3 sm:px-4"
+          className="flex h-[58px] shrink-0 items-center justify-between border-b px-3 sm:px-5"
           style={{
-            borderColor: border,
-            background: dark ? "rgba(10,10,10,.85)" : "rgba(255,255,255,.94)",
-            backdropFilter: "blur(12px)",
+            borderColor: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+            background: dark ? "#000000" : "#ffffff",
           }}
         >
-          <div className="flex min-w-0 items-center gap-2">
+          {/* Left: Circular Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            title="Open sidebar"
+            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-95 ${
+              dark
+                ? "bg-white/[0.08] text-white/90 hover:bg-white/[0.14] hover:text-white"
+                : "bg-black/[0.06] text-neutral-800 hover:bg-black/[0.10]"
+            }`}
+          >
+            <Menu size={20} strokeWidth={2.2} />
+          </button>
+
+          {/* Center: Minimalist Model Selector */}
+          <div className="relative">
             <button
-              onClick={() => setSidebarOpen(true)}
-              title="Open sidebar (Ctrl+B)"
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition ${
-                dark ? "text-white/80 hover:bg-white/[.08]" : "text-neutral-700 hover:bg-black/[.06]"
+              type="button"
+              onClick={() => setModelDropdownOpen((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[15px] sm:text-base font-semibold tracking-tight transition select-none cursor-pointer active:scale-95 ${
+                dark
+                  ? "text-white/90 hover:text-white hover:bg-white/[0.05]"
+                  : "text-neutral-800 hover:text-neutral-950 hover:bg-black/[0.05]"
               }`}
             >
-              <Menu size={18} />
+              <span>{selectedModel}</span>
+              <ChevronDown size={14} className={dark ? "text-white/40" : "text-neutral-500"} />
             </button>
 
-            {/* Model Selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setModelDropdownOpen((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-sm select-none touch-manipulation cursor-pointer active:scale-95 ${
-                  dark
-                    ? "border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]"
-                    : "border-neutral-200 bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
-                }`}
-              >
-                {selectedModel === "RockGPT 4o" ? (
-                  <Sparkles size={13} className={dark ? "text-yellow-400" : "text-amber-600"} />
-                ) : (
-                  <Zap size={13} className="text-blue-500" />
-                )}
-                <span>{selectedModel}</span>
-                <ChevronDown size={13} className={dark ? "text-white/40" : "text-neutral-500"} />
-              </button>
-
-              {modelDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
-                  <div
-                    className={`absolute left-0 top-11 z-50 w-72 max-w-[90vw] rounded-2xl border p-2 shadow-2xl pop ${
-                      dark ? "border-white/15 bg-[#161616]" : "border-neutral-200 bg-white"
+            {modelDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
+                <div
+                  className={`absolute left-1/2 -translate-x-1/2 top-11 z-50 w-72 max-w-[90vw] rounded-2xl border p-2 shadow-2xl pop ${
+                    dark ? "border-white/15 bg-[#161616]" : "border-neutral-200 bg-white"
+                  }`}
+                >
+                  {/* RockGPT 4o option */}
+                  <button
+                    type="button"
+                    onClick={() => handleModelSelect("RockGPT 4o")}
+                    className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
+                      selectedModel === "RockGPT 4o"
+                        ? dark
+                          ? "bg-amber-500/15 border border-amber-500/30"
+                          : "bg-amber-50 border border-amber-300"
+                        : dark
+                        ? "hover:bg-white/5 border border-transparent"
+                        : "hover:bg-neutral-50 border border-transparent"
                     }`}
                   >
-                    {/* RockGPT 4o option */}
-                    <button
-                      type="button"
-                      onClick={() => handleModelSelect("RockGPT 4o")}
-                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
-                        selectedModel === "RockGPT 4o"
-                          ? dark
-                            ? "bg-amber-500/15 border border-amber-500/30"
-                            : "bg-amber-50 border border-amber-300"
-                          : dark
-                          ? "hover:bg-white/5 border border-transparent"
-                          : "hover:bg-neutral-50 border border-transparent"
-                      }`}
-                    >
-                      <Sparkles size={16} className={`mt-0.5 shrink-0 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
-                            RockGPT 4o
-                          </span>
-                          {isPaidUser ? (
-                            selectedModel === "RockGPT 4o" ? (
-                              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400">
-                                <Check size={10} /> Active
-                              </span>
-                            ) : (
-                              <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
-                                Smartest 120B
-                              </span>
-                            )
-                          ) : (
-                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-500">
-                              <Lock size={9} /> Plus/Pro
-                            </span>
-                          )}
-                        </div>
-                        <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
-                          {isPaidUser
-                            ? "Deep reasoning, complex logic, and advanced coding"
-                            : "Locked • Requires Plus or Pro subscription"}
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* RockGPT Flash option */}
-                    <button
-                      type="button"
-                      onClick={() => handleModelSelect("RockGPT Flash")}
-                      className={`mt-1 flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
-                        selectedModel === "RockGPT Flash"
-                          ? dark
-                            ? "bg-blue-500/15 border border-blue-500/30"
-                            : "bg-blue-50 border border-blue-300"
-                          : dark
-                          ? "hover:bg-white/5 border border-transparent"
-                          : "hover:bg-neutral-50 border border-transparent"
-                      }`}
-                    >
-                      <Zap size={16} className="mt-0.5 shrink-0 text-blue-500" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
-                            RockGPT Flash
-                          </span>
-                          {selectedModel === "RockGPT Flash" ? (
-                            <span className="flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] font-bold text-blue-400">
+                    <Sparkles size={16} className={`mt-0.5 shrink-0 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
+                          RockGPT 4o
+                        </span>
+                        {isPaidUser ? (
+                          selectedModel === "RockGPT 4o" ? (
+                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400">
                               <Check size={10} /> Active
                             </span>
                           ) : (
-                            <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
-                              Free 20B
+                            <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
+                              Smartest 120B
                             </span>
-                          )}
-                        </div>
-                        <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
-                          Lightning fast responses for daily questions and brainstorming
-                        </div>
+                          )
+                        ) : (
+                          <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-500">
+                            <Lock size={9} /> Plus/Pro
+                          </span>
+                        )}
                       </div>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+                      <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
+                        {isPaidUser
+                          ? "Deep reasoning, complex logic, and advanced coding"
+                          : "Locked • Requires Plus or Pro subscription"}
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* RockGPT Flash option */}
+                  <button
+                    type="button"
+                    onClick={() => handleModelSelect("RockGPT Flash")}
+                    className={`mt-1 flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
+                      selectedModel === "RockGPT Flash"
+                        ? dark
+                          ? "bg-blue-500/15 border border-blue-500/30"
+                          : "bg-blue-50 border border-blue-300"
+                        : dark
+                        ? "hover:bg-white/5 border border-transparent"
+                        : "hover:bg-neutral-50 border border-transparent"
+                    }`}
+                  >
+                    <Zap size={16} className="mt-0.5 shrink-0 text-blue-500" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
+                          RockGPT Flash
+                        </span>
+                        {selectedModel === "RockGPT Flash" ? (
+                          <span className="flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] font-bold text-blue-400">
+                            <Check size={10} /> Active
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                            Free 20B
+                          </span>
+                        )}
+                      </div>
+                      <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
+                        Lightning fast responses for daily questions and brainstorming
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Right: Circular New Chat Button (Mobile) & Desktop Controls */}
+          <div className="flex items-center gap-2">
             {!isPaidUser && (
               <button
                 onClick={() => setPricingOpen(true)}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
+                className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
                   dark
                     ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-300 hover:bg-yellow-400/20"
                     : "border-amber-500/40 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20"
@@ -3327,21 +3324,21 @@ export default function RockGPT() {
               </button>
             )}
 
-            {/* NEW CHAT BUTTON — top right */}
+            {/* Circular New Chat Button */}
             <button
               onClick={newChat}
-              title="New chat (Ctrl+N)"
-              className={`grid h-9 w-9 place-items-center rounded-lg border transition ${
+              title="New chat"
+              className={`grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-95 ${
                 dark
-                  ? "border-white/15 text-white/80 hover:bg-white/[.08]"
-                  : "border-neutral-300 text-neutral-700 hover:bg-black/[.06]"
+                  ? "bg-white/[0.08] text-white/90 hover:bg-white/[0.14] hover:text-white"
+                  : "bg-black/[0.06] text-neutral-800 hover:bg-black/[0.10]"
               }`}
             >
-              <Plus size={17} />
+              <SquarePen size={18} strokeWidth={2.2} />
             </button>
 
-            {/* TOP RIGHT PROFILE AVATAR WITH PROPER DROPDOWN */}
-            <div className="relative">
+            {/* Desktop Profile Avatar */}
+            <div className="relative hidden sm:block">
               {user ? (
                 <button
                   onClick={() => setHeaderProfileOpen((v) => !v)}
@@ -3363,7 +3360,6 @@ export default function RockGPT() {
                 </button>
               )}
 
-              {/* Header profile dropdown — positioned at top-right */}
               {headerProfileOpen && user && (
                 <>
                   <div className="fixed inset-0 z-50" onClick={() => setHeaderProfileOpen(false)} />
@@ -3408,204 +3404,182 @@ export default function RockGPT() {
         {/* Chat Message Window */}
         <section className="thin flex-1 overflow-y-auto">
           {messages.length === 0 && !typing ? (
-            <div className="mx-auto flex min-h-full max-w-[800px] flex-col items-center justify-center px-4 py-8">
-              <div className="mb-4 fade"><RockMark dark={dark} /></div>
-              <h1 className="rise text-center text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
-                What can I help with today?
-              </h1>
-              <p
-                className="rise mt-2 max-w-lg px-2 text-center text-xs leading-5 sm:text-sm"
-                style={{ color: muted }}
-              >
-                Brainstorm, write clean code, analyze documents, or solve complex problems.
-              </p>
+            <div className="mx-auto flex h-full max-w-[760px] flex-col justify-end px-4 pb-4 sm:px-6">
+              <div className="flex flex-col gap-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInput("Help me write, review, or debug code for: ");
+                    inputRef.current?.focus();
+                  }}
+                  className={`flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left transition active:scale-[0.99] select-none ${
+                    dark
+                      ? "text-white/90 hover:bg-white/[0.07] active:bg-white/[0.10]"
+                      : "text-neutral-800 hover:bg-black/[0.05] active:bg-black/[0.08]"
+                  }`}
+                >
+                  <Code2 size={20} className={dark ? "text-white/80" : "text-neutral-700"} strokeWidth={2} />
+                  <span className="text-[15px] font-medium tracking-normal">Write code or debug</span>
+                </button>
 
-              <div className="rise mt-6 flex max-w-full items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 px-1 sm:flex-wrap sm:justify-center">
-                {CATEGORIES.map((cat) => {
-                  const Icon = cat.icon;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveCategory(cat.id)}
-                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                        activeCategory === cat.id
-                          ? dark
-                            ? "bg-white text-black"
-                            : "bg-neutral-900 text-white"
-                          : dark
-                          ? "bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white"
-                          : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-                      }`}
-                    >
-                      <Icon size={12} />
-                      <span>{cat.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInput("Help me write, draft, or polish: ");
+                    inputRef.current?.focus();
+                  }}
+                  className={`flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left transition active:scale-[0.99] select-none ${
+                    dark
+                      ? "text-white/90 hover:bg-white/[0.07] active:bg-white/[0.10]"
+                      : "text-neutral-800 hover:bg-black/[0.05] active:bg-black/[0.08]"
+                  }`}
+                >
+                  <PenLine size={20} className={dark ? "text-white/80" : "text-neutral-700"} strokeWidth={2} />
+                  <span className="text-[15px] font-medium tracking-normal">Write or edit</span>
+                </button>
 
-              <div className="rise mt-4 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
-                {(PROMPT_SUGGESTIONS[activeCategory] || PROMPT_SUGGESTIONS.all).map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setInput(item.prompt);
-                      inputRef.current?.focus();
-                    }}
-                    className={`flex flex-col justify-between rounded-xl border p-3 text-left transition-all hover:scale-[1.01] ${
-                      dark
-                        ? "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.05]"
-                        : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-neutral-100/80 shadow-sm"
-                    }`}
-                  >
-                    <div>
-                      <div className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
-                        {item.title}
-                      </div>
-                      <div className={`mt-0.5 text-[11px] leading-snug ${dark ? "text-white/50" : "text-neutral-500"}`}>
-                        {item.desc}
-                      </div>
-                    </div>
-                    <div className="mt-2 flex justify-end">
-                      <ArrowRight size={13} className={dark ? "text-white/30" : "text-neutral-400"} />
-                    </div>
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInput("Explain step-by-step and analyze: ");
+                    inputRef.current?.focus();
+                  }}
+                  className={`flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left transition active:scale-[0.99] select-none ${
+                    dark
+                      ? "text-white/90 hover:bg-white/[0.07] active:bg-white/[0.10]"
+                      : "text-neutral-800 hover:bg-black/[0.05] active:bg-black/[0.08]"
+                  }`}
+                >
+                  <Sparkles size={20} className={dark ? "text-white/80" : "text-neutral-700"} strokeWidth={2} />
+                  <span className="text-[15px] font-medium tracking-normal">Ask anything or analyze</span>
+                </button>
               </div>
             </div>
           ) : (
-            <div className="mx-auto max-w-[820px] px-3 py-6 sm:px-6 sm:py-8">
+            <div className="mx-auto max-w-[780px] px-3 py-6 sm:px-6 sm:py-8">
               {messages.map((m, i) => (
-                <div key={m.id} className="rise mb-6 sm:mb-8">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-medium">
-                    {m.role === "assistant" ? (
-                      <RockMark small dark={dark} />
-                    ) : (
-                      <div className="grid h-7 w-7 place-items-center rounded-full border" style={{ borderColor: border }}>
-                        <User size={13} />
+                <div key={m.id} className="rise mb-6 sm:mb-7">
+                  {m.role === "user" ? (
+                    <div className="flex flex-col items-end">
+                      <div
+                        className={`chat-bubble max-w-[86%] sm:max-w-[76%] rounded-[22px] rounded-br-[6px] px-4 py-3 text-[15px] sm:text-[16px] leading-relaxed shadow-sm ${
+                          dark
+                            ? "bg-[#262626] text-white"
+                            : "bg-neutral-200 text-neutral-900"
+                        }`}
+                      >
+                        {m.attachment?.kind === "image" && (
+                          <img
+                            src={m.attachment.dataUrl}
+                            alt={m.attachment.name}
+                            className="mb-2 max-h-60 rounded-xl object-cover"
+                          />
+                        )}
+                        {m.attachment?.kind === "doc" && (
+                          <div
+                            className="mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
+                            style={{ borderColor: border, color: muted }}
+                          >
+                            📄 {m.attachment.name}
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap">
+                          {m.displayText || (typeof m.content === "string" ? m.content : "")}
+                        </p>
                       </div>
-                    )}
-                    <span className="font-semibold">{m.role === "assistant" ? "RockGPT" : "You"}</span>
-                    <span className="text-[10px]" style={{ color: muted }}>
-                      {formatTime(m.createdAt)}
-                    </span>
-                  </div>
 
-                  {editing === m.id ? (
-                    <div className="rounded-2xl border p-3" style={{ borderColor: border }}>
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="min-h-[100px] w-full resize-none bg-transparent text-sm leading-6 outline-none"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-1.5 text-xs" style={{ color: muted }}>
-                          Cancel
+                      <div className="mt-1 mr-1 flex items-center gap-1 opacity-60 hover:opacity-100 transition">
+                        <button
+                          onClick={() => copyMessage(m)}
+                          className={`rounded-lg p-1.5 text-xs transition ${
+                            dark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-neutral-500 hover:bg-black/5"
+                          }`}
+                          title="Copy message"
+                        >
+                          {copied === m.id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                         </button>
                         <button
                           onClick={() => {
-                            setMessages((prev) =>
-                              prev.map((x) => (x.id === m.id ? { ...x, content: editText, displayText: editText } : x))
-                            );
-                            setEditing(null);
+                            setEditing(m.id);
+                            setEditText(m.displayText || m.content || "");
                           }}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                            dark ? "bg-white text-black" : "bg-neutral-900 text-white"
+                          className={`rounded-lg p-1.5 text-xs transition ${
+                            dark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-neutral-500 hover:bg-black/5"
                           }`}
+                          title="Edit prompt"
                         >
-                          Save
+                          <Edit3 size={12} />
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div
-                      className={
-                        m.role === "user"
-                          ? `chat-bubble ml-0 max-w-[92%] rounded-2xl border p-3.5 sm:ml-9 sm:p-4 ${
-                              dark
-                                ? "border-white/10 bg-white/[.05] text-white"
-                                : "border-neutral-200 bg-neutral-100 text-neutral-900"
-                            }`
-                          : "ml-0 sm:ml-9"
-                      }
-                    >
-                      {m.attachment?.kind === "image" && (
-                        <img
-                          src={m.attachment.dataUrl}
-                          alt={m.attachment.name}
-                          className="mb-2 max-h-60 rounded-xl border"
-                          style={{ borderColor: border }}
-                        />
-                      )}
-                      {m.attachment?.kind === "doc" && (
-                        <div
-                          className="mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
-                          style={{ borderColor: border, color: muted }}
-                        >
-                          📄 {m.attachment.name}
+                    <div className="flex flex-col items-start w-full">
+                      {editing === m.id ? (
+                        <div className="w-full rounded-2xl border p-3" style={{ borderColor: border }}>
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            className="min-h-[100px] w-full resize-none bg-transparent text-sm leading-6 outline-none"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-1.5 text-xs" style={{ color: muted }}>
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                setMessages((prev) =>
+                                  prev.map((x) => (x.id === m.id ? { ...x, content: editText, displayText: editText } : x))
+                                );
+                                setEditing(null);
+                              }}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                                dark ? "bg-white text-black" : "bg-neutral-900 text-white"
+                              }`}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full text-[15px] sm:text-[16px] leading-relaxed">
+                          <MessageContent content={m.content} dark={dark} />
                         </div>
                       )}
-                      {m.role === "assistant" ? (
-                        <MessageContent content={m.content} dark={dark} />
-                      ) : (
-                        <p className="whitespace-pre-wrap text-[15px] leading-7">
-                          {m.displayText || (typeof m.content === "string" ? m.content : "")}
-                        </p>
-                      )}
-                    </div>
-                  )}
 
-                  <div className="ml-9 mt-2 flex items-center gap-1">
-                    <button
-                      onClick={() => copyMessage(m)}
-                      className={`rounded-lg p-2 text-xs transition ${
-                        dark ? "text-white/40 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
-                      }`}
-                      title="Copy message"
-                    >
-                      {copied === m.id ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                    </button>
+                      <div className="mt-2.5 flex items-center gap-1 text-neutral-400">
+                        <button
+                          onClick={() => copyMessage(m)}
+                          className={`rounded-lg p-1.5 transition ${
+                            dark ? "text-white/40 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
+                          }`}
+                          title="Copy message"
+                        >
+                          {copied === m.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                        </button>
 
-                    {m.role === "assistant" && typeof m.content === "string" && (
-                      <button
-                        onClick={() => toggleSpeech(m.id, m.content)}
-                        className={`rounded-lg p-2 text-xs transition ${
-                          speakingId === m.id
-                            ? "text-blue-500 bg-blue-500/10"
-                            : dark
-                            ? "text-white/40 hover:bg-white/[.06] hover:text-white"
-                            : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
-                        }`}
-                        title={speakingId === m.id ? "Stop voice" : "Read aloud"}
-                      >
-                        {speakingId === m.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
-                      </button>
-                    )}
+                        {typeof m.content === "string" && (
+                          <button
+                            onClick={() => toggleSpeech(m.id, m.content)}
+                            className={`rounded-lg p-1.5 transition ${
+                              speakingId === m.id
+                                ? "text-blue-500 bg-blue-500/10"
+                                : dark
+                                ? "text-white/40 hover:bg-white/[.06] hover:text-white"
+                                : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
+                            }`}
+                            title={speakingId === m.id ? "Stop voice" : "Read aloud"}
+                          >
+                            {speakingId === m.id ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                          </button>
+                        )}
 
-                    {m.role === "user" && (
-                      <button
-                        onClick={() => {
-                          setEditing(m.id);
-                          setEditText(m.displayText || "");
-                        }}
-                        className={`rounded-lg p-2 transition ${
-                          dark ? "text-white/40 hover:bg-white/[.06] hover:text-white" : "text-neutral-400 hover:bg-black/[.06] hover:text-neutral-900"
-                        }`}
-                        title="Edit prompt"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-                    )}
-
-                    {m.role === "assistant" && (
-                      <>
                         <button
                           onClick={() =>
                             setMessages((prev) =>
                               prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === true ? null : true } : x))
                             )
                           }
-                          className={`rounded-lg p-2 transition ${
+                          className={`rounded-lg p-1.5 transition ${
                             m.liked === true
                               ? "text-emerald-500"
                               : dark
@@ -3614,7 +3588,7 @@ export default function RockGPT() {
                           }`}
                           title="Helpful"
                         >
-                          <ThumbsUp size={13} />
+                          <ThumbsUp size={14} />
                         </button>
                         <button
                           onClick={() =>
@@ -3622,7 +3596,7 @@ export default function RockGPT() {
                               prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === false ? null : false } : x))
                             )
                           }
-                          className={`rounded-lg p-2 transition ${
+                          className={`rounded-lg p-1.5 transition ${
                             m.liked === false
                               ? "text-red-500"
                               : dark
@@ -3631,21 +3605,21 @@ export default function RockGPT() {
                           }`}
                           title="Not helpful"
                         >
-                          <ThumbsDown size={13} />
+                          <ThumbsDown size={14} />
                         </button>
                         {i === messages.length - 1 && (
                           <button
                             onClick={regenerate}
-                            className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs transition ${
+                            className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition ${
                               dark ? "text-white/50 hover:bg-white/[.06] hover:text-white" : "text-neutral-500 hover:bg-black/[.06] hover:text-neutral-900"
                             }`}
                           >
                             <RefreshCcw size={13} /> Regenerate
                           </button>
                         )}
-                      </>
-                    )}
-                  </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -3692,19 +3666,19 @@ export default function RockGPT() {
           )}
         </section>
 
-        {/* Input Bar */}
-        <div className="shrink-0 px-2 pb-3 pt-2 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
-          <div className="mx-auto max-w-[820px]">
+        {/* Input Bar — Floating Capsule Pill Matching Reference Image */}
+        <div className="shrink-0 px-3 pb-3 pt-1 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <div className="mx-auto max-w-[760px]">
             {attachment && (
               <div
-                className={`mb-2 flex items-center gap-2 rounded-xl border p-2 ${
+                className={`mb-2 flex items-center gap-2 rounded-2xl border p-2 ${
                   dark ? "border-white/15 bg-white/[0.05]" : "border-neutral-200 bg-neutral-100"
                 }`}
               >
                 {attachment.kind === "image" ? (
-                  <img src={attachment.dataUrl} alt={attachment.name} className="h-12 w-12 rounded-lg object-cover" />
+                  <img src={attachment.dataUrl} alt={attachment.name} className="h-12 w-12 rounded-xl object-cover" />
                 ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-lg border text-lg" style={{ borderColor: border }}>
+                  <div className="grid h-12 w-12 place-items-center rounded-xl border text-lg" style={{ borderColor: border }}>
                     📄
                   </div>
                 )}
@@ -3714,20 +3688,80 @@ export default function RockGPT() {
                 </button>
               </div>
             )}
+
+            {/* The Capsule Pill */}
             <div
-              className={`relative rounded-[22px] border p-2 shadow-xl focus-within:ring-1 ${
+              className={`relative flex items-center gap-2 rounded-full border px-2.5 py-1.5 shadow-2xl transition-colors ${
                 dark
-                  ? "border-white/15 bg-[#141414] focus-within:border-white/30 focus-within:ring-white/20"
-                  : "border-neutral-300 bg-white focus-within:border-neutral-400 focus-within:ring-neutral-200"
+                  ? "border-white/10 bg-[#1e1e20] focus-within:border-white/25"
+                  : "border-neutral-300 bg-white focus-within:border-neutral-400"
               }`}
             >
+              {/* Attachment '+' button */}
+              <input ref={fileRef} type="file" accept="image/*,.txt,.md" className="hidden" onChange={handleFileSelect} />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAttachMenuOpen((v) => !v)}
+                  title="Attach photo or file"
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition ${
+                    dark ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"
+                  }`}
+                >
+                  <Plus size={20} strokeWidth={2.2} />
+                </button>
+
+                {attachMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
+                    <div
+                      className={`absolute bottom-12 left-0 z-40 w-60 rounded-2xl border p-1.5 shadow-2xl pop ${
+                        dark ? "border-white/15 bg-[#181818]" : "border-neutral-200 bg-white"
+                      }`}
+                    >
+                      <button
+                        onClick={() => {
+                          fileRef.current?.click();
+                          setAttachMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                          dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
+                        }`}
+                      >
+                        <Paperclip size={16} /> <span className="flex-1">Add photo or file</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setWebSearchOn((v) => !v);
+                          notify("Web search is coming soon");
+                          setAttachMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                          dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
+                        }`}
+                      >
+                        <Globe size={16} /> <span className="flex-1">Web search</span>
+                        <span
+                          className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
+                            dark ? "border-white/10 text-white/40" : "border-neutral-200 text-neutral-500"
+                          }`}
+                        >
+                          Soon
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Text Input */}
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => {
                   setInput(e.target.value);
                   e.target.style.height = "auto";
-                  e.target.style.height = Math.min(160, e.target.scrollHeight) + "px";
+                  e.target.style.height = Math.min(140, Math.max(26, e.target.scrollHeight)) + "px";
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -3736,128 +3770,72 @@ export default function RockGPT() {
                   }
                 }}
                 rows={1}
-                placeholder={`Message ${selectedModel}...`}
-                className={`w-full resize-none bg-transparent px-3 pb-11 pt-2 text-base leading-6 outline-none sm:px-3.5 sm:text-[15px] ${
-                  dark ? "text-white placeholder:text-white/30" : "text-neutral-900 placeholder:text-neutral-400"
+                placeholder={`Ask ${selectedModel}...`}
+                className={`min-w-0 flex-1 resize-none bg-transparent py-1 text-[15px] sm:text-base leading-6 outline-none ${
+                  dark ? "text-white placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
-                style={{ minHeight: 46, maxHeight: 160 }}
+                style={{ minHeight: "26px", maxHeight: "140px" }}
               />
 
-              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                <div className="flex items-center gap-1">
-                  <input ref={fileRef} type="file" accept="image/*,.txt,.md" className="hidden" onChange={handleFileSelect} />
-                  <div className="relative">
-                    <button
-                      onClick={() => setAttachMenuOpen((v) => !v)}
-                      title="Attach photo or file"
-                      className={`grid h-9 w-9 place-items-center rounded-xl transition ${
-                        dark ? "text-white/50 hover:bg-white/[.06] hover:text-white" : "text-neutral-500 hover:bg-black/[.06] hover:text-neutral-900"
-                      }`}
-                    >
-                      <Plus size={18} />
-                    </button>
-                    {attachMenuOpen && (
-                      <>
-                        <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
-                        <div
-                          className={`absolute bottom-11 left-0 z-40 w-60 rounded-2xl border p-1.5 shadow-2xl pop ${
-                            dark ? "border-white/15 bg-[#181818]" : "border-neutral-200 bg-white"
-                          }`}
-                        >
-                          <button
-                            onClick={() => {
-                              fileRef.current?.click();
-                              setAttachMenuOpen(false);
-                            }}
-                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                              dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
-                            }`}
-                          >
-                            <Paperclip size={16} /> <span className="flex-1">Add photo or file</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setWebSearchOn((v) => !v);
-                              notify("Web search is coming soon");
-                              setAttachMenuOpen(false);
-                            }}
-                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                              dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
-                            }`}
-                          >
-                            <Globe size={16} /> <span className="flex-1">Web search</span>
-                            <span
-                              className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
-                                dark ? "border-white/10 text-white/40" : "border-neutral-200 text-neutral-500"
-                              }`}
-                            >
-                              Soon
-                            </span>
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setFastMode((v) => !v)}
-                    title={fastMode ? "Fast mode active" : "Turn on fast mode"}
-                    className={`hidden h-9 w-9 place-items-center rounded-xl transition sm:grid ${
-                      fastMode
-                        ? dark
-                          ? "bg-white text-black"
-                          : "bg-neutral-900 text-white"
-                        : dark
-                        ? "text-white/50 hover:bg-white/[.06] hover:text-white"
-                        : "text-neutral-500 hover:bg-black/[.06] hover:text-neutral-900"
-                    }`}
-                  >
-                    <Gauge size={17} />
-                  </button>
-                  <button
-                    onClick={toggleRecording}
-                    title="Voice input"
-                    className={`grid h-9 w-9 place-items-center rounded-xl transition ${
-                      recording
-                        ? "bg-red-500 text-white animate-pulse"
-                        : dark
-                        ? "text-white/50 hover:bg-white/[.06] hover:text-white"
-                        : "text-neutral-500 hover:bg-black/[.06] hover:text-neutral-900"
-                    }`}
-                  >
-                    <Mic size={17} />
-                  </button>
-                </div>
+              {/* Right actions inside capsule */}
+              <div className="flex items-center gap-1 shrink-0">
+                {/* Microphone button */}
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  title="Voice input"
+                  className={`grid h-9 w-9 place-items-center rounded-full transition ${
+                    recording
+                      ? "bg-red-500 text-white animate-pulse"
+                      : dark
+                      ? "text-white/70 hover:bg-white/10 hover:text-white"
+                      : "text-neutral-600 hover:bg-black/5 hover:text-black"
+                  }`}
+                >
+                  <Mic size={19} />
+                </button>
 
+                {/* Morphing Voice Orb / Send Button */}
                 {typing ? (
                   <button
                     onClick={stopGeneration}
-                    className={`grid h-9 w-9 place-items-center rounded-xl transition hover:scale-105 ${
+                    className={`grid h-9 w-9 place-items-center rounded-full transition hover:scale-105 ${
                       dark ? "bg-white text-black" : "bg-neutral-900 text-white"
                     }`}
                     title="Stop generating"
                   >
-                    <Square size={14} fill="currentColor" />
+                    <Square size={13} fill="currentColor" />
+                  </button>
+                ) : input.trim() || attachment ? (
+                  <button
+                    onClick={sendMessage}
+                    className={`grid h-9 w-9 place-items-center rounded-full transition active:scale-95 shadow-md ${
+                      dark
+                        ? "bg-white text-black hover:bg-neutral-200"
+                        : "bg-neutral-900 text-white hover:bg-black"
+                    }`}
+                    title="Send message"
+                  >
+                    <ArrowUp size={18} strokeWidth={2.4} />
                   </button>
                 ) : (
                   <button
-                    disabled={!input.trim() && !attachment}
-                    onClick={sendMessage}
-                    className={`grid h-9 w-9 place-items-center rounded-xl transition ${
-                      input.trim() || attachment
-                        ? dark
-                          ? "bg-white text-black hover:scale-105 shadow-md"
-                          : "bg-neutral-900 text-white hover:scale-105 shadow-md"
-                        : dark
-                        ? "bg-white/10 text-white/30"
-                        : "bg-neutral-200 text-neutral-400"
-                    }`}
-                    title="Send"
+                    type="button"
+                    onClick={toggleRecording}
+                    title="Voice mode"
+                    className="grid h-9 w-9 place-items-center rounded-full bg-[#2563eb] text-white hover:bg-blue-600 active:scale-95 transition shadow-[0_0_15px_rgba(37,99,235,0.4)]"
                   >
-                    <ArrowUp size={18} />
+                    <span className="flex items-center gap-0.5 h-3.5">
+                      <span className="w-[2.5px] h-2 bg-white rounded-full animate-pulse" style={{ animationDuration: "0.8s" }} />
+                      <span className="w-[2.5px] h-3.5 bg-white rounded-full animate-pulse" style={{ animationDuration: "1.2s" }} />
+                      <span className="w-[2.5px] h-2.5 bg-white rounded-full animate-pulse" style={{ animationDuration: "0.9s" }} />
+                      <span className="w-[2.5px] h-1.5 bg-white rounded-full animate-pulse" style={{ animationDuration: "1.4s" }} />
+                    </span>
                   </button>
                 )}
               </div>
             </div>
+
             <div className="hidden items-center justify-center gap-2 py-2 text-[11px] sm:flex" style={{ color: muted }}>
               <span>RockGPT can make mistakes. Verify important information.</span>
             </div>
