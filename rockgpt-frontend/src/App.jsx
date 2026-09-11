@@ -469,6 +469,19 @@ function AuthModal({
   const [otpShake, setOtpShake] = useState(false);
   const otpInputsRef = useRef([]);
 
+  // Reset credentials and step whenever the modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      setStep("credentials");
+      setError("");
+      setOtpDigits(["", "", "", "", "", ""]);
+      setPassword("");
+      setLoading(false);
+      setResendActive(false);
+      setOtpTimer(45);
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     let interval = null;
     if (step === "otp" && otpTimer > 0) {
@@ -1725,16 +1738,8 @@ export default function RockGPT() {
 
   const isPaidUser = Boolean(user && (user.plan === "Plus" || user.plan === "Pro"));
 
-  const [selectedModel, setSelectedModel] = useState("RockGPT Flash");
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem("rockgpt-model") || "RockGPT 4o");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-
-  useEffect(() => {
-    if (isPaidUser) {
-      setSelectedModel("RockGPT 4o");
-    } else {
-      setSelectedModel("RockGPT Flash");
-    }
-  }, [isPaidUser]);
 
   const [gateOpen, setGateOpen] = useState(() => !localStorage.getItem("rockgpt-token"));
   const [gateLocked, setGateLocked] = useState(false);
@@ -1869,13 +1874,8 @@ export default function RockGPT() {
   };
 
   const handleModelSelect = (modelName) => {
-    if (modelName === "RockGPT 4o" && !isPaidUser) {
-      setModelDropdownOpen(false);
-      setPricingOpen(true);
-      notify("🔒 RockGPT 4o is locked. Upgrade to Plus or Pro to unlock!");
-      return;
-    }
     setSelectedModel(modelName);
+    localStorage.setItem("rockgpt-model", modelName);
     setModelDropdownOpen(false);
     notify(`Switched to ${modelName}`);
   };
@@ -1895,7 +1895,10 @@ export default function RockGPT() {
     localStorage.removeItem("rockgpt-user");
     setAuthToken(null);
     setUser(null);
-    setSelectedModel("RockGPT Flash");
+    setAuthModalOpen(false);
+    setGateOpen(false);
+    setProfileMenuOpen(false);
+    setHeaderProfileOpen(false);
     notify("Logged out successfully");
   };
 
@@ -1944,9 +1947,10 @@ export default function RockGPT() {
 
   const streamFromBackend = async (history, convId) => {
     setStreaming("");
-    setThinkingLabel("RockGPT is thinking");
-    const t1 = setTimeout(() => setThinkingLabel("Synthesizing reasoning..."), 3500);
-    const t2 = setTimeout(() => setThinkingLabel("Formatting response..."), 7500);
+    const is4o = selectedModel === "RockGPT 4o";
+    setThinkingLabel(is4o ? "RockGPT 4o is analyzing prompt & context..." : "RockGPT Flash is formulating response...");
+    const t1 = setTimeout(() => setThinkingLabel(is4o ? "Exploring multi-step reasoning pathways..." : "Synthesizing fast response..."), 2500);
+    const t2 = setTimeout(() => setThinkingLabel(is4o ? "Structuring deep solution & code..." : "Streaming instant tokens..."), 5500);
 
     let fullText = "";
     const controller = new AbortController();
@@ -2233,6 +2237,28 @@ export default function RockGPT() {
         .cursor-blink { animation: blink 1s step-end infinite; }
         @keyframes dotBounce { 0%, 60%, 100% { transform: translateY(0); opacity:.4 } 30% { transform: translateY(-5px); opacity:1 } }
         .dot-bounce { animation: dotBounce 1.1s ease-in-out infinite; }
+        @keyframes auroraShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .aurora-shimmer {
+          background: linear-gradient(90deg, rgba(245,158,11,0.1) 0%, rgba(168,85,247,0.45) 50%, rgba(59,130,246,0.3) 100%);
+          background-size: 200% 100%;
+          animation: auroraShimmer 2.2s ease-in-out infinite;
+        }
+        @keyframes streamCursorPulse {
+          0%, 100% { opacity: 1; transform: scaleY(1); }
+          50% { opacity: 0.15; transform: scaleY(0.7); }
+        }
+        .stream-cursor {
+          animation: streamCursorPulse 0.75s ease-in-out infinite;
+        }
+        @keyframes waveBars {
+          0%, 100% { height: 4px; }
+          50% { height: 14px; }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         @media (max-width: 640px) {
           .chat-bubble { max-width: 90% !important; }
         }
@@ -2403,6 +2429,42 @@ export default function RockGPT() {
               <ChevronRight size={14} className={dark ? "text-yellow-400/60" : "text-amber-600/60"} />
             </button>
 
+            {/* Theme Switcher in Sidebar (Requested: Light/Dark mode in slide bar) */}
+            <div
+              className={`flex items-center justify-between rounded-xl border p-1.5 transition ${
+                dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-100"
+              }`}
+            >
+              <div className="flex items-center gap-2 pl-2">
+                {dark ? <Moon size={15} className="text-amber-400" /> : <Sun size={15} className="text-amber-500" />}
+                <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>Theme</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTheme("light")}
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    !dark
+                      ? "bg-white text-neutral-900 shadow-sm"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  <Sun size={12} /> Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme("dark")}
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    dark
+                      ? "bg-amber-500 text-black shadow-sm font-bold"
+                      : "text-neutral-500 hover:text-neutral-900"
+                  }`}
+                >
+                  <Moon size={12} /> Dark
+                </button>
+              </div>
+            </div>
+
             {/* Profile trigger with floating menu */}
             <button
               onClick={() => {
@@ -2468,8 +2530,9 @@ export default function RockGPT() {
             {/* Model Selector */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setModelDropdownOpen((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-sm ${
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition shadow-sm select-none touch-manipulation cursor-pointer active:scale-95 ${
                   dark
                     ? "border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]"
                     : "border-neutral-200 bg-neutral-100 text-neutral-800 hover:bg-neutral-200"
@@ -2486,70 +2549,80 @@ export default function RockGPT() {
 
               {modelDropdownOpen && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setModelDropdownOpen(false)} />
+                  <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
                   <div
-                    className={`absolute left-0 top-10 z-40 w-64 rounded-2xl border p-1.5 shadow-2xl pop ${
+                    className={`absolute left-0 top-11 z-50 w-72 max-w-[90vw] rounded-2xl border p-2 shadow-2xl pop ${
                       dark ? "border-white/15 bg-[#161616]" : "border-neutral-200 bg-white"
                     }`}
                   >
+                    {/* RockGPT 4o option */}
                     <button
-                      onClick={() => handleModelSelect("RockGPT Flash")}
-                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
-                        selectedModel === "RockGPT Flash"
+                      type="button"
+                      onClick={() => handleModelSelect("RockGPT 4o")}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
+                        selectedModel === "RockGPT 4o"
                           ? dark
-                            ? "bg-white/10"
-                            : "bg-neutral-100"
+                            ? "bg-amber-500/15 border border-amber-500/30"
+                            : "bg-amber-50 border border-amber-300"
                           : dark
-                          ? "hover:bg-white/5"
-                          : "hover:bg-neutral-50"
+                          ? "hover:bg-white/5 border border-transparent"
+                          : "hover:bg-neutral-50 border border-transparent"
                       }`}
                     >
-                      <Zap size={15} className="mt-0.5 text-blue-500" />
-                      <div className="flex-1">
+                      <Sparkles size={16} className={`mt-0.5 shrink-0 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
-                            RockGPT Flash
+                          <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
+                            RockGPT 4o
                           </span>
-                          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
-                            Free
-                          </span>
+                          {selectedModel === "RockGPT 4o" ? (
+                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400">
+                              <Check size={10} /> Active
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-400">
+                              Smartest 120B
+                            </span>
+                          )}
                         </div>
-                        <div className={`text-[10px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
-                          Fastest for general questions
+                        <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
+                          Deep reasoning, complex logic, and advanced coding
                         </div>
                       </div>
                     </button>
 
+                    {/* RockGPT Flash option */}
                     <button
-                      onClick={() => handleModelSelect("RockGPT 4o")}
-                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
-                        selectedModel === "RockGPT 4o"
+                      type="button"
+                      onClick={() => handleModelSelect("RockGPT Flash")}
+                      className={`mt-1 flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
+                        selectedModel === "RockGPT Flash"
                           ? dark
-                            ? "bg-white/10"
-                            : "bg-neutral-100"
+                            ? "bg-blue-500/15 border border-blue-500/30"
+                            : "bg-blue-50 border border-blue-300"
                           : dark
-                          ? "hover:bg-white/5"
-                          : "hover:bg-neutral-50"
+                          ? "hover:bg-white/5 border border-transparent"
+                          : "hover:bg-neutral-50 border border-transparent"
                       }`}
                     >
-                      <Sparkles size={15} className={`mt-0.5 ${dark ? "text-yellow-400" : "text-amber-600"}`} />
-                      <div className="flex-1">
+                      <Zap size={16} className="mt-0.5 shrink-0 text-blue-500" />
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>
-                            RockGPT 4o
+                          <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
+                            RockGPT Flash
                           </span>
-                          {isPaidUser ? (
-                            <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
-                              Active
+                          {selectedModel === "RockGPT Flash" ? (
+                            <span className="flex items-center gap-1 rounded-full bg-blue-500/20 px-2 py-0.5 text-[9px] font-bold text-blue-400">
+                              <Check size={10} /> Active
                             </span>
                           ) : (
-                            <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-500">
-                              <Lock size={9} /> Plus/Pro
+                            <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                              Fast 20B
                             </span>
                           )}
                         </div>
-                        <div className={`text-[10px] ${dark ? "text-white/50" : "text-neutral-500"}`}>
-                          {isPaidUser ? "Deep reasoning & highest compute" : "Requires Plus or Pro subscription"}
+                        <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
+                          Lightning fast responses for daily questions and brainstorming
                         </div>
                       </div>
                     </button>
@@ -2597,16 +2670,6 @@ export default function RockGPT() {
               }`}
             >
               <Plus size={17} />
-            </button>
-
-            <button
-              onClick={() => setTheme(dark ? "light" : "dark")}
-              title="Toggle theme"
-              className={`grid h-9 w-9 place-items-center rounded-lg transition ${
-                dark ? "text-white/80 hover:bg-white/[.08]" : "text-neutral-700 hover:bg-black/[.06]"
-              }`}
-            >
-              {dark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
 
             {/* TOP RIGHT PROFILE AVATAR WITH PROPER DROPDOWN */}
@@ -2689,7 +2752,7 @@ export default function RockGPT() {
                 Brainstorm, write clean code, analyze documents, or solve complex problems.
               </p>
 
-              <div className="rise mt-6 flex flex-wrap items-center justify-center gap-1.5">
+              <div className="rise mt-6 flex max-w-full items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 px-1 sm:flex-wrap sm:justify-center">
                 {CATEGORIES.map((cat) => {
                   const Icon = cat.icon;
                   return (
@@ -2919,22 +2982,58 @@ export default function RockGPT() {
               ))}
 
               {typing && (
-                <div className="rise mb-8 flex gap-3">
-                  <RockMark small dark={dark} />
-                  <div className="min-w-0 flex-1 pt-1">
+                <div className="rise mb-8 flex items-start gap-3">
+                  {/* Glowing Neural Avatar */}
+                  <div className="relative shrink-0 mt-0.5">
+                    <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-amber-500/30 via-purple-500/30 to-blue-500/30 blur-sm animate-pulse" />
+                    <div
+                      className={`relative grid h-8 w-8 place-items-center rounded-xl border shadow-md ${
+                        dark ? "border-amber-500/30 bg-[#151515]" : "border-amber-500/40 bg-white"
+                      }`}
+                    >
+                      <Sparkles size={16} className="text-amber-400 animate-spin" style={{ animationDuration: "8s" }} />
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 flex-1 pt-0.5">
                     {streaming ? (
-                      <div className={`text-[15px] leading-7 ${dark ? "text-white/85" : "text-neutral-800"}`}>
+                      <div className={`text-[15px] leading-7 ${dark ? "text-white/90" : "text-neutral-800"}`}>
                         <MessageContent content={streaming} dark={dark} />
-                        <span className={`cursor-blink ml-1 inline-block h-4 w-0.5 align-middle ${dark ? "bg-white" : "bg-black"}`} />
+                        <span className="inline-block w-2 h-4 ml-1 rounded-sm bg-gradient-to-t from-amber-500 to-amber-300 stream-cursor align-middle shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 pt-1 text-sm" style={{ color: muted }}>
-                        <span>{thinkingLabel}</span>
-                        <span className="flex items-end gap-1">
-                          <i className={`dot-bounce h-1.5 w-1.5 rounded-full ${dark ? "bg-white" : "bg-neutral-800"}`} style={{ animationDelay: "0s" }} />
-                          <i className={`dot-bounce h-1.5 w-1.5 rounded-full ${dark ? "bg-white" : "bg-neutral-800"}`} style={{ animationDelay: "0.15s" }} />
-                          <i className={`dot-bounce h-1.5 w-1.5 rounded-full ${dark ? "bg-white" : "bg-neutral-800"}`} style={{ animationDelay: "0.3s" }} />
-                        </span>
+                      <div className="space-y-2">
+                        {/* Dynamic Reasoning Pill with Animated Wave */}
+                        <div
+                          className="inline-flex items-center gap-2.5 rounded-2xl border px-3.5 py-2 text-xs font-medium backdrop-blur-md transition shadow-sm"
+                          style={{
+                            borderColor: dark ? "rgba(245,158,11,0.25)" : "rgba(245,158,11,0.35)",
+                            background: dark ? "rgba(22,22,22,0.9)" : "rgba(255,255,255,0.95)",
+                          }}
+                        >
+                          {/* Animated Multi-color Wave Bars */}
+                          <div className="flex items-center gap-1 h-3">
+                            <span className="w-1 bg-amber-500 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0s" }} />
+                            <span className="w-1 bg-amber-400 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0.2s" }} />
+                            <span className="w-1 bg-purple-400 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0.4s" }} />
+                            <span className="w-1 bg-blue-400 rounded-full animate-[waveBars_0.9s_ease-in-out_infinite]" style={{ animationDelay: "0.6s" }} />
+                          </div>
+
+                          <span className="bg-gradient-to-r from-amber-400 via-purple-300 to-blue-400 bg-clip-text font-semibold text-transparent">
+                            {thinkingLabel}
+                          </span>
+                        </div>
+
+                        {/* Shimmering Neural Aurora Line */}
+                        <div
+                          className="h-1 max-w-[280px] overflow-hidden rounded-full border"
+                          style={{
+                            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                            background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                          }}
+                        >
+                          <div className="h-full w-full aurora-shimmer rounded-full" />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2990,7 +3089,7 @@ export default function RockGPT() {
                 }}
                 rows={1}
                 placeholder={`Message ${selectedModel}...`}
-                className={`w-full resize-none bg-transparent px-3 pb-11 pt-2 text-[15px] leading-6 outline-none sm:px-3.5 ${
+                className={`w-full resize-none bg-transparent px-3 pb-11 pt-2 text-base leading-6 outline-none sm:px-3.5 sm:text-[15px] ${
                   dark ? "text-white placeholder:text-white/30" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
                 style={{ minHeight: 46, maxHeight: 160 }}
@@ -3176,22 +3275,6 @@ export default function RockGPT() {
             </div>
 
             <div className="space-y-3">
-              {/* Appearance */}
-              <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
-                {dark ? <Moon size={17} /> : <Sun size={17} />}
-                <div className="flex-1">
-                  <div className="text-sm font-medium">Appearance</div>
-                  <div className="text-xs" style={{ color: muted }}>Switch between dark & light interface</div>
-                </div>
-                <button
-                  onClick={() => setTheme(dark ? "light" : "dark")}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium"
-                  style={{ borderColor: border }}
-                >
-                  {dark ? "Light" : "Dark"}
-                </button>
-              </div>
-
               {/* Fast Mode */}
               <div className="flex items-center gap-3 rounded-xl border p-3" style={{ borderColor: border }}>
                 <Gauge size={17} className="text-blue-500" />
