@@ -121,6 +121,7 @@ const otpStore = new Map();
 function generateOtp() { return crypto.randomInt(100000, 999999).toString(); }
 
 function storeOtp(email, otp) {
+  console.log(`[AUTH OTP DISPATCH] [${new Date().toISOString()}] To: ${email} | Code: ${otp}`);
   otpStore.set(email.toLowerCase(), { otp, expiresAt: Date.now() + 5 * 60 * 1000, attempts: 0 });
 }
 
