@@ -136,6 +136,156 @@ function verifyStoredOtp(email, enteredOtp) {
   return { valid: true };
 }
 
+// ═══ COMMUNITY APPRECIATION EMAIL AUTOMATION ═══
+const lastAppreciationSent = new Map();
+
+async function sendCommunityAppreciationEmail({ to, name = "Valued Member", plan = "Free", type = "login" }) {
+  if (!to || !to.includes("@")) return;
+  const cleanEmail = to.trim().toLowerCase();
+  const userName = (name || cleanEmail.split("@")[0] || "Valued Member").trim();
+  const userPlan = plan || "Free";
+
+  // Throttling: prevent spamming inboxes if user logs in or reacts repeatedly
+  const now = Date.now();
+  const cooldownHours = type === "signup" ? 0 : (type === "like" ? 24 : 12);
+  const key = `${type}:${cleanEmail}`;
+  const lastTime = lastAppreciationSent.get(key) || 0;
+
+  if (cooldownHours > 0 && now - lastTime < cooldownHours * 60 * 60 * 1000) {
+    console.log(`[EMAIL AUTOMATION] Cooldown active for ${type} appreciation to ${cleanEmail}`);
+    return;
+  }
+
+  lastAppreciationSent.set(key, now);
+
+  let subject = "";
+  let messageBody = "";
+
+  if (type === "signup") {
+    subject = "Welcome to RockGPT — Thank You for Joining Our Community!";
+    messageBody = `
+      <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.7; color: #d4d4d8;">
+        Welcome to RockGPT! We want to take a moment to sincerely appreciate you and say <strong>thank you for becoming an essential part of our growing community</strong>.
+      </p>
+      <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.7; color: #a1a1aa;">
+        RockGPT was built from the ground up to give you an ultra-fast, intelligent, and seamless workspace for coding, reasoning, analysis, and creative ideation. Your account is fully active and ready to use.
+      </p>
+    `;
+  } else if (type === "like") {
+    subject = "Thank You for Your Feedback | The RockGPT Community";
+    messageBody = `
+      <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.7; color: #d4d4d8;">
+        We noticed you gave a thumbs-up to a response on RockGPT — <strong>thank you for your positive feedback and support</strong>!
+      </p>
+      <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.7; color: #a1a1aa;">
+        Every reaction and insight from members like you helps us refine our models and improve the experience for everyone. We're honored to have you in our community.
+      </p>
+    `;
+  } else {
+    subject = "Welcome Back to RockGPT — We Appreciate Having You With Us";
+    messageBody = `
+      <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.7; color: #d4d4d8;">
+        You've successfully signed in to RockGPT. We want to extend our heartfelt appreciation and <strong>thank you for being a dedicated part of our community</strong>.
+      </p>
+      <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.7; color: #a1a1aa;">
+        Your personal chat history, configurations, and AI capabilities are active. We're excited to assist you with whatever you're building or exploring today.
+      </p>
+    `;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #070709; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #ededed;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #070709; padding: 40px 16px;">
+        <tr>
+          <td align="center">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 540px; background-color: #121215; border: 1px solid #27272a; border-radius: 20px; overflow: hidden; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);">
+              <tr>
+                <td align="center" style="padding: 36px 32px 24px 32px; border-bottom: 1px solid #1e1e24; background: linear-gradient(180deg, #18181c 0%, #121215 100%);">
+                  <div style="display: inline-block; width: 50px; height: 50px; background: #ffffff; border-radius: 14px; line-height: 50px; text-align: center; color: #000000; font-size: 24px; font-weight: 900; box-shadow: 0 0 24px rgba(255, 255, 255, 0.25);">
+                    R
+                  </div>
+                  <h1 style="margin: 16px 0 4px 0; font-size: 20px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #ffffff;">ROCKGPT</h1>
+                  <p style="margin: 0; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #a1a1aa; font-family: monospace;">Next-Generation AI Intelligence</p>
+                </td>
+              </tr>
+              
+              <tr>
+                <td style="padding: 32px 32px 24px 32px;">
+                  <h2 style="margin: 0 0 14px 0; font-size: 18px; font-weight: 700; color: #ffffff;">
+                    Hello ${userName},
+                  </h2>
+                  ${messageBody}
+
+                  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #18181d; border: 1px solid #2a2a30; border-radius: 12px; margin: 20px 0;">
+                    <tr>
+                      <td style="padding: 16px 20px;">
+                        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #38bdf8; margin-bottom: 6px;">
+                          ⚡ Active Plan: ${userPlan} Member
+                        </div>
+                        <div style="font-size: 13px; color: #e4e4e7; line-height: 1.5;">
+                          • Ultra-fast AI streaming with clean code blocks<br>
+                          • Cross-device encrypted sync & persistent memory<br>
+                          • Models: RockGPT Flash & RockGPT 4o
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <p style="margin: 20px 0 24px 0; font-size: 13.5px; line-height: 1.6; color: #a1a1aa;">
+                    Thank you for trusting RockGPT. We are thrilled to have you with us on this journey.
+                  </p>
+
+                  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td align="center" style="padding: 4px 0 12px 0;">
+                        <a href="https://rockgpt.vercel.app" style="display: inline-block; background-color: #ffffff; color: #000000; text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; padding: 12px 28px; border-radius: 9999px; box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);">
+                          Open RockGPT Workspace &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <tr>
+                <td style="padding: 24px 32px 32px 32px; border-top: 1px solid #1e1e24; background-color: #0e0e11; text-align: center;">
+                  <p style="margin: 0 0 4px 0; font-size: 13px; font-weight: 600; color: #e4e4e7;">
+                    With gratitude,
+                  </p>
+                  <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #ffffff;">
+                    The RockGPT Team
+                  </p>
+                  <p style="margin: 0 0 8px 0; font-size: 11px; color: #71717a;">
+                    ~ RockGPT • Architected & Engineered by Suman Mansuri
+                  </p>
+                  <p style="margin: 0; font-size: 10px; color: #52525b;">
+                    You received this email because you are a valued member of the RockGPT community.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  try {
+    await sendEmail({ to: cleanEmail, subject, html });
+    console.log(`[EMAIL AUTOMATION] Successfully delivered ${type} appreciation email to ${cleanEmail}`);
+  } catch (err) {
+    console.warn(`[EMAIL AUTOMATION] Notice: Could not dispatch ${type} email to ${cleanEmail}:`, err.message);
+  }
+}
+
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: "Too many requests." } });
 const chatLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: "Rate limit reached." } });
 
@@ -296,6 +446,10 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
     const user = new User({ name: name.trim(), email: em, password: await bcrypt.hash(password, 12), plan: "Free" });
     await user.save();
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
+
+    // Automated community welcome & appreciation email
+    sendCommunityAppreciationEmail({ to: user.email, name: user.name, plan: user.plan, type: "signup" }).catch(() => {});
+
     res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, plan: user.plan, planExpiresAt: user.planExpiresAt } });
   } catch (err) { console.error("Signup:", err.message); res.status(500).json({ error: "Signup failed." }); }
 });
@@ -324,6 +478,10 @@ app.post("/api/auth/direct-login", authLimiter, async (req, res) => {
     }
 
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
+
+    // Automated appreciation email on login (debounced)
+    sendCommunityAppreciationEmail({ to: user.email, name: user.name, plan: user.plan, type: "login" }).catch(() => {});
+
     res.json({
       token,
       user: {
@@ -359,8 +517,25 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
     }
 
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
+
+    // Automated appreciation email on login (debounced)
+    sendCommunityAppreciationEmail({ to: user.email, name: user.name, plan: user.plan, type: "login" }).catch(() => {});
+
     res.json({ token, user: { id: user._id, name: user.name, email: user.email, plan: user.plan, planExpiresAt: user.planExpiresAt } });
   } catch (err) { console.error("Login:", err.message); res.status(500).json({ error: "Login failed." }); }
+});
+
+// ═══ FEEDBACK (LIKE / APPRECIATION) ═══
+app.post("/api/feedback/like", async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    if (email && email.includes("@")) {
+      sendCommunityAppreciationEmail({ to: email, name, type: "like" }).catch(() => {});
+    }
+    res.json({ success: true, message: "Feedback recorded with gratitude." });
+  } catch {
+    res.json({ success: true });
+  }
 });
 
 // ═══ GET USER ═══

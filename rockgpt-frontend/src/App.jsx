@@ -4000,11 +4000,19 @@ export default function RockGPT() {
                         )}
 
                         <button
-                          onClick={() =>
+                          onClick={() => {
+                            const willLike = m.liked !== true;
                             setMessages((prev) =>
-                              prev.map((x) => (x.id === m.id ? { ...x, liked: x.liked === true ? null : true } : x))
-                            )
-                          }
+                              prev.map((x) => (x.id === m.id ? { ...x, liked: willLike ? true : null } : x))
+                            );
+                            if (willLike && user?.email) {
+                              fetch(`${BACKEND_URL}/api/feedback/like`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ email: user.email, name: user.name, messageId: m.id }),
+                              }).catch(() => {});
+                            }
+                          }}
                           className={`rounded-lg p-1.5 transition ${
                             m.liked === true
                               ? "text-emerald-500"
