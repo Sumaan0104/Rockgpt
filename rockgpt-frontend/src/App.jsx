@@ -2985,7 +2985,7 @@ export default function RockGPT() {
 
   return (
     <div
-      className="relative flex h-[100dvh] min-h-screen w-full overflow-hidden font-sans antialiased"
+      className="relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden font-sans antialiased"
       style={{ background: surface, color: textColor, overscrollBehaviorY: "none" }}
     >
       {showIntro && (
@@ -3780,7 +3780,7 @@ export default function RockGPT() {
                   <RockMark size={32} dark={dark} animated />
                   <span className="text-xs font-semibold tracking-wider uppercase text-neutral-400">RockGPT Intelligence</span>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
+                <h1 className={`text-2xl sm:text-3xl font-semibold tracking-tight ${dark ? "text-white" : "text-neutral-900"}`}>
                   What's on your mind today?
                 </h1>
                 <p className="text-xs sm:text-sm text-neutral-400 mt-1.5 leading-relaxed">
@@ -4055,17 +4055,22 @@ export default function RockGPT() {
                   </div>
                 </div>
               )}
-              <div ref={bottomRef} />
+              <div ref={bottomRef} className="h-6 sm:h-8 shrink-0" />
             </div>
           )}
         </section>
 
         {/* Input Bar — Floating Capsule Pill Matching Reference Image */}
-        <div className="chat-enter-composer shrink-0 px-3 pb-3 pt-1 sm:px-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
-          <div className="mx-auto max-w-[760px]">
+        <div
+          className="chat-enter-composer shrink-0 px-3.5 pt-2 pb-5 sm:px-5 sm:pb-6"
+          style={{
+            paddingBottom: "max(1.35rem, calc(env(safe-area-inset-bottom, 0px) + 0.9rem))",
+          }}
+        >
+          <div className="mx-auto max-w-[760px] pb-1 sm:pb-0">
             {attachment && (
               <div
-                className={`mb-2 flex items-center gap-2 rounded-2xl border p-2 ${
+                className={`mb-2.5 flex items-center gap-2 rounded-2xl border p-2 ${
                   dark ? "border-white/15 bg-white/[0.05]" : "border-neutral-200 bg-neutral-100"
                 }`}
               >
@@ -4085,10 +4090,10 @@ export default function RockGPT() {
 
             {/* The Capsule Pill */}
             <div
-              className={`rock-input-capsule relative flex items-center gap-2 rounded-full border px-2.5 py-1.5 shadow-2xl transition-all duration-200 ${
+              className={`rock-input-capsule relative flex items-center gap-2 rounded-full border px-3 py-2 min-h-[50px] sm:min-h-[52px] shadow-2xl transition-all duration-200 ${
                 dark
-                  ? "border-white/10 bg-[#1e1e20]"
-                  : "border-neutral-300 bg-white"
+                  ? "border-white/15 bg-[#1b1b1e] shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-white/30"
+                  : "border-neutral-300 bg-white shadow-[0_6px_24px_rgba(0,0,0,0.08)] focus-within:border-neutral-400"
               }`}
             >
               {/* Attachment '+' button */}
@@ -4451,8 +4456,8 @@ export default function RockGPT() {
                     <span>Developer</span>
                     <span className="font-semibold" style={{ color: textColor }}>Suman Mansuri (Rock)</span>
                   </div>
-                  <div className="pt-2 border-t text-[11px] italic leading-relaxed text-center" style={{ borderColor: border, color: muted }}>
-                    “Code is not just syntax; it is the art of sculpting intelligence out of pure imagination.”
+                  <div className="pt-2 border-t text-[11px] font-medium leading-relaxed text-center" style={{ borderColor: border, color: muted }}>
+                    Engineered & Architected by Suman Mansuri (Rock)
                   </div>
                 </div>
               </div>
