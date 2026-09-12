@@ -857,34 +857,76 @@ function AuthModal({
 
     setLoading(true);
     setLoadingText("Signing in securely...");
+    const t1 = setTimeout(() => setLoadingText("Connecting to server (waking up cloud instance)..."), 3000);
+    const t2 = setTimeout(() => setLoadingText("Verifying credentials..."), 8000);
 
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/auth/direct-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: effectiveEmail, password: effectivePassword }),
-      });
+    let res = null;
+    let data = null;
+    let networkError = null;
 
-      const data = await res.json().catch(() => ({}));
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 35000);
 
-      if (!res.ok || !data?.token) {
-        setError(data?.error || "Incorrect password. Please verify or use 'Forgot password?'.");
-        setOtpShake(true);
-        setTimeout(() => setOtpShake(false), 500);
-        return;
+        res = await fetch(`${BACKEND_URL}/api/auth/direct-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: effectiveEmail, password: effectivePassword }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        data = await res.json().catch(() => ({}));
+        networkError = null;
+        break;
+      } catch (err) {
+        networkError = err;
+        console.warn(`Sign-in attempt ${attempt} failed:`, err.message);
+        if (attempt === 1) {
+          setLoadingText("Server warming up, retrying connection...");
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
-
-      localStorage.setItem("rockgpt-token", data.token);
-      localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
-      onSuccess(data.user, data.token);
-      notify(`Welcome back, ${data.user.name}!`);
-      onClose();
-    } catch (err) {
-      console.error(err);
-      setError("Unable to connect to the authentication server. Please try again.");
-    } finally {
-      setLoading(false);
     }
+
+    clearTimeout(t1);
+    clearTimeout(t2);
+    setLoading(false);
+
+    if (networkError) {
+      if (networkError.name === "AbortError") {
+        setError("Cloud server took too long to respond while waking up. Please tap Sign In again.");
+      } else {
+        setError("Unable to reach cloud server. Render may be waking up — please wait a few seconds and tap Sign In again.");
+      }
+      setOtpShake(true);
+      setTimeout(() => setOtpShake(false), 500);
+      return;
+    }
+
+    if (!res || !res.ok || !data?.token) {
+      const serverMsg = data?.error;
+      if (serverMsg) {
+        setError(serverMsg);
+      } else if (res?.status === 401) {
+        setError("Incorrect password for this account. Please verify or use 'Forgot password?' below.");
+      } else if (res?.status === 404) {
+        setError("No account found with this email. Please check your spelling or switch to Create Account.");
+      } else if (res?.status === 502 || res?.status === 503) {
+        setError("Authentication server is temporarily waking up. Please click Sign In again in a few seconds.");
+      } else {
+        setError("Authentication failed. Please verify your credentials or reset your password.");
+      }
+      setOtpShake(true);
+      setTimeout(() => setOtpShake(false), 500);
+      return;
+    }
+
+    localStorage.setItem("rockgpt-token", data.token);
+    localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+    onSuccess(data.user, data.token);
+    notify(`Welcome back, ${data.user.name}!`);
+    onClose();
   };
 
   const handleRequestOtp = async (e) => {
@@ -1148,7 +1190,7 @@ function AuthModal({
           ) : (
             <div className="flex items-center gap-2">
               <RockMark small dark={dark} />
-              <span className="text-xs font-semibold uppercase tracking-wider text-sky-400">Security Gate</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">RockGPT Account</span>
             </div>
           )}
 
@@ -1192,19 +1234,19 @@ function AuthModal({
                 {authMode === "forgot" ? <KeyRound size={22} /> : <Shield size={22} />}
               </div>
               <h2 className="text-lg font-bold tracking-tight">
-                {isGateLocked
-                  ? "Preserve Your Workspace"
-                  : authMode === "signup"
+                {authMode === "signup"
                   ? "Create Your Account"
                   : authMode === "forgot"
                   ? "Reset Your Password"
-                  : "Sign In to RockGPT"}
+                  : isGateLocked
+                  ? "Sign In to Continue"
+                  : "Welcome Back"}
               </h2>
               <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
                 {authMode === "signup"
-                  ? "Sign up with email to unlock cloud sync & personal memory."
+                  ? "Create an account to unlock cloud sync, personal memory & higher limits."
                   : authMode === "forgot"
-                  ? "Enter your registered email to receive a password reset code."
+                  ? "Enter your registered email to receive a 6-digit password reset code."
                   : "Sign in with your email and password to access your chats."}
               </p>
             </div>
