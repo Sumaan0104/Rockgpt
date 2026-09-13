@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -52,6 +52,12 @@ const safeStorage = {
       sessionStorage.setItem(key, val);
     } catch {}
   },
+};
+
+const getStorageKey = (u) => {
+  if (u?.id || u?._id) return `rockgpt-conversations_${u.id || u._id}`;
+  if (u?.email) return `rockgpt-conversations_${u.email.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  return "rockgpt-conversations_guest";
 };
 
 const PLANS = [
@@ -263,7 +269,7 @@ function MessageContent({ content, dark }) {
         );
       },
       pre({ children }) {
-        const codeElement = React.isValidElement(children) ? children : null;
+        const codeElement = isValidElement(children) ? children : null;
         const className = codeElement?.props?.className || "";
         const match = /language-(\w+)/.exec(className);
         const lang = match ? match[1] : "";
@@ -3562,29 +3568,51 @@ export default function RockGPT() {
   const [conversations, setConversations] = useState(() => {
     try {
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
-      const key = savedUser?.id
-        ? `rockgpt-conversations_${savedUser.id}`
-        : savedUser?.email
-        ? `rockgpt-conversations_${savedUser.email.replace(/[^a-zA-Z0-9]/g, "_")}`
-        : "rockgpt-conversations_guest";
+      const key = getStorageKey(savedUser);
       const saved = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return [];
     } catch {
       return [];
     }
   });
+
   const [activeId, setActiveId] = useState(() => {
+    try {
+      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
+      const key = getStorageKey(savedUser);
+      const saved = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
+      const savedActiveId = safeStorage.get("rockgpt-active-id");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const target = (savedActiveId && parsed.find((c) => c && c.id === savedActiveId)) || parsed[0];
+          if (target) return target.id;
+        }
+      }
+    } catch {}
     return safeStorage.get("rockgpt-active-id") || null;
   });
+
   const [messages, setMessages] = useState(() => {
     try {
+      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
+      const key = getStorageKey(savedUser);
+      const savedConvs = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
       const savedActiveId = safeStorage.get("rockgpt-active-id");
-      const savedConvs = safeStorage.get("rockgpt-conversations");
-      if (savedActiveId && savedConvs) {
+      if (savedConvs) {
         const parsed = JSON.parse(savedConvs);
-        const activeConv = parsed.find((c) => c.id === savedActiveId);
-        if (activeConv && activeConv.messages) {
-          return activeConv.messages.map((m) => ({ ...m, createdAt: new Date(m.createdAt) }));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const target = (savedActiveId && parsed.find((c) => c && c.id === savedActiveId)) || parsed[0];
+          if (target && Array.isArray(target.messages)) {
+            return target.messages.map((m) => ({
+              ...m,
+              createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
+            }));
+          }
         }
       }
     } catch {
@@ -3669,16 +3697,16 @@ export default function RockGPT() {
   const recognitionRef = useRef(null);
   const dark = theme === "dark";
 
-  const getStorageKey = (u) => {
-    if (u?.id) return `rockgpt-conversations_${u.id}`;
-    if (u?.email) return `rockgpt-conversations_${u.email.replace(/[^a-zA-Z0-9]/g, "_")}`;
-    return "rockgpt-conversations_guest";
-  };
+  const prevUserRef = useRef(user);
 
   useEffect(() => {
+    if (prevUserRef.current !== user) {
+      prevUserRef.current = user;
+      return;
+    }
     try {
       const key = getStorageKey(user);
-      localStorage.setItem(key, JSON.stringify(conversations));
+      safeStorage.set(key, JSON.stringify(conversations));
     } catch (err) {
       console.error("Failed to save chats:", err);
     }
@@ -3812,29 +3840,70 @@ export default function RockGPT() {
   };
 
   const handleAuthSuccess = (loggedUser, token) => {
+    prevUserRef.current = loggedUser;
     setUser(loggedUser);
     setAuthToken(token);
-    localStorage.setItem("rockgpt-token", token);
-    localStorage.setItem("rockgpt-user", JSON.stringify(loggedUser));
+    safeStorage.set("rockgpt-token", token);
+    safeStorage.set("rockgpt-user", JSON.stringify(loggedUser));
     setGateOpen(false);
     setGateLocked(false);
-
-    // Wipe pre-login/guest chat so a clean, fresh new chat page arrives
-    setActiveId(null);
-    localStorage.removeItem("rockgpt-active-id");
-    setMessages([]);
-    setInput("");
-    setStreaming("");
-    setAttachment(null);
     setSidebarOpen(false);
 
-    // Load logged-in user's private saved conversations
+    // 1. Load the logged-in user's existing saved conversations
+    const userKey = getStorageKey(loggedUser);
+    let loadedConvs = [];
     try {
-      const key = getStorageKey(loggedUser);
-      const userSaved = localStorage.getItem(key);
-      setConversations(userSaved ? JSON.parse(userSaved) : []);
-    } catch {
+      const raw = safeStorage.get(userKey) || safeStorage.get("rockgpt-conversations");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) loadedConvs = parsed;
+      }
+    } catch (e) {
+      console.warn("Failed to load user conversations:", e);
+    }
+
+    // 2. If the user had an active chat in progress before logging in, preserve it
+    if (messages && messages.length > 0) {
+      const currentId = activeId || uid("chat");
+      const existingIdx = loadedConvs.findIndex((c) => c && c.id === currentId);
+      const firstText = messages.find((m) => m && m.content)?.content;
+      const currentTitle = (typeof firstText === "string" ? firstText : "Chat").slice(0, 50) || "Chat";
+
+      const activeChatObj = {
+        id: currentId,
+        title: existingIdx >= 0 && loadedConvs[existingIdx]?.title ? loadedConvs[existingIdx].title : currentTitle,
+        pinned: existingIdx >= 0 && loadedConvs[existingIdx]?.pinned ? loadedConvs[existingIdx].pinned : false,
+        messages: messages,
+        updatedAt: new Date(),
+      };
+
+      if (existingIdx >= 0) {
+        loadedConvs[existingIdx] = activeChatObj;
+      } else {
+        loadedConvs = [activeChatObj, ...loadedConvs];
+      }
+
+      setActiveId(currentId);
+      safeStorage.set("rockgpt-active-id", currentId);
+      setConversations(loadedConvs);
+      safeStorage.set(userKey, JSON.stringify(loadedConvs));
+    } else if (loadedConvs.length > 0) {
+      // 3. User had no active chat, restore their most recent conversation ("backed as it is")
+      setConversations(loadedConvs);
+      const savedActiveId = safeStorage.get("rockgpt-active-id");
+      const targetConv = (savedActiveId && loadedConvs.find((c) => c && c.id === savedActiveId)) || loadedConvs[0];
+      if (targetConv && Array.isArray(targetConv.messages) && targetConv.messages.length > 0) {
+        setActiveId(targetConv.id);
+        safeStorage.set("rockgpt-active-id", targetConv.id);
+        setMessages(targetConv.messages.map((m) => ({
+          ...m,
+          createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
+        })));
+      }
+    } else {
       setConversations([]);
+      setActiveId(null);
+      setMessages([]);
     }
   };
 
@@ -3893,11 +3962,11 @@ export default function RockGPT() {
   }, []);
 
   const selectConversation = (id) => {
-    const c = conversations.find((x) => x.id === id);
+    const c = conversations.find((x) => x && x.id === id);
     if (!c) return;
     setActiveId(id);
-    localStorage.setItem("rockgpt-active-id", id);
-    setMessages(c.messages.map((m) => ({ ...m, createdAt: new Date(m.createdAt) })));
+    safeStorage.set("rockgpt-active-id", id);
+    setMessages(Array.isArray(c.messages) ? c.messages.map((m) => ({ ...m, createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date() })) : []);
     setSidebarOpen(false);
   };
 
@@ -4135,9 +4204,10 @@ export default function RockGPT() {
   };
 
   const filtered = useMemo(() => {
+    if (!Array.isArray(conversations)) return [];
     return conversations
-      .filter((c) => c.title.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+      .filter((c) => c && typeof c === "object" && String(c.title || "New chat").toLowerCase().includes((search || "").toLowerCase()))
+      .sort((a, b) => ((b && b.pinned) ? 1 : 0) - ((a && a.pinned) ? 1 : 0));
   }, [conversations, search]);
 
   const surface = dark ? "#0a0a0a" : "#ffffff";
