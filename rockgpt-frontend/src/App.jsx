@@ -13,9 +13,46 @@ import {
   SquarePen, PenLine, Eye, EyeOff
 } from "lucide-react";
 
-const BACKEND_URL = "https://rockgpt.onrender.com";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://rockgpt.onrender.com";
 const UPI_ID = "mansurisumaan-2@okhdfcbank";
 const PAYEE_NAME = "RockGPT";
+
+const safeStorage = {
+  get: (key) => {
+    try {
+      return localStorage.getItem(key) || sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set: (key, val, persistent = true) => {
+    try {
+      if (persistent) {
+        localStorage.setItem(key, val);
+      } else {
+        sessionStorage.setItem(key, val);
+      }
+    } catch {}
+  },
+  remove: (key) => {
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    } catch {}
+  },
+  sessionGet: (key) => {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  sessionSet: (key, val) => {
+    try {
+      sessionStorage.setItem(key, val);
+    } catch {}
+  },
+};
 
 const PLANS = [
   {
@@ -518,12 +555,11 @@ function GoogleIcon({ className = "w-4 h-4" }) {
 }
 
 /* =========================================================================
-   INTRO ANIMATION — OFFICIAL 1.5–2.0s INITIALIZING SEQUENCE
-   Phase 1 (0–250ms): Near-black calm, logo opacity 0, scale 0.94, blur 6px
-   Phase 2 (250–700ms): Logo materialization: opacity 0->1, scale 0.94->1, blur 6px->0 (cubic-bezier)
-   Phase 3 (700–1000ms): AI Activation (ONCE): soft white glow, scale 1 -> 1.015 -> 1
-   Phase 4 (1000–1350ms): Brand text reveal: ROCKGPT (opacity 0->1, translateY 8px->0)
-   Phase 5 (1350–1700ms): Smooth dissolve into chat UI without hard cuts
+   CINEMATIC INTRO ANIMATION (0.8–1.5s FAST SEQUENCE)
+   Step 1 (0–300ms): Dark backdrop calm, logo emerges with smooth fade + scale
+   Step 2 (300–650ms): Soft glowing ring expands gracefully around the logo
+   Step 3 (600–900ms): RockGPT brand name appears smoothly
+   Step 4 (900–1250ms): Interface fades & dissolves seamlessly into the main app
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
@@ -531,19 +567,32 @@ function IntroScreen({ onDone }) {
   onDoneRef.current = onDone;
 
   useEffect(() => {
-    // 1900ms: Begin smooth dissolving into the chat UI
+    // Accessibility: instantly skip if user prefers reduced motion
+    const prefersReduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (prefersReduced) {
+      if (onDoneRef.current) onDoneRef.current();
+      return;
+    }
+
+    // Step 4: 900ms begins smooth dissolve into the main UI
     const exitTimer = setTimeout(() => {
       setExiting(true);
-    }, 1900);
+    }, 900);
 
-    // 2400ms: Transition complete, unmount overlay completely from DOM
+    // 1250ms: Unmount overlay cleanly (within 0.8–1.5s target)
     const doneTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 2400);
+    }, 1250);
+
+    // Safety fallback: guaranteed exit after 1500ms under all mobile conditions
+    const safetyTimer = setTimeout(() => {
+      if (onDoneRef.current) onDoneRef.current();
+    }, 1500);
 
     return () => {
       clearTimeout(exitTimer);
       clearTimeout(doneTimer);
+      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -551,7 +600,7 @@ function IntroScreen({ onDone }) {
     setExiting(true);
     setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 180);
+    }, 120);
   };
 
   return (
@@ -561,87 +610,97 @@ function IntroScreen({ onDone }) {
         exiting ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
       style={{
-        transition: "opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), filter 500ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: "opacity 350ms cubic-bezier(0.16, 1, 0.3, 1), filter 350ms cubic-bezier(0.16, 1, 0.3, 1)",
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
       <style>{`
-        /* 2.4s Smooth Ambient Backdrop Glow */
-        @keyframes introAmbientSequence {
-          0% { opacity: 0; transform: scale(0.92); }
-          25% { opacity: 0.7; transform: scale(1); }
-          60% { opacity: 0.9; transform: scale(1.06); filter: drop-shadow(0 0 35px rgba(255,255,255,0.4)); }
-          80% { opacity: 0.6; transform: scale(1); }
-          100% { opacity: 0; transform: scale(1.02); }
+        /* Step 1 & 2: Logo Appearance & Ring Expansion */
+        @keyframes introLogoStep {
+          0% { opacity: 0; transform: scale(0.92); filter: blur(6px); }
+          25% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          60% { opacity: 1; transform: scale(1.02); filter: drop-shadow(0 0 20px rgba(255,255,255,0.45)); }
+          100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 12px rgba(255,255,255,0.25)); }
         }
 
-        /* 2.4s Logo Materialization & Activation */
-        @keyframes introLogoSequence {
-          0% { opacity: 0; transform: scale(0.92); filter: blur(8px) brightness(0.8); }
-          25% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1); }
-          55% { opacity: 1; transform: scale(1.02); filter: blur(0px) brightness(1.18) drop-shadow(0 0 20px rgba(255,255,255,0.45)); }
-          80% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1); }
-          100% { opacity: 0; transform: scale(1.01); filter: blur(2px); }
+        /* Step 2: Soft Ring Animation around Logo */
+        @keyframes introRingGlow {
+          0% { opacity: 0; transform: scale(0.85); border-color: rgba(255,255,255,0.1); }
+          40% { opacity: 0.8; transform: scale(1.15); border-color: rgba(255,255,255,0.4); box-shadow: 0 0 25px rgba(255,255,255,0.25); }
+          100% { opacity: 0.3; transform: scale(1.22); border-color: rgba(255,255,255,0.15); box-shadow: 0 0 15px rgba(255,255,255,0.1); }
         }
 
-        /* 2.4s Brand Reveal: ROCKGPT */
-        @keyframes introBrandSequence {
-          0%, 30% { opacity: 0; transform: translateY(12px); filter: blur(4px); }
-          55% { opacity: 1; transform: translateY(0); filter: blur(0px); }
-          80% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-4px); filter: blur(2px); }
+        /* Step 3: Brand Text Reveal */
+        @keyframes introBrandStep {
+          0%, 35% { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+          65% { opacity: 1; transform: translateY(0); filter: blur(0px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Ambient subtle backdrop glow */
+        @keyframes introBackdropGlow {
+          0% { opacity: 0; transform: scale(0.9); }
+          50% { opacity: 0.7; transform: scale(1.05); }
+          100% { opacity: 0.4; transform: scale(1); }
         }
       `}</style>
 
-      {/* Subtle Ambient Monochrome Center Glow behind logo position */}
+      {/* Ambient Backdrop Glow */}
       <div
-        className="absolute h-[320px] w-[320px] sm:h-[400px] sm:w-[400px] rounded-full pointer-events-none"
+        className="absolute h-[300px] w-[300px] sm:h-[380px] sm:w-[380px] rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(180,180,180,0.06) 45%, transparent 70%)",
-          filter: "blur(50px)",
-          animation: "introAmbientSequence 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(180,180,180,0.05) 50%, transparent 70%)",
+          filter: "blur(40px)",
+          animation: "introBackdropGlow 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       />
 
-      {/* Logo Materialization & AI Activation */}
+      {/* Logo with Animated Soft Ring */}
       <div className="relative mb-5 sm:mb-6 grid place-items-center">
+        {/* Soft Glowing Ring (Step 2) */}
         <div
-          className="relative z-10 w-[96px] h-[96px] sm:w-[108px] sm:h-[108px] aspect-square"
+          className="absolute w-[110px] h-[110px] sm:w-[124px] sm:h-[124px] rounded-full border pointer-events-none"
           style={{
-            animation: "introLogoSequence 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introRingGlow 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          }}
+        />
+
+        {/* Step 1: Logo */}
+        <div
+          className="relative z-10 w-[88px] h-[88px] sm:w-[98px] sm:h-[98px] aspect-square"
+          style={{
+            animation: "introLogoStep 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         >
           <img
             src="/rockgpt-mark.png"
             alt="RockGPT"
-            width={108}
-            height={108}
+            width={98}
+            height={98}
             className="w-full h-full object-contain select-none pointer-events-none"
             loading="eager"
           />
         </div>
       </div>
 
-      {/* Brand Reveal: ROCKGPT */}
+      {/* Step 3: Brand Reveal */}
       <div
         className="text-center px-4 overflow-hidden py-1"
         style={{
-          animation: "introBrandSequence 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          animation: "introBrandStep 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       >
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_16px_rgba(255,255,255,0.25)]">
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_16px_rgba(255,255,255,0.25)]">
           RockGPT
         </h1>
-
-        <div className="mt-2 text-[10px] sm:text-xs font-mono tracking-[0.28em] text-neutral-400 uppercase">
-          Initializing Intelligence
+        <div className="mt-1.5 text-[10px] sm:text-xs font-mono tracking-[0.28em] text-neutral-400 uppercase">
+          Next-Gen Intelligence
         </div>
       </div>
 
-      {/* Discrete Skip Hint */}
       <div className="absolute bottom-6 sm:bottom-8 text-[11px] text-neutral-500 font-mono tracking-wider hover:text-white transition select-none">
-        Tap anywhere to enter ➔
+        Tap anywhere to skip ➔
       </div>
     </div>
   );
@@ -804,7 +863,11 @@ function AuthModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Sending...");
@@ -851,7 +914,11 @@ function AuthModal({
       setName("");
       setEmail("");
       setPassword("");
+      setConfirmPassword("");
       setShowPassword(false);
+      setShowConfirmPassword(false);
+      setRememberMe(true);
+      setAgreeTerms(false);
       setOtpDigits(["", "", "", "", "", ""]);
       setTotpDigits(["", "", "", "", "", ""]);
       setTempToken("");
@@ -868,7 +935,10 @@ function AuthModal({
     setAuthMode(newMode);
     setError("");
     setPassword("");
+    setConfirmPassword("");
     setShowPassword(false);
+    setShowConfirmPassword(false);
+    setAgreeTerms(false);
     setOtpDigits(["", "", "", "", "", ""]);
     setTotpDigits(["", "", "", "", "", ""]);
   };
@@ -1012,8 +1082,8 @@ function AuthModal({
         return;
       }
 
-      localStorage.setItem("rockgpt-token", data.token);
-      localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+      safeStorage.set("rockgpt-token", data.token, rememberMe);
+      safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
       onSuccess(data.user, data.token);
       notify(`Welcome to RockGPT, ${data.user.name}!`);
       onClose();
@@ -1170,8 +1240,8 @@ function AuthModal({
       return;
     }
 
-    localStorage.setItem("rockgpt-token", data.token);
-    localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+    safeStorage.set("rockgpt-token", data.token, rememberMe);
+    safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
     onSuccess(data.user, data.token);
     notify(`Welcome back, ${data.user.name}!`);
     onClose();
@@ -1218,6 +1288,18 @@ function AuthModal({
     if (authMode === "signup" && !isEffectivePasswordStrong) {
       setError("Password must be 8+ characters with uppercase, number, and special character.");
       return;
+    }
+
+    if (authMode === "signup") {
+      const effectiveConfirm = form?.elements?.confirm_password?.value || confirmPassword || "";
+      if (effectivePassword !== effectiveConfirm) {
+        setError("Passwords do not match. Please verify your confirmation password.");
+        return;
+      }
+      if (!agreeTerms) {
+        setError("Please agree to the Terms of Service and Privacy Policy to create your account.");
+        return;
+      }
     }
 
     if (authMode === "login" && effectivePassword.length < 8) {
@@ -1393,8 +1475,8 @@ function AuthModal({
         return;
       }
 
-      localStorage.setItem("rockgpt-token", data.token);
-      localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+      safeStorage.set("rockgpt-token", data.token, rememberMe);
+      safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
       onSuccess(data.user, data.token);
       notify(
         authMode === "forgot"
@@ -1441,8 +1523,8 @@ function AuthModal({
         return;
       }
 
-      localStorage.setItem("rockgpt-token", data.token);
-      localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+      safeStorage.set("rockgpt-token", data.token, rememberMe);
+      safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
       onSuccess(data.user, data.token);
       notify(`🛡️ 2FA Verified! Welcome back, ${data.user.name}!`);
       onClose();
@@ -1507,13 +1589,13 @@ function AuthModal({
                   type="button"
                   onClick={triggerGoogleSignIn}
                   disabled={loading}
-                  className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-900 shadow-xl border border-neutral-300 hover:bg-neutral-100 hover:shadow-2xl active:scale-[0.98] transition-all cursor-pointer"
+                  className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-900 shadow-xl border border-neutral-300 hover:bg-neutral-100 hover:shadow-2xl active:scale-[0.98] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/40"
                 >
                   <div className="grid h-6 w-6 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
                     <GoogleIcon className="h-4 w-4 shrink-0" />
                   </div>
                   <span className="text-sm font-bold tracking-wide">
-                    {authMode === "signup" ? "Sign up with Google" : "Sign in with Google"}
+                    Continue with Google
                   </span>
                   <span className="absolute right-3.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-600 group-hover:bg-neutral-200">
                     1-Tap
@@ -1679,9 +1761,49 @@ function AuthModal({
                 </div>
               )}
 
-              {/* Forgot password link */}
+              {/* Confirm password on Sign Up */}
+              {authMode === "signup" && (
+                <div className="relative">
+                  <KeyRound size={15} className="absolute left-3 top-3.5 text-neutral-500" />
+                  <input
+                    name="confirm_password"
+                    id="auth-confirm-password"
+                    autoComplete="new-password"
+                    spellCheck="false"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onInput={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm your password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    className={`w-full rounded-xl border py-2.5 pl-9 pr-10 text-xs outline-none transition ${
+                      dark
+                        ? "border-white/15 bg-white/[0.03] text-white focus:border-white/40"
+                        : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute right-3 top-3 text-neutral-400 hover:text-white transition"
+                    title={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              )}
+
+              {/* Remember session checkbox on Login */}
               {authMode === "login" && (
-                <div className="flex justify-end pr-1 pt-0.5">
+                <div className="flex items-center justify-between pr-1 pt-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-neutral-400 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer h-3.5 w-3.5 accent-white"
+                    />
+                    <span>Remember session</span>
+                  </label>
                   <button
                     type="button"
                     onClick={() => switchAuthMode("forgot")}
@@ -1731,6 +1853,21 @@ function AuthModal({
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* Terms & Privacy Policy Checkbox on Sign Up */}
+              {authMode === "signup" && (
+                <label className="flex items-start gap-2 cursor-pointer select-none text-[11px] text-neutral-400 hover:text-white pt-1">
+                  <input
+                    type="checkbox"
+                    checked={agreeTerms}
+                    onChange={(e) => setAgreeTerms(e.target.checked)}
+                    className="mt-0.5 rounded border-neutral-600 bg-neutral-800 text-white focus:ring-0 cursor-pointer h-3.5 w-3.5 accent-white shrink-0"
+                  />
+                  <span className="leading-snug">
+                    I agree to the <span className="underline text-neutral-300">Terms of Service</span> and <span className="underline text-neutral-300">Privacy Policy</span>.
+                  </span>
+                </label>
               )}
 
               {error && (
@@ -3417,32 +3554,32 @@ function UpiCheckoutModal({
 export default function RockGPT() {
   const [showIntro, setShowIntro] = useState(() => {
     try {
-      return !sessionStorage.getItem("rockgpt-intro-seen");
+      return !safeStorage.sessionGet("rockgpt-intro-seen");
     } catch {
       return true;
     }
   });
   const [conversations, setConversations] = useState(() => {
     try {
-      const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
+      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
       const key = savedUser?.id
         ? `rockgpt-conversations_${savedUser.id}`
         : savedUser?.email
         ? `rockgpt-conversations_${savedUser.email.replace(/[^a-zA-Z0-9]/g, "_")}`
         : "rockgpt-conversations_guest";
-      const saved = localStorage.getItem(key) || localStorage.getItem("rockgpt-conversations");
+      const saved = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
   const [activeId, setActiveId] = useState(() => {
-    return localStorage.getItem("rockgpt-active-id") || null;
+    return safeStorage.get("rockgpt-active-id") || null;
   });
   const [messages, setMessages] = useState(() => {
     try {
-      const savedActiveId = localStorage.getItem("rockgpt-active-id");
-      const savedConvs = localStorage.getItem("rockgpt-conversations");
+      const savedActiveId = safeStorage.get("rockgpt-active-id");
+      const savedConvs = safeStorage.get("rockgpt-conversations");
       if (savedActiveId && savedConvs) {
         const parsed = JSON.parse(savedConvs);
         const activeConv = parsed.find((c) => c.id === savedActiveId);
@@ -3485,13 +3622,13 @@ export default function RockGPT() {
   // --- Auth & Subscription State ---
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem("rockgpt-user");
+      const saved = safeStorage.get("rockgpt-user");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
-  const [authToken, setAuthToken] = useState(() => localStorage.getItem("rockgpt-token") || null);
+  const [authToken, setAuthToken] = useState(() => safeStorage.get("rockgpt-token") || null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const isPaidUser = Boolean(
@@ -3504,7 +3641,7 @@ export default function RockGPT() {
 
   const [selectedModel, setSelectedModel] = useState(() => {
     try {
-      const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
+      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
       const isPaid = Boolean(
         savedUser &&
         (savedUser.plan === "Plus" ||
@@ -3512,7 +3649,7 @@ export default function RockGPT() {
          savedUser.plan?.toLowerCase() === "plus" ||
          savedUser.plan?.toLowerCase() === "pro")
       );
-      const savedModel = localStorage.getItem("rockgpt-model");
+      const savedModel = safeStorage.get("rockgpt-model");
       if (savedModel === "RockGPT 4o" && isPaid) return "RockGPT 4o";
       return "RockGPT Flash";
     } catch {
@@ -3521,7 +3658,7 @@ export default function RockGPT() {
   });
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
-  const [gateOpen, setGateOpen] = useState(() => !localStorage.getItem("rockgpt-token"));
+  const [gateOpen, setGateOpen] = useState(() => !safeStorage.get("rockgpt-token"));
   const [gateLocked, setGateLocked] = useState(false);
   const gateTimerRef = useRef(null);
 
@@ -4017,9 +4154,7 @@ export default function RockGPT() {
       {showIntro && (
         <IntroScreen
           onDone={() => {
-            try {
-              sessionStorage.setItem("rockgpt-intro-seen", "true");
-            } catch {}
+            safeStorage.sessionSet("rockgpt-intro-seen", "true");
             setShowIntro(false);
           }}
         />
@@ -5420,7 +5555,7 @@ export default function RockGPT() {
                 <button
                   onClick={() => {
                     setSettingsOpen(false);
-                    sessionStorage.removeItem("rockgpt-intro-seen");
+                    safeStorage.remove("rockgpt-intro-seen");
                     setShowIntro(true);
                   }}
                   className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-amber-500 hover:bg-amber-500/10 transition"
