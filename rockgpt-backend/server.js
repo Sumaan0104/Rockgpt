@@ -757,10 +757,15 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
       } else {
         return res.status(400).json({ error: `Google verification failed: ${verified.error}` });
       }
-    } else if (directEmail && (directGoogleId || directEmail.includes("@"))) {
+    } else if (directEmail) {
+      const cleanEmail = directEmail.toLowerCase().trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        return res.status(400).json({ error: "Invalid email address format. Please enter a valid email." });
+      }
       googleUser = {
-        email: directEmail.toLowerCase().trim(),
-        name: (directName || directEmail.split("@")[0]).trim(),
+        email: cleanEmail,
+        name: (directName || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50),
         googleId: directGoogleId || `google_${Date.now()}`,
         avatar: directAvatar || "",
       };

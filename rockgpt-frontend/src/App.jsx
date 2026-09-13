@@ -527,27 +527,31 @@ function GoogleIcon({ className = "w-4 h-4" }) {
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    // 1350ms: Begin dissolving into the chat UI
+    // 1900ms: Begin smooth dissolving into the chat UI
     const exitTimer = setTimeout(() => {
       setExiting(true);
-    }, 1350);
+    }, 1900);
 
-    // 1680ms: Transition complete, unmount overlay completely from DOM
+    // 2400ms: Transition complete, unmount overlay completely from DOM
     const doneTimer = setTimeout(() => {
-      onDone();
-    }, 1680);
+      if (onDoneRef.current) onDoneRef.current();
+    }, 2400);
 
     return () => {
       clearTimeout(exitTimer);
       clearTimeout(doneTimer);
     };
-  }, [onDone]);
+  }, []);
 
   const handleSkip = () => {
     setExiting(true);
-    setTimeout(onDone, 100);
+    setTimeout(() => {
+      if (onDoneRef.current) onDoneRef.current();
+    }, 180);
   };
 
   return (
@@ -557,38 +561,36 @@ function IntroScreen({ onDone }) {
         exiting ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
       style={{
-        transition: "opacity 300ms cubic-bezier(0.22, 1, 0.36, 1), filter 300ms cubic-bezier(0.22, 1, 0.36, 1)",
+        transition: "opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), filter 500ms cubic-bezier(0.16, 1, 0.3, 1)",
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
       <style>{`
-        /* 0–250ms Ambient Backdrop Glow & 700-1000ms Single Activation Glow */
+        /* 2.4s Smooth Ambient Backdrop Glow */
         @keyframes introAmbientSequence {
-          0% { opacity: 0; transform: scale(0.95); }
-          14.7% { opacity: 0.6; transform: scale(1); } /* 250ms */
-          41.2% { opacity: 0.6; transform: scale(1); } /* 700ms */
-          52.9% { opacity: 1; transform: scale(1.12); filter: drop-shadow(0 0 30px rgba(255,255,255,0.45)); } /* 900ms peak */
-          58.8% { opacity: 0.4; transform: scale(1); } /* 1000ms settled */
-          79.4% { opacity: 0.4; } /* 1350ms */
-          100% { opacity: 0; transform: scale(1.03); } /* 1700ms */
+          0% { opacity: 0; transform: scale(0.92); }
+          25% { opacity: 0.7; transform: scale(1); }
+          60% { opacity: 0.9; transform: scale(1.06); filter: drop-shadow(0 0 35px rgba(255,255,255,0.4)); }
+          80% { opacity: 0.6; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1.02); }
         }
 
-        /* 250–700ms: Logo Materialization & 700–1000ms: AI Activation (ONCE) */
+        /* 2.4s Logo Materialization & Activation */
         @keyframes introLogoSequence {
-          0%, 14.7% { opacity: 0; transform: scale(0.94); filter: blur(6px) brightness(0.9); } /* 0-250ms */
-          41.2% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1) drop-shadow(0 0 14px rgba(255,255,255,0.25)); } /* 700ms */
-          52.9% { opacity: 1; transform: scale(1.015); filter: blur(0px) brightness(1.22) drop-shadow(0 0 24px rgba(255,255,255,0.55)); } /* 900ms peak activation */
-          58.8% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1.0) drop-shadow(0 0 14px rgba(255,255,255,0.2)); } /* 1000ms settled */
-          79.4% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1.0); } /* 1350ms */
-          100% { opacity: 0; transform: scale(1.02); filter: blur(2px); } /* 1700ms */
+          0% { opacity: 0; transform: scale(0.92); filter: blur(8px) brightness(0.8); }
+          25% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1); }
+          55% { opacity: 1; transform: scale(1.02); filter: blur(0px) brightness(1.18) drop-shadow(0 0 20px rgba(255,255,255,0.45)); }
+          80% { opacity: 1; transform: scale(1); filter: blur(0px) brightness(1); }
+          100% { opacity: 0; transform: scale(1.01); filter: blur(2px); }
         }
 
-        /* 1000–1350ms: Brand Reveal: ROCKGPT (opacity 0->1, translateY 8px->0) */
+        /* 2.4s Brand Reveal: ROCKGPT */
         @keyframes introBrandSequence {
-          0%, 58.8% { opacity: 0; transform: translateY(8px); } /* 0-1000ms */
-          79.4% { opacity: 1; transform: translateY(0); } /* 1350ms */
-          100% { opacity: 0; transform: translateY(-2px); } /* 1700ms */
+          0%, 30% { opacity: 0; transform: translateY(12px); filter: blur(4px); }
+          55% { opacity: 1; transform: translateY(0); filter: blur(0px); }
+          80% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-4px); filter: blur(2px); }
         }
       `}</style>
 
@@ -598,16 +600,16 @@ function IntroScreen({ onDone }) {
         style={{
           background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(180,180,180,0.06) 45%, transparent 70%)",
           filter: "blur(50px)",
-          animation: "introAmbientSequence 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+          animation: "introAmbientSequence 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       />
 
-      {/* 250–700ms Logo Materialization & 700–1000ms AI Activation */}
+      {/* Logo Materialization & AI Activation */}
       <div className="relative mb-5 sm:mb-6 grid place-items-center">
         <div
           className="relative z-10 w-[96px] h-[96px] sm:w-[108px] sm:h-[108px] aspect-square"
           style={{
-            animation: "introLogoSequence 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+            animation: "introLogoSequence 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         >
           <img
@@ -621,11 +623,11 @@ function IntroScreen({ onDone }) {
         </div>
       </div>
 
-      {/* 1000–1350ms: Brand Reveal: ROCKGPT */}
+      {/* Brand Reveal: ROCKGPT */}
       <div
         className="text-center px-4 overflow-hidden py-1"
         style={{
-          animation: "introBrandSequence 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+          animation: "introBrandSequence 2.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       >
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_16px_rgba(255,255,255,0.25)]">
@@ -823,8 +825,7 @@ function AuthModal({
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutMinutes, setLockoutMinutes] = useState(15);
 
-  // Google Identity / Quick Sign-In state
-  const [googlePromptOpen, setGooglePromptOpen] = useState(false);
+  // Google in-app sign-in state
   const [googleInputEmail, setGoogleInputEmail] = useState("");
 
   // Load Google Identity Services script once
@@ -856,7 +857,6 @@ function AuthModal({
       setTempToken("");
       setIsLocked(false);
       setLockoutMinutes(15);
-      setGooglePromptOpen(false);
       setGoogleInputEmail("");
       setLoading(false);
       setResendActive(false);
@@ -1025,15 +1025,6 @@ function AuthModal({
     }
   };
 
-  const openDirectGooglePrompt = () => {
-    if (email && email.includes("@")) {
-      setGoogleInputEmail(email.trim());
-    } else if (!googleInputEmail) {
-      setGoogleInputEmail("mansurisumaan@gmail.com");
-    }
-    setGooglePromptOpen(true);
-  };
-
   const triggerGoogleSignIn = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     const isValidClientId = Boolean(
@@ -1054,7 +1045,9 @@ function AuthModal({
         });
         window.google.accounts.id.prompt((notification) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            openDirectGooglePrompt();
+            setError("");
+            setGoogleInputEmail("");
+            setStep("google");
           }
         });
         return;
@@ -1062,7 +1055,9 @@ function AuthModal({
         console.warn("GIS prompt fallback:", e);
       }
     }
-    openDirectGooglePrompt();
+    setError("");
+    setGoogleInputEmail("");
+    setStep("google");
   };
 
   // Direct login with email + password
@@ -1850,6 +1845,102 @@ function AuthModal({
               )}
             </div>
           </div>
+        ) : step === "google" ? (
+          /* =========================================================================
+             CLEAN IN-APP GOOGLE SIGN-IN STEP (NO NESTED MODALS, NO LEAKED EMAILS)
+             ========================================================================= */
+          <div className="rise space-y-4">
+            <div className="text-center">
+              <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-white shadow-lg border border-neutral-200">
+                <GoogleIcon className="h-7 w-7" />
+              </div>
+              <h2 className="text-lg font-bold tracking-tight">Sign in with Google</h2>
+              <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
+                Enter your Google Account email to authenticate and sync your RockGPT workspace.
+              </p>
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-400 text-center font-medium">
+                {error}
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const cleanEmail = googleInputEmail.trim().toLowerCase();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+                  setError("Please enter a valid Google email address.");
+                  return;
+                }
+                handleGoogleSignIn({
+                  email: cleanEmail,
+                  name: cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_\-\s]/g, ""),
+                  googleId: `goog_${Date.now()}`,
+                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`,
+                });
+              }}
+              className="space-y-3 pt-1"
+            >
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
+                  Your Google Email Address
+                </label>
+                <div className="relative">
+                  <Mail size={15} className="absolute left-3 top-3.5 text-neutral-500" />
+                  <input
+                    type="email"
+                    autoFocus
+                    required
+                    value={googleInputEmail}
+                    onChange={(e) => {
+                      setGoogleInputEmail(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="yourname@gmail.com"
+                    className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
+                      dark
+                        ? "border-white/15 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-cyan-400"
+                        : "border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500"
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !googleInputEmail.trim()}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-bold py-3 text-xs shadow-lg hover:bg-neutral-100 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin text-black" />
+                    <span>Connecting to Google...</span>
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon className="h-4 w-4" />
+                    <span>Continue with Google ➔</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("credentials");
+                  setError("");
+                }}
+                className={`w-full rounded-xl py-2 text-xs font-medium transition ${
+                  dark ? "text-neutral-400 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
+                }`}
+              >
+                ← Back to email & password
+              </button>
+            </form>
+          </div>
         ) : step === "totp-2fa" ? (
           /* =========================================================================
              GOOGLE AUTHENTICATOR (RFC 6238 TOTP) 2FA GATE
@@ -2072,99 +2163,6 @@ function AuthModal({
                   Resend in 00:{otpTimer < 10 ? `0${otpTimer}` : otpTimer}
                 </span>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Google Quick Sign-In Dialog Modal */}
-        {googlePromptOpen && (
-          <div className="fixed inset-0 z-[96] grid place-items-center bg-black/75 p-4 fade backdrop-blur-md" onClick={() => setGooglePromptOpen(false)}>
-            <div className={`pop w-full max-w-[360px] rounded-3xl border p-6 shadow-2xl ${dark ? "border-white/15 bg-[#161618] text-white" : "border-neutral-200 bg-white text-neutral-900"}`} onClick={(e) => e.stopPropagation()}>
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="grid h-8 w-8 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
-                    <GoogleIcon className="h-4 w-4 shrink-0" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-wider">Sign in with Google</div>
-                    <div className="text-[10px] text-neutral-400">RockGPT Cloud Identity</div>
-                  </div>
-                </div>
-                <button onClick={() => setGooglePromptOpen(false)} className="rounded-full p-1 text-neutral-400 hover:text-white">
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* 1-Click Quick Account Select Button */}
-              {googleInputEmail && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGooglePromptOpen(false);
-                    handleGoogleSignIn({
-                      email: googleInputEmail.trim(),
-                      name: googleInputEmail.split("@")[0],
-                      googleId: `goog_${Date.now()}`,
-                      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(googleInputEmail.split("@")[0])}`,
-                    });
-                  }}
-                  className={`mb-4 flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
-                    dark
-                      ? "border-cyan-500/30 bg-cyan-500/[0.06] hover:bg-cyan-500/[0.12]"
-                      : "border-cyan-600/30 bg-cyan-50 hover:bg-cyan-100"
-                  }`}
-                >
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 font-bold text-black text-xs shadow-sm">
-                    {googleInputEmail.slice(0, 1).toUpperCase()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-bold">{googleInputEmail.split("@")[0]}</div>
-                    <div className="truncate text-[11px] text-neutral-400">{googleInputEmail}</div>
-                  </div>
-                  <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[9px] font-bold text-cyan-400">
-                    1-Tap ➔
-                  </span>
-                </button>
-              )}
-
-              <div className="relative my-3 flex items-center justify-center">
-                <div className="w-full border-t border-white/10" />
-                <span className={`absolute px-2 text-[10px] uppercase tracking-wider ${dark ? "bg-[#161618] text-neutral-500" : "bg-white text-neutral-400"}`}>
-                  or use another Google email
-                </span>
-              </div>
-
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                if (!googleInputEmail || !googleInputEmail.includes("@")) {
-                  setError("Please enter a valid Google email address.");
-                  return;
-                }
-                setGooglePromptOpen(false);
-                handleGoogleSignIn({
-                  email: googleInputEmail.trim(),
-                  name: googleInputEmail.split("@")[0],
-                  googleId: `goog_${Date.now()}`,
-                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(googleInputEmail.split("@")[0])}`,
-                });
-              }} className="space-y-3">
-                <input
-                  type="email"
-                  value={googleInputEmail}
-                  onChange={(e) => setGoogleInputEmail(e.target.value)}
-                  placeholder="yourname@gmail.com"
-                  className={`w-full rounded-xl border py-2.5 px-3 text-xs outline-none transition ${
-                    dark ? "border-white/15 bg-white/[0.04] text-white focus:border-white/40" : "border-neutral-300 bg-neutral-50 text-neutral-900 focus:border-neutral-500"
-                  }`}
-                />
-                <button
-                  type="submit"
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-bold py-2.5 text-xs shadow-md hover:bg-neutral-100 active:scale-[0.98] transition cursor-pointer"
-                >
-                  <GoogleIcon className="h-4 w-4" />
-                  <span>Sign in with Google Account</span>
-                </button>
-              </form>
             </div>
           </div>
         )}
@@ -3417,7 +3415,13 @@ function UpiCheckoutModal({
    MAIN ROCKGPT APP
    ========================================================================= */
 export default function RockGPT() {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(() => {
+    try {
+      return !sessionStorage.getItem("rockgpt-intro-seen");
+    } catch {
+      return true;
+    }
+  });
   const [conversations, setConversations] = useState(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem("rockgpt-user") || "null");
@@ -4013,6 +4017,9 @@ export default function RockGPT() {
       {showIntro && (
         <IntroScreen
           onDone={() => {
+            try {
+              sessionStorage.setItem("rockgpt-intro-seen", "true");
+            } catch {}
             setShowIntro(false);
           }}
         />
