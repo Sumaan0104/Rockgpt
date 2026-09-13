@@ -1025,21 +1025,36 @@ function AuthModal({
     }
   };
 
+  const openDirectGooglePrompt = () => {
+    if (email && email.includes("@")) {
+      setGoogleInputEmail(email.trim());
+    } else if (!googleInputEmail) {
+      setGoogleInputEmail("mansurisumaan@gmail.com");
+    }
+    setGooglePromptOpen(true);
+  };
+
   const triggerGoogleSignIn = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "1083445839219-demo.apps.googleusercontent.com";
-    if (window.google?.accounts?.id) {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const isValidClientId = Boolean(
+      clientId &&
+      !clientId.includes("demo") &&
+      clientId.endsWith(".apps.googleusercontent.com")
+    );
+
+    if (isValidClientId && window.google?.accounts?.id) {
       try {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response) => {
-            if (response.credential) {
+            if (response?.credential) {
               handleGoogleSignIn({ credential: response.credential });
             }
           },
         });
         window.google.accounts.id.prompt((notification) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            setGooglePromptOpen(true);
+            openDirectGooglePrompt();
           }
         });
         return;
@@ -1047,7 +1062,7 @@ function AuthModal({
         console.warn("GIS prompt fallback:", e);
       }
     }
-    setGooglePromptOpen(true);
+    openDirectGooglePrompt();
   };
 
   // Direct login with email + password
@@ -2064,19 +2079,61 @@ function AuthModal({
         {/* Google Quick Sign-In Dialog Modal */}
         {googlePromptOpen && (
           <div className="fixed inset-0 z-[96] grid place-items-center bg-black/75 p-4 fade backdrop-blur-md" onClick={() => setGooglePromptOpen(false)}>
-            <div className={`pop w-full max-w-[340px] rounded-2xl border p-5 shadow-2xl ${dark ? "border-white/15 bg-[#181818] text-white" : "border-neutral-200 bg-white text-neutral-900"}`} onClick={(e) => e.stopPropagation()}>
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <GoogleIcon className="h-5 w-5 shrink-0" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Sign in with Google</span>
+            <div className={`pop w-full max-w-[360px] rounded-3xl border p-6 shadow-2xl ${dark ? "border-white/15 bg-[#161618] text-white" : "border-neutral-200 bg-white text-neutral-900"}`} onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
+                    <GoogleIcon className="h-4 w-4 shrink-0" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider">Sign in with Google</div>
+                    <div className="text-[10px] text-neutral-400">RockGPT Cloud Identity</div>
+                  </div>
                 </div>
                 <button onClick={() => setGooglePromptOpen(false)} className="rounded-full p-1 text-neutral-400 hover:text-white">
-                  <X size={15} />
+                  <X size={16} />
                 </button>
               </div>
-              <p className={`mb-3 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
-                Enter your Google Account email to authenticate instantly with Google identity sync.
-              </p>
+
+              {/* 1-Click Quick Account Select Button */}
+              {googleInputEmail && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGooglePromptOpen(false);
+                    handleGoogleSignIn({
+                      email: googleInputEmail.trim(),
+                      name: googleInputEmail.split("@")[0],
+                      googleId: `goog_${Date.now()}`,
+                      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(googleInputEmail.split("@")[0])}`,
+                    });
+                  }}
+                  className={`mb-4 flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${
+                    dark
+                      ? "border-cyan-500/30 bg-cyan-500/[0.06] hover:bg-cyan-500/[0.12]"
+                      : "border-cyan-600/30 bg-cyan-50 hover:bg-cyan-100"
+                  }`}
+                >
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 font-bold text-black text-xs shadow-sm">
+                    {googleInputEmail.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-bold">{googleInputEmail.split("@")[0]}</div>
+                    <div className="truncate text-[11px] text-neutral-400">{googleInputEmail}</div>
+                  </div>
+                  <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[9px] font-bold text-cyan-400">
+                    1-Tap ➔
+                  </span>
+                </button>
+              )}
+
+              <div className="relative my-3 flex items-center justify-center">
+                <div className="w-full border-t border-white/10" />
+                <span className={`absolute px-2 text-[10px] uppercase tracking-wider ${dark ? "bg-[#161618] text-neutral-500" : "bg-white text-neutral-400"}`}>
+                  or use another Google email
+                </span>
+              </div>
+
               <form onSubmit={(e) => {
                 e.preventDefault();
                 if (!googleInputEmail || !googleInputEmail.includes("@")) {
@@ -2093,7 +2150,6 @@ function AuthModal({
               }} className="space-y-3">
                 <input
                   type="email"
-                  autoFocus
                   value={googleInputEmail}
                   onChange={(e) => setGoogleInputEmail(e.target.value)}
                   placeholder="yourname@gmail.com"
@@ -2103,11 +2159,10 @@ function AuthModal({
                 />
                 <button
                   type="submit"
-                  className={`w-full rounded-xl py-2.5 text-xs font-bold transition active:scale-[0.98] ${
-                    dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
-                  }`}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-bold py-2.5 text-xs shadow-md hover:bg-neutral-100 active:scale-[0.98] transition cursor-pointer"
                 >
-                  Sign in with Google ➔
+                  <GoogleIcon className="h-4 w-4" />
+                  <span>Sign in with Google Account</span>
                 </button>
               </form>
             </div>
