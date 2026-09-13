@@ -1094,14 +1094,118 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     const hasImg = messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url"));
     const model = hasImg
       ? "qwen/qwen3.8-27b"
-      : (requestedModel === "RockGPT 4o" ? "openai/gpt-oss-120b" : "openai/gpt-oss-20b");
+      : "openai/gpt-oss-120b";
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
+
+    const canonicalAsmaUlHusna = `1. Ar-Rahman (الرحمن) - The Beneficent
+2. Ar-Rahim (الرحيم) - The Merciful
+3. Al-Malik (الملك) - The King
+4. Al-Quddus (القدوس) - The Most Holy
+5. As-Salam (السلام) - The Source of Peace
+6. Al-Mu'min (المؤمن) - The Guardian of Faith
+7. Al-Muhaymin (المهيمن) - The Protector
+8. Al-Aziz (العزيز) - The Mighty
+9. Al-Jabbar (الجبار) - The Compeller
+10. Al-Mutakabbir (المتكبر) - The Majestic
+11. Al-Khaliq (الخالق) - The Creator
+12. Al-Bari (البارئ) - The Evolver
+13. Al-Musawwir (المصور) - The Fashioner
+14. Al-Ghaffar (الغفار) - The Constant Forgiver
+15. Al-Qahhar (القهار) - The Subduer
+16. Al-Wahhab (الوهاب) - The Bestower
+17. Ar-Razzaq (الرزاق) - The Provider
+18. Al-Fattah (الفتاح) - The Opener
+19. Al-Alim (العليم) - The All-Knowing
+20. Al-Qabid (القابض) - The Withholder
+21. Al-Basit (الباسط) - The Expander
+22. Al-Khafid (الخافض) - The Abaser
+23. Ar-Rafi (الرافع) - The Exalter
+24. Al-Mu'izz (المعز) - The Bestower of Honor
+25. Al-Mudhill (المذل) - The Humiliator
+26. As-Sami (السميع) - The All-Hearing
+27. Al-Basir (البصير) - The All-Seeing
+28. Al-Hakam (الحكم) - The Judge
+29. Al-Adl (العدل) - The Utterly Just
+30. Al-Latif (اللطيف) - The Subtle One
+31. Al-Khabir (الخبير) - The All-Aware
+32. Al-Halim (الحليم) - The Forbearing
+33. Al-Azim (العظيم) - The Magnificent
+34. Al-Ghafur (الغفور) - The Forgiving
+35. Ash-Shakur (الشكور) - The Most Appreciative
+36. Al-Ali (العلي) - The Most High
+37. Al-Kabir (الكبير) - The Most Great
+38. Al-Hafiz (الحفيظ) - The Preserver
+39. Al-Muqit (المقيت) - The Sustainer
+40. Al-Hasib (الحسيب) - The Reckoner
+41. Al-Jalil (الجليل) - The Sublime
+42. Al-Karim (الكريم) - The Generous
+43. Ar-Raqib (الرقيب) - The Watchful
+44. Al-Mujib (المجيب) - The Responsive
+45. Al-Wasi (الواسع) - The All-Encompassing
+46. Al-Hakim (الحكيم) - The Wise
+47. Al-Wadud (الودود) - The Loving
+48. Al-Majid (المجيد) - The All-Glorious
+49. Al-Ba'ith (الباعث) - The Resurrector
+50. Ash-Shahid (الشهيد) - The Witness
+51. Al-Haqq (الحق) - The Truth
+52. Al-Wakil (الوكيل) - The Trustee
+53. Al-Qawiyy (القوي) - The Strong
+54. Al-Matin (المتين) - The Firm
+55. Al-Waliyy (الولي) - The Protecting Friend
+56. Al-Hamid (الحميد) - The Praiseworthy
+57. Al-Muhsi (المحصي) - The Accounter
+58. Al-Mubdi (المبدئ) - The Originator
+59. Al-Mu'id (المعيد) - The Restorer
+60. Al-Muhyi (المحيي) - The Giver of Life
+61. Al-Mumit (المميت) - The Creator of Death
+62. Al-Hayy (الحي) - The Ever-Living
+63. Al-Qayyum (القيوم) - The Self-Subsisting
+64. Al-Wajid (الواجد) - The Perceiver
+65. Al-Majid (الماجد) - The Illustrious
+66. Al-Wahid (الواحد) - The One
+67. Al-Ahad (الأحد) - The Unique
+68. As-Samad (الصمد) - The Eternal
+69. Al-Qadir (القادر) - The Capable
+70. Al-Muqtadir (المقتدر) - The Determiner
+71. Al-Muqaddim (المقدم) - The Expediter
+72. Al-Mu'akhkhir (المؤخر) - The Delayer
+73. Al-Awwal (الأول) - The First
+74. Al-Akhir (الآخر) - The Last
+75. Az-Zahir (الظاهر) - The Manifest
+76. Al-Batin (الباطن) - The Hidden
+77. Al-Wali (الوالي) - The Governor
+78. Al-Muta'ali (المتعالي) - The Most Exalted
+79. Al-Barr (البر) - The Source of All Goodness
+80. At-Tawwab (التواب) - The Ever-Pardoning
+81. Al-Muntaqim (المنتقم) - The Avenger
+82. Al-Afuww (العفو) - The Pardoner
+83. Ar-Ra'uf (الرؤوف) - The Compassionate
+84. Malik-ul-Mulk (مالك الملك) - The Owner of All Sovereignty
+85. Dhul-Jalali wal-Ikram (ذو الجلال والإكرام) - The Lord of Majesty and Generosity
+86. Al-Muqsit (المقسط) - The Equitable
+87. Al-Jami (الجامع) - The Gatherer
+88. Al-Ghaniyy (الغني) - The Self-Sufficient
+89. Al-Mughni (المغني) - The Enricher
+90. Al-Mani (المانع) - The Withholder / Preventer
+91. Ad-Darr (الضار) - The Distressor
+92. An-Nafi (النافع) - The Propitious / Benefactor
+93. An-Nur (النور) - The Light
+94. Al-Hadi (الهادي) - The Guide
+95. Al-Badi (البديع) - The Incomparable
+96. Al-Baqi (الباقي) - The Everlasting
+97. Al-Warith (الوارث) - The Supreme Inheritor
+98. Ar-Rashid (الرشيد) - The Guide to the Right Path
+99. As-Sabur (الصبور) - The Patient`;
+
     const stream = await groq.chat.completions.create({
       model,
       max_tokens: fast ? 4096 : 8192,
+      temperature: 0.5,
+      frequency_penalty: 0.25,
+      presence_penalty: 0.1,
       messages: [
         {
           role: "system",
@@ -1110,8 +1214,17 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 Creator Persona & Attribution:
 If asked about your creator, Rock, or Suman Mansuri (including questions about who made you, who he is, his skills, or whether he is intelligent), answer with confidence, technical respect, and complete clarity: Suman Mansuri (widely known as “Rock”) is an exceptionally talented full-stack software engineer, systems architect, and AI builder who conceived, designed, and engineered RockGPT from the ground up. He possesses deep expertise across modern distributed systems, full-stack application development, real-time streaming architectures, and neural model integration. His sharp intellect, architectural foresight, and relentless pursuit of engineering excellence are what made RockGPT possible. Never output cheesy or cliché quotes. Always be insightful, polite, highly capable, and accurate.
 
+Strict Non-Repetition & Canonical Enumeration Rule:
+Every item in an enumeration, list, or table MUST be completely unique, accurate, and authentic. Never repeat items, duplicate rows, or append "(Repeated)" or "(re-appears)".
+When asked for the 99 Names of Allah (Asma' ul-Husna):
+- You MUST strictly provide all 99 unique canonical names without ANY repetition or duplicated names from #1 to #99.
+- Sequence reference (1 to 99):
+${canonicalAsmaUlHusna}
+- Present them in a single, beautiful Markdown table with columns: | # | Arabic | Transliteration | English Meaning |.
+- Conclude cleanly immediately after the 99th entry (As-Sabur). Never start over, never loop, and never add extra rows beyond 99.
+
 Exhaustive Completeness & High-Precision Responses:
-Whenever the user asks for enumerations, lists, complete sets (such as the 99 Names of Allah / Asma' ul-Husna, rankings, directories, tables, historical timelines, or itemized collections), you must ALWAYS provide the COMPLETE, FULL list from start to finish without skipping or stopping halfway. Never cut off, summarize, or truncate lists prematurely. When asked for the 99 Names of Allah, always provide all 99 names with Arabic script, transliteration, English meaning, and brief significance in a structured, beautifully formatted Markdown table or numbered list. Use clean Markdown formatting.${fast ? " Be swift and concise in narrative explanations while keeping lists and data sets 100% complete." : ""}`,
+Whenever the user asks for enumerations, lists, complete sets (such as the 99 Names of Allah / Asma' ul-Husna, rankings, directories, tables, historical timelines, or itemized collections), you must ALWAYS provide the COMPLETE, FULL list from start to finish without skipping or stopping halfway. Never cut off, summarize, or truncate lists prematurely. Use clean Markdown formatting.${fast ? " Be swift and concise in narrative explanations while keeping lists and data sets 100% complete." : ""}`,
         },
         ...messages,
       ],
