@@ -1087,8 +1087,10 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
 });
 
 // ═══ GEMINI STREAMING ENGINE ═══
+const ACTIVE_GEMINI_KEY = process.env.GEMINI_API_KEY;
+
 async function streamGeminiChat(messages, systemPrompt, fast, res) {
-  if (!process.env.GEMINI_API_KEY) return false;
+  if (!ACTIVE_GEMINI_KEY) return false;
   const contents = [];
   for (const m of messages) {
     if (m.role === "system") continue;
@@ -1103,7 +1105,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
           const url = p.image_url?.url || "";
           const match = url.match(/^data:([^;]+);base64,(.+)$/);
           if (match) {
-            parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+            parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
           }
         }
       }
@@ -1111,7 +1113,9 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
     if (parts.length) contents.push({ role, parts });
   }
 
-  if (!contents.length) return false;
+  if (!contents.length) {
+    contents.push({ role: "user", parts: [{ text: "Hello" }] });
+  }
 
   const payload = {
     contents,
@@ -1123,7 +1127,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
   };
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=${ACTIVE_GEMINI_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1297,7 +1301,7 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
 
     // 1. Try Gemini 3.6 Flash first (Flagship Google Engine)
     let handledByGemini = false;
-    if (process.env.GEMINI_API_KEY) {
+    if (ACTIVE_GEMINI_KEY) {
       try {
         handledByGemini = await streamGeminiChat(messages, systemPrompt, fast, res);
       } catch (geminiErr) {
@@ -1308,22 +1312,26 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
     // 2. Fallback to Groq if Gemini wasn't available or had an error
     if (!handledByGemini) {
       const hasImg = messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url"));
-      const model = hasImg ? "qwen/qwen3.8-27b" : "openai/gpt-oss-120b";
-      const stream = await groq.chat.completions.create({
-        model,
-        max_tokens: fast ? 4096 : 8192,
-        temperature: 0.5,
-        frequency_penalty: 0.25,
-        presence_penalty: 0.1,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        stream: true,
-      });
-      for await (const chunk of stream) {
-        const t = chunk.choices[0]?.delta?.content || "";
-        if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+      if (hasImg) {
+        res.write(`data: ${JSON.stringify({ token: "I received your image, but the visual analysis service is temporarily busy. Please try again in a moment." })}\n\n`);
+      } else {
+        const model = "openai/gpt-oss-120b";
+        const stream = await groq.chat.completions.create({
+          model,
+          max_tokens: fast ? 4096 : 8192,
+          temperature: 0.5,
+          frequency_penalty: 0.25,
+          presence_penalty: 0.1,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...messages,
+          ],
+          stream: true,
+        });
+        for await (const chunk of stream) {
+          const t = chunk.choices[0]?.delta?.content || "";
+          if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+        }
       }
     }
 
@@ -1331,7 +1339,10 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
     res.end();
   } catch (err) {
     console.error("Chat error:", err.message);
-    try { res.write(`data: ${JSON.stringify({ error: "AI service temporarily unavailable." })}\n\n`); res.end(); } catch {}
+    try {
+      res.write(`data: ${JSON.stringify({ error: "The AI service is temporarily busy. Please tap 'Regenerate' or try again in a moment." })}\n\n`);
+      res.end();
+    } catch {}
   }
 });
 
