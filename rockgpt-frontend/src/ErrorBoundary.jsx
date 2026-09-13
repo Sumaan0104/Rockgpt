@@ -26,7 +26,9 @@ export default class ErrorBoundary extends React.Component {
         const keys = await caches.keys();
         for (const k of keys) await caches.delete(k);
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Cleanup error:", e);
+    }
     window.location.reload();
   };
 
@@ -42,7 +44,9 @@ export default class ErrorBoundary extends React.Component {
       }
       localStorage.clear();
       sessionStorage.clear();
-    } catch {}
+    } catch (e) {
+      console.warn("Reset error:", e);
+    }
     window.location.reload();
   };
 

@@ -998,8 +998,6 @@ function AuthModal({
     return () => clearInterval(interval);
   }, [step, otpTimer]);
 
-  if (!isOpen) return null;
-
   const handleOtpChange = (index, val) => {
     if (!/^\d*$/.test(val)) return;
     const newDigits = [...otpDigits];
@@ -1156,7 +1154,7 @@ function AuthModal({
           email: cleanEm,
           name: (name && name.trim()) || cleanEm.split("@")[0],
           avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEm)}`,
-          lastUsed: Date.now(),
+          lastUsed: 0,
         });
       }
     }
@@ -1638,6 +1636,8 @@ function AuthModal({
       setLoading(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div
