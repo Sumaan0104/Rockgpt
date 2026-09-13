@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,16 +14,32 @@ export default class ErrorBoundary extends React.Component {
     console.error('RockGPT Uncaught Error Boundary:', error, errorInfo);
   }
 
-  handleReload = () => {
+  handleReload = async () => {
     try {
       sessionStorage.clear();
       localStorage.removeItem('rockgpt-intro-seen');
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) await reg.unregister();
+      }
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      }
     } catch {}
     window.location.reload();
   };
 
-  handleReset = () => {
+  handleReset = async () => {
     try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) await reg.unregister();
+      }
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const keys = await caches.keys();
+        for (const k of keys) await caches.delete(k);
+      }
       localStorage.clear();
       sessionStorage.clear();
     } catch {}
@@ -110,6 +126,29 @@ export default class ErrorBoundary extends React.Component {
                 Clear Cache & Restart
               </button>
             </div>
+
+            {this.state.error && (
+              <details style={{ marginTop: '16px', textAlign: 'left' }}>
+                <summary style={{ fontSize: '11px', color: '#71717a', cursor: 'pointer' }}>
+                  Technical error details
+                </summary>
+                <pre style={{
+                  marginTop: '8px',
+                  padding: '8px 12px',
+                  backgroundColor: '#0a0a0c',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  color: '#f87171',
+                  overflowX: 'auto',
+                  maxHeight: '120px',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all'
+                }}>
+                  {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
+                </pre>
+              </details>
+            )}
           </div>
         </div>
       );

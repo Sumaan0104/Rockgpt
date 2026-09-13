@@ -580,20 +580,20 @@ function IntroScreen({ onDone }) {
       return;
     }
 
-    // Step 4: 900ms begins smooth dissolve into the main UI
+    // Step 4: 1750ms begins smooth dissolve into the main UI
     const exitTimer = setTimeout(() => {
       setExiting(true);
-    }, 900);
+    }, 1750);
 
-    // 1250ms: Unmount overlay cleanly (within 0.8–1.5s target)
+    // 2200ms: Unmount overlay cleanly after smooth fade
     const doneTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 1250);
+    }, 2200);
 
-    // Safety fallback: guaranteed exit after 1500ms under all mobile conditions
+    // Safety fallback: guaranteed exit after 2500ms
     const safetyTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 1500);
+    }, 2500);
 
     return () => {
       clearTimeout(exitTimer);
@@ -613,10 +613,10 @@ function IntroScreen({ onDone }) {
     <div
       onClick={handleSkip}
       className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070709] text-white select-none overflow-hidden cursor-pointer ${
-        exiting ? "opacity-0 pointer-events-none" : "opacity-100"
+        exiting ? "opacity-0 scale-[1.02] pointer-events-none" : "opacity-100 scale-100"
       }`}
       style={{
-        transition: "opacity 350ms cubic-bezier(0.16, 1, 0.3, 1), filter 350ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: "opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), transform 500ms cubic-bezier(0.16, 1, 0.3, 1)",
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
@@ -624,41 +624,41 @@ function IntroScreen({ onDone }) {
       <style>{`
         /* Step 1 & 2: Logo Appearance & Ring Expansion */
         @keyframes introLogoStep {
-          0% { opacity: 0; transform: scale(0.92); filter: blur(6px); }
-          25% { opacity: 1; transform: scale(1); filter: blur(0px); }
-          60% { opacity: 1; transform: scale(1.02); filter: drop-shadow(0 0 20px rgba(255,255,255,0.45)); }
-          100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 12px rgba(255,255,255,0.25)); }
+          0% { opacity: 0; transform: scale(0.9); filter: blur(8px); }
+          30% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          65% { opacity: 1; transform: scale(1.02); filter: drop-shadow(0 0 24px rgba(255,255,255,0.45)); }
+          100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 14px rgba(255,255,255,0.25)); }
         }
 
         /* Step 2: Soft Ring Animation around Logo */
         @keyframes introRingGlow {
-          0% { opacity: 0; transform: scale(0.85); border-color: rgba(255,255,255,0.1); }
-          40% { opacity: 0.8; transform: scale(1.15); border-color: rgba(255,255,255,0.4); box-shadow: 0 0 25px rgba(255,255,255,0.25); }
-          100% { opacity: 0.3; transform: scale(1.22); border-color: rgba(255,255,255,0.15); box-shadow: 0 0 15px rgba(255,255,255,0.1); }
+          0% { opacity: 0; transform: scale(0.8); border-color: rgba(255,255,255,0.1); }
+          45% { opacity: 0.85; transform: scale(1.15); border-color: rgba(255,255,255,0.45); box-shadow: 0 0 30px rgba(255,255,255,0.3); }
+          100% { opacity: 0.35; transform: scale(1.22); border-color: rgba(255,255,255,0.18); box-shadow: 0 0 18px rgba(255,255,255,0.12); }
         }
 
         /* Step 3: Brand Text Reveal */
         @keyframes introBrandStep {
-          0%, 35% { opacity: 0; transform: translateY(10px); filter: blur(4px); }
-          65% { opacity: 1; transform: translateY(0); filter: blur(0px); }
+          0%, 30% { opacity: 0; transform: translateY(12px); filter: blur(5px); }
+          60% { opacity: 1; transform: translateY(0); filter: blur(0px); }
           100% { opacity: 1; transform: translateY(0); }
         }
 
         /* Ambient subtle backdrop glow */
         @keyframes introBackdropGlow {
-          0% { opacity: 0; transform: scale(0.9); }
-          50% { opacity: 0.7; transform: scale(1.05); }
-          100% { opacity: 0.4; transform: scale(1); }
+          0% { opacity: 0; transform: scale(0.85); }
+          50% { opacity: 0.75; transform: scale(1.08); }
+          100% { opacity: 0.45; transform: scale(1); }
         }
       `}</style>
 
       {/* Ambient Backdrop Glow */}
       <div
-        className="absolute h-[300px] w-[300px] sm:h-[380px] sm:w-[380px] rounded-full pointer-events-none"
+        className="absolute h-[320px] w-[320px] sm:h-[400px] sm:w-[400px] rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(180,180,180,0.05) 50%, transparent 70%)",
-          filter: "blur(40px)",
-          animation: "introBackdropGlow 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          background: "radial-gradient(circle, rgba(255,255,255,0.16) 0%, rgba(180,180,180,0.06) 50%, transparent 70%)",
+          filter: "blur(44px)",
+          animation: "introBackdropGlow 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       />
 
@@ -666,9 +666,9 @@ function IntroScreen({ onDone }) {
       <div className="relative mb-5 sm:mb-6 grid place-items-center">
         {/* Soft Glowing Ring (Step 2) */}
         <div
-          className="absolute w-[110px] h-[110px] sm:w-[124px] sm:h-[124px] rounded-full border pointer-events-none"
+          className="absolute w-[114px] h-[114px] sm:w-[128px] sm:h-[128px] rounded-full border pointer-events-none"
           style={{
-            animation: "introRingGlow 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introRingGlow 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         />
 
@@ -676,7 +676,7 @@ function IntroScreen({ onDone }) {
         <div
           className="relative z-10 w-[88px] h-[88px] sm:w-[98px] sm:h-[98px] aspect-square"
           style={{
-            animation: "introLogoStep 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introLogoStep 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         >
           <img
@@ -694,7 +694,7 @@ function IntroScreen({ onDone }) {
       <div
         className="text-center px-4 overflow-hidden py-1"
         style={{
-          animation: "introBrandStep 1.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          animation: "introBrandStep 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       >
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_16px_rgba(255,255,255,0.25)]">
@@ -862,9 +862,10 @@ function AuthModal({
   onSuccess,
   isGateLocked = false,
   allowGuest = true,
+  initialMode = "login",
 }) {
-  const [authMode, setAuthMode] = useState("login");
-  const [step, setStep] = useState("credentials"); // "credentials" | "otp" | "totp-2fa"
+  const [authMode, setAuthMode] = useState(initialMode || "login");
+  const [step, setStep] = useState("credentials"); // "credentials" | "otp" | "totp-2fa" | "google"
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -894,8 +895,40 @@ function AuthModal({
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutMinutes, setLockoutMinutes] = useState(15);
 
-  // Google in-app sign-in state
+  // Google in-app sign-in & Account Chooser state
   const [googleInputEmail, setGoogleInputEmail] = useState("");
+  const [showAddGoogleAccount, setShowAddGoogleAccount] = useState(false);
+  const [savedGoogleAccounts, setSavedGoogleAccounts] = useState(() => {
+    try {
+      const raw = safeStorage.get("rockgpt_google_accounts");
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveGoogleAccountToStorage = (acc) => {
+    try {
+      if (!acc?.email) return;
+      const cleanEm = acc.email.toLowerCase().trim();
+      const raw = safeStorage.get("rockgpt_google_accounts");
+      let list = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(list)) list = [];
+      list = list.filter((a) => a && a.email && a.email.toLowerCase() !== cleanEm);
+      const updated = [
+        {
+          email: cleanEm,
+          name: acc.name || cleanEm.split("@")[0],
+          avatar: acc.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(acc.name || cleanEm)}`,
+          lastUsed: Date.now(),
+        },
+        ...list,
+      ].slice(0, 6);
+      safeStorage.set("rockgpt_google_accounts", JSON.stringify(updated));
+      setSavedGoogleAccounts(updated);
+    } catch {}
+  };
 
   // Load Google Identity Services script once
   useEffect(() => {
@@ -915,7 +948,7 @@ function AuthModal({
   useEffect(() => {
     if (isOpen) {
       setStep("credentials");
-      setAuthMode("login");
+      setAuthMode(initialMode || "login");
       setError("");
       setName("");
       setEmail("");
@@ -931,11 +964,17 @@ function AuthModal({
       setIsLocked(false);
       setLockoutMinutes(15);
       setGoogleInputEmail("");
+      setShowAddGoogleAccount(false);
       setLoading(false);
       setResendActive(false);
       setOtpTimer(45);
+      try {
+        const raw = safeStorage.get("rockgpt_google_accounts");
+        const list = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(list)) setSavedGoogleAccounts(list);
+      } catch {}
     }
-  }, [isOpen]);
+  }, [isOpen, initialMode]);
 
   const switchAuthMode = (newMode) => {
     setAuthMode(newMode);
@@ -1090,6 +1129,13 @@ function AuthModal({
 
       safeStorage.set("rockgpt-token", data.token, rememberMe);
       safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
+      if (data?.user) {
+        saveGoogleAccountToStorage({
+          email: data.user.email,
+          name: data.user.name,
+          avatar: data.user.avatar,
+        });
+      }
       onSuccess(data.user, data.token);
       notify(`Welcome to RockGPT, ${data.user.name}!`);
       onClose();
@@ -1100,6 +1146,22 @@ function AuthModal({
       setLoading(false);
     }
   };
+
+  const effectiveGoogleAccounts = useMemo(() => {
+    const list = [...savedGoogleAccounts];
+    if (email && email.includes("@")) {
+      const cleanEm = email.trim().toLowerCase();
+      if (!list.some((a) => a && a.email && a.email.toLowerCase() === cleanEm)) {
+        list.push({
+          email: cleanEm,
+          name: (name && name.trim()) || cleanEm.split("@")[0],
+          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEm)}`,
+          lastUsed: Date.now(),
+        });
+      }
+    }
+    return list;
+  }, [savedGoogleAccounts, email, name]);
 
   const triggerGoogleSignIn = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -1135,6 +1197,41 @@ function AuthModal({
     setGoogleInputEmail("");
     setStep("google");
   };
+
+  // Render official Google Sign In button if GIS client ID is configured
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const isValidClientId = Boolean(
+      clientId &&
+      !clientId.includes("demo") &&
+      clientId.endsWith(".apps.googleusercontent.com")
+    );
+    if (isValidClientId && window.google?.accounts?.id && isOpen && step === "google") {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response) => {
+            if (response?.credential) {
+              handleGoogleSignIn({ credential: response.credential });
+            }
+          },
+        });
+        const container = document.getElementById("google-gis-official-btn");
+        if (container) {
+          container.innerHTML = "";
+          window.google.accounts.id.renderButton(container, {
+            theme: dark ? "filled_black" : "outline",
+            size: "large",
+            width: 300,
+            text: "continue_with",
+            shape: "pill",
+          });
+        }
+      } catch (e) {
+        console.warn("GIS button render error:", e);
+      }
+    }
+  }, [isOpen, step, dark]);
 
   // Direct login with email + password
   const handleDirectLogin = async (e) => {
@@ -1588,39 +1685,6 @@ function AuthModal({
 
         {step === "credentials" ? (
           <div>
-            {/* High-Contrast Official Google Sign-In Button */}
-            {authMode !== "forgot" && (
-              <div className="mb-4">
-                <button
-                  type="button"
-                  onClick={triggerGoogleSignIn}
-                  disabled={loading}
-                  className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-900 shadow-xl border border-neutral-300 hover:bg-neutral-100 hover:shadow-2xl active:scale-[0.98] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/40"
-                >
-                  <div className="grid h-6 w-6 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
-                    <GoogleIcon className="h-4 w-4 shrink-0" />
-                  </div>
-                  <span className="text-sm font-bold tracking-wide">
-                    Continue with Google
-                  </span>
-                  <span className="absolute right-3.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-600 group-hover:bg-neutral-200">
-                    1-Tap
-                  </span>
-                </button>
-
-                <div className="relative my-3.5 flex items-center justify-center">
-                  <div className="w-full border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }} />
-                  <span
-                    className={`absolute px-2.5 text-[10px] font-semibold uppercase tracking-wider ${
-                      dark ? "bg-[#141414] text-neutral-400" : "bg-white text-neutral-500"
-                    }`}
-                  >
-                    or with email & password
-                  </span>
-                </div>
-              </div>
-            )}
-
             {/* Segmented Mode Switcher */}
             {authMode !== "forgot" && (
               <div className="mb-4 grid grid-cols-2 rounded-xl bg-white/[0.05] p-1 border border-white/10">
@@ -1926,7 +1990,7 @@ function AuthModal({
               <button
                 type="submit"
                 disabled={loading}
-                className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition active:scale-[0.98] disabled:opacity-50 ${
+                className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition active:scale-[0.98] disabled:opacity-50 cursor-pointer ${
                   dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
                 }`}
               >
@@ -1950,6 +2014,39 @@ function AuthModal({
               </button>
             </form>
 
+            {/* Clean Divider & Prominent Google Button Below Email/Password Form */}
+            {authMode !== "forgot" && (
+              <div className="mt-4">
+                <div className="relative my-3.5 flex items-center justify-center">
+                  <div className="w-full border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }} />
+                  <span
+                    className={`absolute px-2.5 text-[10px] font-semibold uppercase tracking-wider ${
+                      dark ? "bg-[#141414] text-neutral-400" : "bg-white text-neutral-500"
+                    }`}
+                  >
+                    or continue with
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={triggerGoogleSignIn}
+                  disabled={loading}
+                  className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-900 shadow-xl border border-neutral-300 hover:bg-neutral-100 hover:shadow-2xl active:scale-[0.98] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/40"
+                >
+                  <div className="grid h-6 w-6 place-items-center rounded-full bg-white shadow-sm border border-neutral-200 shrink-0">
+                    <GoogleIcon className="h-4 w-4 shrink-0" />
+                  </div>
+                  <span className="text-sm font-bold tracking-wide text-neutral-900">
+                    Continue with Google
+                  </span>
+                  <span className="absolute right-3.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-600 group-hover:bg-neutral-200">
+                    1-Tap
+                  </span>
+                </button>
+              </div>
+            )}
+
             <div className="mt-4 text-center">
               {authMode === "forgot" ? (
                 <p className={`text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
@@ -1957,7 +2054,7 @@ function AuthModal({
                   <button
                     type="button"
                     onClick={() => switchAuthMode("login")}
-                    className="font-bold underline underline-offset-2 hover:text-amber-500"
+                    className="font-bold underline underline-offset-2 hover:text-amber-500 cursor-pointer"
                   >
                     Sign In
                   </button>
@@ -1968,7 +2065,7 @@ function AuthModal({
                   <button
                     type="button"
                     onClick={() => switchAuthMode(authMode === "signup" ? "login" : "signup")}
-                    className="font-bold underline underline-offset-2 hover:text-amber-500"
+                    className="font-bold underline underline-offset-2 hover:text-amber-500 cursor-pointer"
                   >
                     {authMode === "signup" ? "Sign In" : "Sign Up"}
                   </button>
@@ -1979,7 +2076,7 @@ function AuthModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className={`mt-3 w-full rounded-xl py-1.5 text-xs ${
+                  className={`mt-3 w-full rounded-xl py-1.5 text-xs cursor-pointer ${
                     dark ? "text-neutral-400 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
                   }`}
                 >
@@ -1990,16 +2087,16 @@ function AuthModal({
           </div>
         ) : step === "google" ? (
           /* =========================================================================
-             CLEAN IN-APP GOOGLE SIGN-IN STEP (NO NESTED MODALS, NO LEAKED EMAILS)
+             NATIVE GOOGLE ACCOUNT CHOOSER (1-TAP SELECTION & GMAIL LIST)
              ========================================================================= */
           <div className="rise space-y-4">
             <div className="text-center">
-              <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-white shadow-lg border border-neutral-200">
-                <GoogleIcon className="h-7 w-7" />
+              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-white shadow-md border border-neutral-200">
+                <GoogleIcon className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-bold tracking-tight">Sign in with Google</h2>
-              <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
-                Enter your Google Account email to authenticate and sync your RockGPT workspace.
+              <h2 className="text-base font-bold tracking-tight">Choose an account</h2>
+              <p className={`mt-0.5 text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
+                to continue to <strong className={dark ? "text-white" : "text-neutral-900"}>RockGPT</strong>
               </p>
             </div>
 
@@ -2009,80 +2106,145 @@ function AuthModal({
               </div>
             )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const cleanEmail = googleInputEmail.trim().toLowerCase();
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-                  setError("Please enter a valid Google email address.");
-                  return;
-                }
-                handleGoogleSignIn({
-                  email: cleanEmail,
-                  name: cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_\-\s]/g, ""),
-                  googleId: `goog_${Date.now()}`,
-                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`,
-                });
-              }}
-              className="space-y-3 pt-1"
+            {/* Official GIS button container if configured */}
+            <div id="google-gis-official-btn" className="flex justify-center empty:hidden my-1" />
+
+            {/* Google Accounts List */}
+            <div
+              className="divide-y rounded-2xl border overflow-hidden shadow-sm"
+              style={{ borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }}
             >
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
-                  Your Google Email Address
-                </label>
-                <div className="relative">
-                  <Mail size={15} className="absolute left-3 top-3.5 text-neutral-500" />
-                  <input
-                    type="email"
-                    autoFocus
-                    required
-                    value={googleInputEmail}
-                    onChange={(e) => {
-                      setGoogleInputEmail(e.target.value);
-                      setError("");
-                    }}
-                    placeholder="yourname@gmail.com"
-                    className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
-                      dark
-                        ? "border-white/15 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-cyan-400"
-                        : "border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500"
-                    }`}
-                  />
-                </div>
-              </div>
+              {effectiveGoogleAccounts.map((acc, i) => (
+                <button
+                  key={acc.email || i}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    handleGoogleSignIn({
+                      email: acc.email,
+                      name: acc.name,
+                      avatar: acc.avatar,
+                      googleId: `goog_${Date.now()}`,
+                    });
+                  }}
+                  className={`flex w-full items-center gap-3 p-3 text-left transition cursor-pointer ${
+                    dark ? "hover:bg-white/[0.06] bg-white/[0.02]" : "hover:bg-neutral-50 bg-white"
+                  }`}
+                >
+                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full overflow-hidden bg-gradient-to-tr from-cyan-500 to-blue-600 font-bold text-white text-xs shadow-sm">
+                    {acc.avatar && acc.avatar.startsWith("http") ? (
+                      <img src={acc.avatar} alt={acc.name} className="h-full w-full object-cover" />
+                    ) : (
+                      (acc.name || acc.email).slice(0, 1).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-bold">{acc.name}</div>
+                    <div className="truncate text-[11px] text-neutral-400">{acc.email}</div>
+                  </div>
+                  <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[9px] font-bold text-cyan-400 shrink-0">
+                    Sign in ➔
+                  </span>
+                </button>
+              ))}
 
-              <button
-                type="submit"
-                disabled={loading || !googleInputEmail.trim()}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-bold py-3 text-xs shadow-lg hover:bg-neutral-100 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin text-black" />
-                    <span>Connecting to Google...</span>
-                  </>
-                ) : (
-                  <>
-                    <GoogleIcon className="h-4 w-4" />
-                    <span>Continue with Google ➔</span>
-                  </>
-                )}
-              </button>
-
+              {/* Use another account toggle */}
               <button
                 type="button"
-                onClick={() => {
-                  setStep("credentials");
-                  setError("");
-                }}
-                className={`w-full rounded-xl py-2 text-xs font-medium transition ${
-                  dark ? "text-neutral-400 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
+                onClick={() => setShowAddGoogleAccount((v) => !v)}
+                className={`flex w-full items-center gap-3 p-3 text-left transition cursor-pointer ${
+                  dark ? "hover:bg-white/[0.06] bg-white/[0.01]" : "hover:bg-neutral-50 bg-white"
                 }`}
               >
-                ← Back to email & password
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-dashed border-neutral-500 text-neutral-400">
+                  <User size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold">Use another account</div>
+                  <div className="text-[10px] text-neutral-400">Sign in with a different Google email</div>
+                </div>
+                <ChevronRight size={14} className="text-neutral-400" />
               </button>
-            </form>
+            </div>
+
+            {/* Input to add another Google account */}
+            {(showAddGoogleAccount || effectiveGoogleAccounts.length === 0) && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleanEmail = googleInputEmail.trim().toLowerCase();
+                  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+                    setError("Please enter a valid Google email address.");
+                    return;
+                  }
+                  handleGoogleSignIn({
+                    email: cleanEmail,
+                    name: cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_\-\s]/g, ""),
+                    googleId: `goog_${Date.now()}`,
+                    avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`,
+                  });
+                }}
+                className="space-y-2.5 pt-1"
+              >
+                <div>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-3.5 text-neutral-500" />
+                    <input
+                      type="email"
+                      autoFocus
+                      required
+                      value={googleInputEmail}
+                      onChange={(e) => {
+                        setGoogleInputEmail(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="Email or phone (e.g. yourname@gmail.com)"
+                      className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
+                        dark
+                          ? "border-white/15 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-cyan-400"
+                          : "border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !googleInputEmail.trim()}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-bold py-2.5 text-xs shadow hover:bg-neutral-100 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin text-black" />
+                      <span>Signing in with Google...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GoogleIcon className="h-3.5 w-3.5" />
+                      <span>Continue with Google ➔</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            <p className="text-[10px] text-neutral-500 leading-relaxed text-center px-1">
+              To continue, Google will share your name, email address, and profile picture with RockGPT.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setStep("credentials");
+                setError("");
+              }}
+              className={`w-full rounded-xl py-2 text-xs font-medium transition cursor-pointer ${
+                dark ? "text-neutral-400 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
+              }`}
+            >
+              ← Back to email & password
+            </button>
           </div>
         ) : step === "totp-2fa" ? (
           /* =========================================================================
@@ -3658,6 +3820,12 @@ export default function RockGPT() {
   });
   const [authToken, setAuthToken] = useState(() => safeStorage.get("rockgpt-token") || null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authInitialMode, setAuthInitialMode] = useState("login");
+
+  const openAuth = (mode = "login") => {
+    setAuthInitialMode(mode);
+    setAuthModalOpen(true);
+  };
 
   const isPaidUser = Boolean(
     user &&
@@ -4705,20 +4873,39 @@ export default function RockGPT() {
               </div>
             </div>
 
-            {/* Profile trigger or Direct Sign in with Google */}
+            {/* Profile trigger or Log In / Sign Up buttons */}
             {!user ? (
-              <button
-                onClick={() => setAuthModalOpen(true)}
-                className="flex w-full items-center gap-2.5 rounded-2xl bg-white text-neutral-900 p-2.5 shadow-md hover:bg-neutral-100 active:scale-[0.98] transition cursor-pointer"
-              >
-                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
-                  <GoogleIcon className="h-4 w-4" />
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => openAuth("login")}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold transition active:scale-95 cursor-pointer ${
+                      dark
+                        ? "border-white/15 bg-white/[0.04] text-white hover:bg-white/10"
+                        : "border-neutral-300 bg-neutral-100 text-neutral-900 hover:bg-neutral-200"
+                    }`}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    onClick={() => openAuth("signup")}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2 text-xs font-bold text-black shadow-sm hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
+                  >
+                    Sign up
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <div className="truncate text-xs font-bold text-neutral-900">Sign in with Google</div>
-                  <div className="text-[10px] text-neutral-500">Sync chats & account</div>
-                </div>
-              </button>
+                <button
+                  onClick={() => openAuth("login")}
+                  className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2 text-xs font-medium transition active:scale-95 cursor-pointer ${
+                    dark
+                      ? "border-white/10 bg-white/[0.02] text-neutral-300 hover:bg-white/[0.06] hover:text-white"
+                      : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 hover:text-black"
+                  }`}
+                >
+                  <GoogleIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span>Continue with Google</span>
+                </button>
+              </div>
             ) : (
               <button
                 onClick={() => setProfileMenuOpen((v) => !v)}
@@ -4753,7 +4940,7 @@ export default function RockGPT() {
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenUpgrade={() => setPricingOpen(true)}
               onOpenSecurity={() => setSecurityOpen(true)}
-              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenAuth={() => openAuth("login")}
             />
           </div>
         </div>
@@ -4954,13 +5141,13 @@ export default function RockGPT() {
               <SquarePen size={18} strokeWidth={2.2} />
             </button>
 
-            {/* Desktop Profile Avatar */}
-            <div className="relative hidden sm:block">
+            {/* Header Profile Avatar or Log In / Sign Up */}
+            <div className="relative flex items-center">
               {user ? (
                 <button
                   onClick={() => setHeaderProfileOpen((v) => !v)}
                   title="Account menu & logout"
-                  className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm hover:scale-105 transition overflow-hidden"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm hover:scale-105 transition overflow-hidden cursor-pointer"
                 >
                   {user.avatar ? (
                     <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
@@ -4969,13 +5156,22 @@ export default function RockGPT() {
                   )}
                 </button>
               ) : (
-                <button
-                  onClick={() => setAuthModalOpen(true)}
-                  className="flex items-center gap-2 rounded-xl bg-white text-neutral-900 border border-neutral-200 px-3 py-1.5 text-xs font-bold shadow-sm hover:bg-neutral-100 active:scale-95 transition cursor-pointer"
-                >
-                  <GoogleIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span>Sign in with Google</span>
-                </button>
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                  <button
+                    onClick={() => openAuth("login")}
+                    className={`rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                      dark ? "text-neutral-300 hover:text-white hover:bg-white/[0.06]" : "text-neutral-600 hover:text-neutral-900 hover:bg-black/[0.04]"
+                    }`}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    onClick={() => openAuth("signup")}
+                    className="flex items-center rounded-xl bg-white text-neutral-900 px-2.5 sm:px-3 py-1.5 text-xs font-bold shadow-sm hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
+                  >
+                    <span>Sign up</span>
+                  </button>
+                </div>
               )}
 
               {headerProfileOpen && user && (
@@ -5544,7 +5740,7 @@ export default function RockGPT() {
         onOpenAuth={() => {
           setPayingPlan(null);
           setGateLocked(false);
-          setAuthModalOpen(true);
+          openAuth("signup");
         }}
       />
 
@@ -5555,6 +5751,7 @@ export default function RockGPT() {
           setGateOpen(false);
           setAuthModalOpen(false);
         }}
+        initialMode={authInitialMode}
         dark={dark}
         notify={notify}
         onSuccess={handleAuthSuccess}
@@ -5705,7 +5902,7 @@ export default function RockGPT() {
                     onClick={() => {
                       setSettingsOpen(false);
                       if (!user) {
-                        setAuthModalOpen(true);
+                        openAuth("login");
                       } else {
                         setSecurityOpen(true);
                       }
@@ -5747,25 +5944,37 @@ export default function RockGPT() {
                 ) : (
                   <div className="space-y-2 py-1">
                     <p className="text-xs text-center" style={{ color: muted }}>You are currently using guest mode.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          setSettingsOpen(false);
+                          openAuth("login");
+                        }}
+                        className="rounded-xl border py-2 text-xs font-semibold transition cursor-pointer text-center"
+                        style={{ borderColor: border, color: textColor }}
+                      >
+                        Log in
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSettingsOpen(false);
+                          openAuth("signup");
+                        }}
+                        className="rounded-xl bg-white text-black py-2 text-xs font-bold shadow-sm hover:bg-neutral-200 transition cursor-pointer text-center"
+                      >
+                        Sign up
+                      </button>
+                    </div>
                     <button
                       onClick={() => {
                         setSettingsOpen(false);
-                        setAuthModalOpen(true);
+                        openAuth("login");
                       }}
-                      className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-white text-black font-bold py-2.5 text-xs shadow-md hover:bg-neutral-100 transition cursor-pointer"
-                    >
-                      <GoogleIcon className="h-4 w-4" />
-                      <span>Sign in with Google</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSettingsOpen(false);
-                        setAuthModalOpen(true);
-                      }}
-                      className="w-full rounded-xl border py-2 text-xs font-medium transition"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border py-2 text-xs font-medium transition cursor-pointer"
                       style={{ borderColor: border, color: muted }}
                     >
-                      Sign in with Email & Password
+                      <GoogleIcon className="h-3.5 w-3.5" />
+                      <span>Continue with Google</span>
                     </button>
                   </div>
                 )}
