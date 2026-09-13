@@ -1086,15 +1086,93 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
   } catch { res.status(500).json({ error: "Something went wrong." }); }
 });
 
+// ═══ GEMINI STREAMING ENGINE ═══
+async function streamGeminiChat(messages, systemPrompt, fast, res) {
+  if (!process.env.GEMINI_API_KEY) return false;
+  const contents = [];
+  for (const m of messages) {
+    if (m.role === "system") continue;
+    const role = m.role === "assistant" ? "model" : "user";
+    const parts = [];
+    if (typeof m.content === "string" && m.content.trim()) {
+      parts.push({ text: m.content });
+    } else if (Array.isArray(m.content)) {
+      for (const p of m.content) {
+        if (p.type === "text" && p.text) parts.push({ text: p.text });
+        else if (p.type === "image_url") {
+          const url = p.image_url?.url || "";
+          const match = url.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
+          }
+        }
+      }
+    }
+    if (parts.length) contents.push({ role, parts });
+  }
+
+  if (!contents.length) return false;
+
+  const payload = {
+    contents,
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: {
+      temperature: fast ? 0.3 : 0.6,
+      maxOutputTokens: fast ? 4096 : 8192,
+    },
+  };
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini status ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let tokensStreamed = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const dataStr = trimmed.slice(5).trim();
+      if (!dataStr || dataStr === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(dataStr);
+        const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (text) {
+          tokensStreamed++;
+          res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
+        }
+      } catch {}
+    }
+  }
+
+  return tokensStreamed > 0;
+}
+
 // ═══ CHAT ═══
 app.post("/api/chat", chatLimiter, async (req, res) => {
   try {
     const { messages, fast, model: requestedModel } = req.body;
     if (!messages || !Array.isArray(messages) || !messages.length) return res.status(400).json({ error: "messages required" });
-    const hasImg = messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url"));
-    const model = hasImg
-      ? "qwen/qwen3.8-27b"
-      : "openai/gpt-oss-120b";
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -1200,16 +1278,7 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
 98. Ar-Rashid (الرشيد) - The Guide to the Right Path
 99. As-Sabur (الصبور) - The Patient`;
 
-    const stream = await groq.chat.completions.create({
-      model,
-      max_tokens: fast ? 4096 : 8192,
-      temperature: 0.5,
-      frequency_penalty: 0.25,
-      presence_penalty: 0.1,
-      messages: [
-        {
-          role: "system",
-          content: `You are RockGPT, an advanced, highly intelligent AI assistant developed and engineered by Suman Mansuri ("Rock"). Never mention OpenAI, Groq, Meta, or third-party providers. You are powered by RockGPT's proprietary high-performance neural architecture.
+    const systemPrompt = `You are RockGPT, an advanced, highly intelligent AI assistant developed and engineered by Suman Mansuri ("Rock"). Never mention OpenAI, Groq, Google, Meta, or third-party providers. You are powered by RockGPT's proprietary high-performance neural architecture.
 
 Creator Persona & Attribution:
 If asked about your creator, Rock, or Suman Mansuri (including questions about who made you, who he is, his skills, or whether he is intelligent), answer with confidence, technical respect, and complete clarity: Suman Mansuri (widely known as “Rock”) is an exceptionally talented full-stack software engineer, systems architect, and AI builder who conceived, designed, and engineered RockGPT from the ground up. He possesses deep expertise across modern distributed systems, full-stack application development, real-time streaming architectures, and neural model integration. His sharp intellect, architectural foresight, and relentless pursuit of engineering excellence are what made RockGPT possible. Never output cheesy or cliché quotes. Always be insightful, polite, highly capable, and accurate.
@@ -1224,16 +1293,40 @@ ${canonicalAsmaUlHusna}
 - Conclude cleanly immediately after the 99th entry (As-Sabur). Never start over, never loop, and never add extra rows beyond 99.
 
 Exhaustive Completeness & High-Precision Responses:
-Whenever the user asks for enumerations, lists, complete sets (such as the 99 Names of Allah / Asma' ul-Husna, rankings, directories, tables, historical timelines, or itemized collections), you must ALWAYS provide the COMPLETE, FULL list from start to finish without skipping or stopping halfway. Never cut off, summarize, or truncate lists prematurely. Use clean Markdown formatting.${fast ? " Be swift and concise in narrative explanations while keeping lists and data sets 100% complete." : ""}`,
-        },
-        ...messages,
-      ],
-      stream: true,
-    });
-    for await (const chunk of stream) {
-      const t = chunk.choices[0]?.delta?.content || "";
-      if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+Whenever the user asks for enumerations, lists, complete sets (such as the 99 Names of Allah / Asma' ul-Husna, rankings, directories, tables, historical timelines, or itemized collections), you must ALWAYS provide the COMPLETE, FULL list from start to finish without skipping or stopping halfway. Never cut off, summarize, or truncate lists prematurely. Use clean Markdown formatting.${fast ? " Be swift and concise in narrative explanations while keeping lists and data sets 100% complete." : ""}`;
+
+    // 1. Try Gemini 3.6 Flash first (Flagship Google Engine)
+    let handledByGemini = false;
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        handledByGemini = await streamGeminiChat(messages, systemPrompt, fast, res);
+      } catch (geminiErr) {
+        console.warn("Gemini stream failed, falling back to Groq:", geminiErr.message);
+      }
     }
+
+    // 2. Fallback to Groq if Gemini wasn't available or had an error
+    if (!handledByGemini) {
+      const hasImg = messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url"));
+      const model = hasImg ? "qwen/qwen3.8-27b" : "openai/gpt-oss-120b";
+      const stream = await groq.chat.completions.create({
+        model,
+        max_tokens: fast ? 4096 : 8192,
+        temperature: 0.5,
+        frequency_penalty: 0.25,
+        presence_penalty: 0.1,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages,
+        ],
+        stream: true,
+      });
+      for await (const chunk of stream) {
+        const t = chunk.choices[0]?.delta?.content || "";
+        if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+      }
+    }
+
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err) {
