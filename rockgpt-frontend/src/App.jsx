@@ -1490,31 +1490,34 @@ function AuthModal({
 
         {step === "credentials" ? (
           <div>
-            {/* Continue with Google button */}
+            {/* High-Contrast Official Google Sign-In Button */}
             {authMode !== "forgot" && (
-              <div className="mb-3">
+              <div className="mb-4">
                 <button
                   type="button"
                   onClick={triggerGoogleSignIn}
                   disabled={loading}
-                  className={`flex w-full items-center justify-center gap-2.5 rounded-xl border py-2.5 text-xs font-semibold shadow-sm transition active:scale-[0.98] ${
-                    dark
-                      ? "border-white/15 bg-white/[0.06] text-white hover:bg-white/[0.12]"
-                      : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"
-                  }`}
+                  className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-900 shadow-xl border border-neutral-300 hover:bg-neutral-100 hover:shadow-2xl active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  <GoogleIcon className="h-4 w-4 shrink-0" />
-                  <span>Continue with Google</span>
+                  <div className="grid h-6 w-6 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
+                    <GoogleIcon className="h-4 w-4 shrink-0" />
+                  </div>
+                  <span className="text-sm font-bold tracking-wide">
+                    {authMode === "signup" ? "Sign up with Google" : "Sign in with Google"}
+                  </span>
+                  <span className="absolute right-3.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-600 group-hover:bg-neutral-200">
+                    1-Tap
+                  </span>
                 </button>
 
-                <div className="relative my-3 flex items-center justify-center">
-                  <div className="w-full border-t border-white/10" />
+                <div className="relative my-3.5 flex items-center justify-center">
+                  <div className="w-full border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }} />
                   <span
-                    className={`absolute px-2 text-[10px] uppercase tracking-wider ${
+                    className={`absolute px-2.5 text-[10px] font-semibold uppercase tracking-wider ${
                       dark ? "bg-[#141414] text-neutral-400" : "bg-white text-neutral-500"
                     }`}
                   >
-                    or continue with email
+                    or with email & password
                   </span>
                 </div>
               </div>
@@ -2065,7 +2068,7 @@ function AuthModal({
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <GoogleIcon className="h-5 w-5 shrink-0" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Continue with Google</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Sign in with Google</span>
                 </div>
                 <button onClick={() => setGooglePromptOpen(false)} className="rounded-full p-1 text-neutral-400 hover:text-white">
                   <X size={15} />
@@ -2104,7 +2107,7 @@ function AuthModal({
                     dark ? "bg-white text-black hover:bg-neutral-200" : "bg-neutral-900 text-white hover:bg-neutral-800"
                   }`}
                 >
-                  Sign In with Google Identity ➔
+                  Sign in with Google ➔
                 </button>
               </form>
             </div>
@@ -4435,30 +4438,43 @@ export default function RockGPT() {
               </div>
             </div>
 
-            {/* Profile trigger with floating menu */}
-            <button
-              onClick={() => {
-                if (!user) {
-                  setAuthModalOpen(true);
-                } else {
-                  setProfileMenuOpen((v) => !v);
-                }
-              }}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
-                dark ? "hover:bg-white/[0.06]" : "hover:bg-black/[0.05]"
-              }`}
-            >
-              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm">
-                {user?.name ? user.name.slice(0, 1).toUpperCase() : <User size={13} />}
-              </div>
-              <div className="min-w-0 flex-1 text-left">
-                <div className="truncate text-xs font-semibold">{user ? user.name : "Sign in / Register"}</div>
-                <div className="text-[10px]" style={{ color: muted }}>
-                  {user ? `${user.plan || "Free"} Plan • Account` : "Tap to sign in"}
+            {/* Profile trigger or Direct Sign in with Google */}
+            {!user ? (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="flex w-full items-center gap-2.5 rounded-2xl bg-white text-neutral-900 p-2.5 shadow-md hover:bg-neutral-100 active:scale-[0.98] transition cursor-pointer"
+              >
+                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white shadow-sm border border-neutral-200">
+                  <GoogleIcon className="h-4 w-4" />
                 </div>
-              </div>
-              {user && <MoreHorizontal size={14} className="text-neutral-400" />}
-            </button>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="truncate text-xs font-bold text-neutral-900">Sign in with Google</div>
+                  <div className="text-[10px] text-neutral-500">Sync chats & account</div>
+                </div>
+              </button>
+            ) : (
+              <button
+                onClick={() => setProfileMenuOpen((v) => !v)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
+                  dark ? "hover:bg-white/[0.06]" : "hover:bg-black/[0.05]"
+                }`}
+              >
+                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm overflow-hidden">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+                  ) : (
+                    user.name.slice(0, 1).toUpperCase()
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="truncate text-xs font-semibold">{user.name}</div>
+                  <div className="text-[10px]" style={{ color: muted }}>
+                    {user.plan || "Free"} Plan • Account
+                  </div>
+                </div>
+                <MoreHorizontal size={14} className="text-neutral-400" />
+              </button>
+            )}
 
             {/* User Profile Popover */}
             <UserProfileMenu
@@ -4688,13 +4704,10 @@ export default function RockGPT() {
               ) : (
                 <button
                   onClick={() => setAuthModalOpen(true)}
-                  className={`rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
-                    dark
-                      ? "border-white/15 text-white hover:bg-white/10"
-                      : "border-neutral-300 text-neutral-800 hover:bg-neutral-100"
-                  }`}
+                  className="flex items-center gap-2 rounded-xl bg-white text-neutral-900 border border-neutral-200 px-3 py-1.5 text-xs font-bold shadow-sm hover:bg-neutral-100 active:scale-95 transition cursor-pointer"
                 >
-                  Sign in
+                  <GoogleIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span>Sign in with Google</span>
                 </button>
               )}
 
@@ -5465,16 +5478,27 @@ export default function RockGPT() {
                     </button>
                   </div>
                 ) : (
-                  <div className="text-center py-2">
-                    <p className="text-xs mb-2" style={{ color: muted }}>You are currently using guest mode.</p>
+                  <div className="space-y-2 py-1">
+                    <p className="text-xs text-center" style={{ color: muted }}>You are currently using guest mode.</p>
                     <button
                       onClick={() => {
                         setSettingsOpen(false);
                         setAuthModalOpen(true);
                       }}
-                      className="w-full rounded-xl bg-white text-black font-bold py-2 text-xs"
+                      className="w-full flex items-center justify-center gap-2.5 rounded-xl bg-white text-black font-bold py-2.5 text-xs shadow-md hover:bg-neutral-100 transition cursor-pointer"
                     >
-                      Sign in or Register
+                      <GoogleIcon className="h-4 w-4" />
+                      <span>Sign in with Google</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        setAuthModalOpen(true);
+                      }}
+                      className="w-full rounded-xl border py-2 text-xs font-medium transition"
+                      style={{ borderColor: border, color: muted }}
+                    >
+                      Sign in with Email & Password
                     </button>
                   </div>
                 )}
