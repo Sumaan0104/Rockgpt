@@ -1145,6 +1145,58 @@ function AuthModal({
     }
   };
 
+  // Request 6-digit email OTP for Google account verification
+  const requestGoogleEmailOtp = async (targetEmail, targetName = "") => {
+    const cleanEmail = (targetEmail || "").trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setError("Please enter a valid email address (e.g. name@gmail.com).");
+      setOtpShake(true);
+      setTimeout(() => setOtpShake(false), 500);
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    setLoadingText("Sending 6-digit security code...");
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          name: targetName || cleanEmail.split("@")[0],
+          mode: "google-verify",
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data?.error || "Unable to send verification code. Please check your email.");
+        setOtpShake(true);
+        setTimeout(() => setOtpShake(false), 500);
+        return;
+      }
+
+      setEmail(cleanEmail);
+      setName(targetName || cleanEmail.split("@")[0]);
+      setAuthMode("google-otp");
+      setStep("otp");
+      setOtpDigits(["", "", "", "", "", ""]);
+      setOtpTimer(45);
+      setResendActive(false);
+      notify(`🔐 6-digit verification code sent to ${cleanEmail}.`);
+      setTimeout(() => otpInputsRef.current[0]?.focus(), 150);
+    } catch (err) {
+      console.error("send-otp error:", err);
+      setError("Unable to connect to verification server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const effectiveGoogleAccounts = useMemo(() => {
     const list = [...savedGoogleAccounts];
     if (email && email.includes("@")) {
@@ -1473,7 +1525,12 @@ function AuthModal({
       const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, mode: authMode }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          mode: authMode === "google-otp" ? "google-verify" : authMode,
+        }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -1549,6 +1606,9 @@ function AuthModal({
       } else if (authMode === "forgot") {
         endpoint = "/api/auth/reset-password";
         body = { email: effectiveEmail, otp: enteredOtp, newPassword: effectivePassword };
+      } else if (authMode === "google-otp") {
+        endpoint = "/api/auth/google";
+        body = { email: effectiveEmail, otp: enteredOtp, name: effectiveName };
       }
 
       const res = await fetch(`${BACKEND_URL}${endpoint}`, {
@@ -1578,6 +1638,13 @@ function AuthModal({
 
       safeStorage.set("rockgpt-token", data.token, rememberMe);
       safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
+      if (data?.user) {
+        saveGoogleAccountToStorage({
+          email: data.user.email,
+          name: data.user.name,
+          avatar: data.user.avatar,
+        });
+      }
       onSuccess(data.user, data.token);
       notify(
         authMode === "forgot"
@@ -1664,7 +1731,11 @@ function AuthModal({
           {step !== "credentials" ? (
             <button
               onClick={() => {
-                setStep("credentials");
+                if (step === "otp" && authMode === "google-otp") {
+                  setStep("google");
+                } else {
+                  setStep("credentials");
+                }
                 setError("");
               }}
               className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white"
@@ -2120,12 +2191,7 @@ function AuthModal({
                   type="button"
                   disabled={loading}
                   onClick={() => {
-                    handleGoogleSignIn({
-                      email: acc.email,
-                      name: acc.name,
-                      avatar: acc.avatar,
-                      googleId: `goog_${Date.now()}`,
-                    });
+                    requestGoogleEmailOtp(acc.email, acc.name);
                   }}
                   className={`flex w-full items-center gap-3 p-3 text-left transition cursor-pointer ${
                     dark ? "hover:bg-white/[0.06] bg-white/[0.02]" : "hover:bg-neutral-50 bg-white"
@@ -2143,7 +2209,7 @@ function AuthModal({
                     <div className="truncate text-[11px] text-neutral-400">{acc.email}</div>
                   </div>
                   <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[9px] font-bold text-cyan-400 shrink-0">
-                    Sign in ➔
+                    Verify ➔
                   </span>
                 </button>
               ))}
@@ -2161,7 +2227,7 @@ function AuthModal({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold">Use another account</div>
-                  <div className="text-[10px] text-neutral-400">Sign in with a different Google email</div>
+                  <div className="text-[10px] text-neutral-400">Verify a different Google email with 6-digit code</div>
                 </div>
                 <ChevronRight size={14} className="text-neutral-400" />
               </button>
@@ -2173,17 +2239,7 @@ function AuthModal({
                 onSubmit={(e) => {
                   e.preventDefault();
                   const cleanEmail = googleInputEmail.trim().toLowerCase();
-                  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-                    setError("Please enter a valid Google email address.");
-                    return;
-                  }
-                  handleGoogleSignIn({
-                    email: cleanEmail,
-                    name: cleanEmail.split("@")[0].replace(/[^a-zA-Z0-9_\-\s]/g, ""),
-                    googleId: `goog_${Date.now()}`,
-                    avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`,
-                  });
+                  requestGoogleEmailOtp(cleanEmail, cleanEmail.split("@")[0]);
                 }}
                 className="space-y-2.5 pt-1"
               >
@@ -2199,7 +2255,7 @@ function AuthModal({
                         setGoogleInputEmail(e.target.value);
                         setError("");
                       }}
-                      placeholder="Email or phone (e.g. yourname@gmail.com)"
+                      placeholder="Enter Google email (e.g. name@gmail.com)"
                       className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
                         dark
                           ? "border-white/15 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-cyan-400"
@@ -2217,15 +2273,18 @@ function AuthModal({
                   {loading ? (
                     <>
                       <Loader2 size={14} className="animate-spin text-black" />
-                      <span>Signing in with Google...</span>
+                      <span>Sending 6-Digit Code...</span>
                     </>
                   ) : (
                     <>
-                      <GoogleIcon className="h-3.5 w-3.5" />
-                      <span>Continue with Google ➔</span>
+                      <ShieldCheck size={14} className="text-black" />
+                      <span>Send 6-Digit Verification Code ➔</span>
                     </>
                   )}
                 </button>
+                <p className="text-[10px] text-neutral-400 text-center leading-relaxed">
+                  🔒 A 6-digit security code will be sent to your email to verify account ownership.
+                </p>
               </form>
             )}
 
@@ -2342,7 +2401,11 @@ function AuthModal({
                 <div className="absolute -inset-1 -z-10 animate-ping rounded-2xl bg-amber-500/10" style={{ animationDuration: "2s" }} />
               </div>
               <h2 className="text-lg font-bold tracking-tight">
-                {authMode === "forgot" ? "Reset Your Password" : "Enter Security Code"}
+                {authMode === "forgot"
+                  ? "Reset Your Password"
+                  : authMode === "google-otp"
+                  ? "Verify Google Account"
+                  : "Enter Security Code"}
               </h2>
               <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
                 Check your inbox! We've sent a 6-digit code to <br />

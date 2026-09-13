@@ -219,10 +219,13 @@ async function verifyGoogleCredential(credential) {
     if (!payload || !payload.email) {
       throw new Error("Invalid Google token payload");
     }
+    if (payload.email_verified === false || payload.email_verified === "false") {
+      throw new Error("Google email address is not verified by Google");
+    }
     return {
       success: true,
       email: payload.email.toLowerCase().trim(),
-      name: payload.name || payload.email.split("@")[0],
+      name: (payload.name || payload.email.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50),
       googleId: payload.sub,
       avatar: payload.picture || "",
     };
@@ -395,8 +398,8 @@ function authMiddleware(req, res, next) {
 app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
   try {
     const { name, email, password, mode } = req.body;
-    if (!email || (mode !== "forgot" && !password)) {
-      return res.status(400).json({ error: "Email and password are required." });
+    if (!email) {
+      return res.status(400).json({ error: "Email address is required." });
     }
     const em = email.trim().toLowerCase();
 
@@ -404,6 +407,10 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(em)) {
       return res.status(400).json({ error: "Please enter a valid email address (e.g. name@gmail.com)." });
+    }
+
+    if (mode !== "forgot" && mode !== "google-verify" && mode !== "email-otp" && !password) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
     if (mode === "signup") {
@@ -442,13 +449,17 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
     }
 
     const otp = generateOtp();
-    const emailSubject = mode === "forgot" ? "Reset Your RockGPT Password" : "Your RockGPT Verification Code";
+    const emailSubject = mode === "forgot"
+      ? "Reset Your RockGPT Password"
+      : mode === "google-verify" || mode === "email-otp"
+      ? "Your RockGPT 6-Digit Verification Code"
+      : "Your RockGPT Verification Code";
 
     try {
       await sendEmail({
         to: em,
         subject: emailSubject,
-        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">${emailSubject}</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this 6-digit code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share.</p></div>`,
+        html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border-radius:16px;color:#e5e5e5;"><div style="text-align:center;margin-bottom:24px;"><div style="display:inline-block;background:#fff;color:#000;font-weight:900;font-size:20px;width:48px;height:48px;line-height:48px;border-radius:14px;">R</div></div><h2 style="text-align:center;color:#fff;">${emailSubject}</h2><p style="text-align:center;color:#999;font-size:14px;">Enter this 6-digit code in RockGPT to verify your identity.</p><div style="text-align:center;background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:20px;margin:16px 0;"><span style="font-size:36px;font-weight:700;letter-spacing:8px;color:#f59e0b;font-family:monospace;">${otp}</span></div><p style="text-align:center;color:#666;font-size:12px;">Expires in 5 minutes. Do not share this security code with anyone.</p></div>`,
       });
 
       // Email was successfully dispatched! Now store OTP for verification.
@@ -747,7 +758,7 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
 // ═══ GOOGLE OAUTH 2.0 / ONE-TAP SIGN-IN ═══
 app.post("/api/auth/google", authLimiter, async (req, res) => {
   try {
-    const { credential, email: directEmail, name: directName, googleId: directGoogleId, avatar: directAvatar } = req.body;
+    const { credential, email: directEmail, otp, name: directName, googleId: directGoogleId, avatar: directAvatar } = req.body;
     let googleUser = null;
 
     if (credential) {
@@ -757,20 +768,26 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
       } else {
         return res.status(400).json({ error: `Google verification failed: ${verified.error}` });
       }
-    } else if (directEmail) {
+    } else if (directEmail && otp) {
       const cleanEmail = directEmail.toLowerCase().trim();
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!emailRegex.test(cleanEmail)) {
         return res.status(400).json({ error: "Invalid email address format. Please enter a valid email." });
+      }
+      const otpR = verifyStoredOtp(cleanEmail, otp.trim());
+      if (!otpR.valid) {
+        return res.status(400).json({ error: otpR.error || "Invalid or expired verification code." });
       }
       googleUser = {
         email: cleanEmail,
         name: (directName || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50),
-        googleId: directGoogleId || `google_${Date.now()}`,
-        avatar: directAvatar || "",
+        googleId: directGoogleId || `google_verified_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
+        avatar: directAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`,
       };
     } else {
-      return res.status(400).json({ error: "Missing Google authentication credential." });
+      return res.status(400).json({
+        error: "Security verification required. Please provide a verified Google credential or enter your 6-digit email verification code.",
+      });
     }
 
     let user = await User.findOne({
