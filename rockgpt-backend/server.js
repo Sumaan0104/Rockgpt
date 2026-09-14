@@ -9,6 +9,8 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import User from "./models/User.js";
+import Conversation from "./models/Conversation.js";
+import Message from "./models/Message.js";
 
 dotenv.config();
 
@@ -394,6 +396,23 @@ function authMiddleware(req, res, next) {
   catch { req.user = null; next(); }
 }
 
+function requireAuth(req, res, next) {
+  const h = req.headers.authorization;
+  if (!h || !h.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized. Please log in to access this resource." });
+  }
+  try {
+    const decoded = jwt.verify(h.split(" ")[1], JWT_SECRET);
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ error: "Invalid session. Please log in again." });
+    }
+    req.user = decoded;
+    next();
+  } catch {
+    return res.status(401).json({ error: "Session expired or invalid token. Please log in again." });
+  }
+}
+
 // ═══ SEND OTP ═══
 app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
   try {
@@ -427,7 +446,7 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
       // Check if email already registered
       const existingEmail = await User.findOne({ email: em });
       if (existingEmail) {
-        return res.status(409).json({ error: `This email (${em}) is already registered. Please sign in instead.` });
+        return res.status(409).json({ error: "An account with this email already exists. Please log in instead." });
       }
 
       if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
@@ -557,7 +576,7 @@ app.post("/api/auth/signup", authLimiter, async (req, res) => {
       return res.status(409).json({ error: `The name "${name.trim()}" is already taken. Please choose another.` });
     }
     if (await User.findOne({ email: em })) {
-      return res.status(409).json({ error: "Account already exists. Please sign in instead." });
+      return res.status(409).json({ error: "An account with this email already exists. Please log in instead." });
     }
 
     const user = new User({
@@ -1084,6 +1103,286 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
       },
     });
   } catch { res.status(500).json({ error: "Something went wrong." }); }
+});
+
+// ═══ STRICT ACCOUNT-WISE CONVERSATION & MESSAGE API (IDOR PROTECTED) ═══
+
+// 1. Get all conversations for authenticated user
+app.get("/api/conversations", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const conversations = await Conversation.find({ userId }).sort({ updatedAt: -1 }).lean();
+    const convIds = conversations.map((c) => c._id);
+
+    const messages = await Message.find({ conversationId: { $in: convIds } }).sort({ createdAt: 1 }).lean();
+
+    const messagesByConv = {};
+    for (const m of messages) {
+      const cId = m.conversationId.toString();
+      if (!messagesByConv[cId]) messagesByConv[cId] = [];
+      messagesByConv[cId].push({
+        id: m._id.toString(),
+        role: m.role,
+        content: m.content,
+        attachment: m.attachment || null,
+        liked: m.liked,
+        createdAt: m.createdAt,
+      });
+    }
+
+    const result = conversations.map((c) => ({
+      id: c._id.toString(),
+      title: c.title,
+      model: c.model,
+      pinned: c.pinned,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      messages: messagesByConv[c._id.toString()] || [],
+    }));
+
+    res.json({ conversations: result });
+  } catch (err) {
+    console.error("Fetch conversations error:", err.message);
+    res.status(500).json({ error: "Failed to load conversations." });
+  }
+});
+
+// 2. Get single conversation + messages (Strict IDOR authorization)
+app.get("/api/conversations/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid conversation ID format." });
+    }
+
+    const conv = await Conversation.findById(id);
+    if (!conv) {
+      return res.status(404).json({ error: "Conversation not found." });
+    }
+
+    // STRICT SERVER-SIDE AUTHORIZATION: Enforce authenticated ownership
+    if (conv.userId.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ error: "Access denied. You do not own this conversation." });
+    }
+
+    const messages = await Message.find({ conversationId: conv._id }).sort({ createdAt: 1 }).lean();
+
+    res.json({
+      conversation: {
+        id: conv._id.toString(),
+        title: conv.title,
+        model: conv.model,
+        pinned: conv.pinned,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+        messages: messages.map((m) => ({
+          id: m._id.toString(),
+          role: m.role,
+          content: m.content,
+          attachment: m.attachment || null,
+          liked: m.liked,
+          createdAt: m.createdAt,
+        })),
+      },
+    });
+  } catch (err) {
+    console.error("Get conversation error:", err.message);
+    res.status(500).json({ error: "Failed to retrieve conversation." });
+  }
+});
+
+// 3. Create a new conversation for authenticated user
+app.post("/api/conversations", requireAuth, async (req, res) => {
+  try {
+    const { title, model, pinned, initialMessage } = req.body;
+    const conv = new Conversation({
+      userId: req.user.id,
+      title: (title || "New chat").trim().slice(0, 200),
+      model: model || "RockGPT Flash",
+      pinned: Boolean(pinned),
+    });
+    await conv.save();
+
+    let createdMessage = null;
+    if (initialMessage && initialMessage.role && initialMessage.content !== undefined) {
+      createdMessage = new Message({
+        conversationId: conv._id,
+        userId: req.user.id,
+        role: initialMessage.role,
+        content: initialMessage.content,
+        attachment: initialMessage.attachment || null,
+      });
+      await createdMessage.save();
+    }
+
+    res.status(201).json({
+      conversation: {
+        id: conv._id.toString(),
+        title: conv.title,
+        model: conv.model,
+        pinned: conv.pinned,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+        messages: createdMessage
+          ? [
+              {
+                id: createdMessage._id.toString(),
+                role: createdMessage.role,
+                content: createdMessage.content,
+                attachment: createdMessage.attachment || null,
+                createdAt: createdMessage.createdAt,
+              },
+            ]
+          : [],
+      },
+    });
+  } catch (err) {
+    console.error("Create conversation error:", err.message);
+    res.status(500).json({ error: "Failed to create conversation." });
+  }
+});
+
+// 4. Append message to conversation (Strict IDOR authorization)
+app.post("/api/conversations/:id/messages", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid conversation ID format." });
+    }
+
+    const conv = await Conversation.findById(id);
+    if (!conv) {
+      return res.status(404).json({ error: "Conversation not found." });
+    }
+
+    // STRICT SERVER-SIDE AUTHORIZATION: Enforce authenticated ownership
+    if (conv.userId.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ error: "Access denied. You do not own this conversation." });
+    }
+
+    const { role, content, attachment, updateTitle } = req.body;
+    if (!role || content === undefined || content === null) {
+      return res.status(400).json({ error: "Message role and content are required." });
+    }
+
+    const msg = new Message({
+      conversationId: conv._id,
+      userId: req.user.id,
+      role,
+      content,
+      attachment: attachment || null,
+    });
+    await msg.save();
+
+    conv.updatedAt = new Date();
+    if (updateTitle && typeof updateTitle === "string" && (conv.title === "New chat" || conv.title === "Chat")) {
+      conv.title = updateTitle.trim().slice(0, 60);
+    }
+    await conv.save();
+
+    res.status(201).json({
+      message: {
+        id: msg._id.toString(),
+        role: msg.role,
+        content: msg.content,
+        attachment: msg.attachment || null,
+        createdAt: msg.createdAt,
+      },
+      conversation: {
+        id: conv._id.toString(),
+        title: conv.title,
+        updatedAt: conv.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error("Add message error:", err.message);
+    res.status(500).json({ error: "Failed to save message." });
+  }
+});
+
+// 5. Update / Rename / Pin conversation (Strict IDOR authorization)
+app.patch("/api/conversations/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid conversation ID format." });
+    }
+
+    const conv = await Conversation.findById(id);
+    if (!conv) {
+      return res.status(404).json({ error: "Conversation not found." });
+    }
+
+    // STRICT SERVER-SIDE AUTHORIZATION: Enforce authenticated ownership
+    if (conv.userId.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ error: "Access denied. You do not own this conversation." });
+    }
+
+    const { title, pinned, model } = req.body;
+    if (title !== undefined) conv.title = String(title).trim().slice(0, 200) || "New chat";
+    if (pinned !== undefined) conv.pinned = Boolean(pinned);
+    if (model !== undefined) conv.model = String(model).trim();
+    conv.updatedAt = new Date();
+    await conv.save();
+
+    res.json({
+      conversation: {
+        id: conv._id.toString(),
+        title: conv.title,
+        pinned: conv.pinned,
+        model: conv.model,
+        updatedAt: conv.updatedAt,
+      },
+    });
+  } catch (err) {
+    console.error("Update conversation error:", err.message);
+    res.status(500).json({ error: "Failed to update conversation." });
+  }
+});
+
+// 6. Delete a single conversation + its messages (Strict IDOR authorization)
+app.delete("/api/conversations/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid conversation ID format." });
+    }
+
+    const conv = await Conversation.findById(id);
+    if (!conv) {
+      return res.status(404).json({ error: "Conversation not found." });
+    }
+
+    // STRICT SERVER-SIDE AUTHORIZATION: Enforce authenticated ownership
+    if (conv.userId.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ error: "Access denied. You do not own this conversation." });
+    }
+
+    await Message.deleteMany({ conversationId: conv._id });
+    await Conversation.findByIdAndDelete(conv._id);
+
+    res.json({ success: true, message: "Conversation deleted successfully." });
+  } catch (err) {
+    console.error("Delete conversation error:", err.message);
+    res.status(500).json({ error: "Failed to delete conversation." });
+  }
+});
+
+// 7. Clear all conversations + messages for authenticated user
+app.delete("/api/conversations", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userConvs = await Conversation.find({ userId }).select("_id");
+    const convIds = userConvs.map((c) => c._id);
+
+    await Message.deleteMany({ conversationId: { $in: convIds } });
+    const result = await Conversation.deleteMany({ userId });
+
+    res.json({ success: true, count: result.deletedCount, message: "All conversations cleared." });
+  } catch (err) {
+    console.error("Clear conversations error:", err.message);
+    res.status(500).json({ error: "Failed to clear conversations." });
+  }
 });
 
 // ═══ GEMINI STREAMING ENGINE ═══

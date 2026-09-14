@@ -852,6 +852,76 @@ function UserProfileMenu({
 }
 
 /* =========================================================================
+   LOGOUT CONFIRMATION MODAL
+   ========================================================================= */
+function LogoutConfirmModal({ isOpen, onClose, onConfirm, dark, userEmail }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[220] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Dialog Box */}
+      <div
+        className={`relative w-full max-w-md rounded-2xl border p-6 shadow-2xl transition-all scale-100 ${
+          dark
+            ? "border-white/10 bg-[#141414] text-white"
+            : "border-neutral-200 bg-white text-neutral-900"
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logout-dialog-title"
+      >
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-red-500">
+            <LogOut size={24} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 id="logout-dialog-title" className="text-lg font-semibold tracking-tight">
+              Log out of RockGPT?
+            </h3>
+            <p className={`mt-2 text-xs leading-relaxed ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
+              {userEmail && (
+                <span className="block mb-1">
+                  You are currently signed in as <strong className={dark ? "text-neutral-200" : "text-neutral-800"}>{userEmail}</strong>.
+                </span>
+              )}
+              Your chat history is securely saved to your account in the cloud and will be safely restored whenever you log back in.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`rounded-xl px-4 py-2.5 text-xs font-semibold transition cursor-pointer ${
+              dark
+                ? "bg-white/5 text-neutral-300 hover:bg-white/10"
+                : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+            }`}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-red-600/20 hover:bg-red-500 transition active:scale-95 cursor-pointer"
+          >
+            <LogOut size={14} />
+            <span>Log out</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
    AUTHENTICATION & SECURE 6-DIGIT OTP VERIFICATION MODAL
    ========================================================================= */
 function AuthModal({
@@ -3794,7 +3864,7 @@ export default function RockGPT() {
     try {
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
       const key = getStorageKey(savedUser);
-      const saved = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
+      const saved = safeStorage.get(key);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -3809,7 +3879,7 @@ export default function RockGPT() {
     try {
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
       const key = getStorageKey(savedUser);
-      const saved = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
+      const saved = safeStorage.get(key);
       const savedActiveId = safeStorage.get("rockgpt-active-id");
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -3826,7 +3896,7 @@ export default function RockGPT() {
     try {
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
       const key = getStorageKey(savedUser);
-      const savedConvs = safeStorage.get(key) || safeStorage.get("rockgpt-conversations");
+      const savedConvs = safeStorage.get(key);
       const savedActiveId = safeStorage.get("rockgpt-active-id");
       if (savedConvs) {
         const parsed = JSON.parse(savedConvs);
@@ -3845,6 +3915,7 @@ export default function RockGPT() {
     }
     return [];
   });
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -3999,10 +4070,57 @@ export default function RockGPT() {
         setAuthModalOpen(false);
         setProfileMenuOpen(false);
         setHeaderProfileOpen(false);
+        setLogoutConfirmOpen(false);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const notify = (text) => {
+    setNotice(text);
+    setTimeout(() => setNotice(null), 2800);
+  };
+
+  // FETCH PERSISTENT CONVERSATIONS FROM BACKEND (ACCOUNT-WISE ISOLATION)
+  const fetchConversations = useCallback(async (token) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          logout();
+        }
+        return;
+      }
+      const data = await res.json();
+      const convs = Array.isArray(data.conversations) ? data.conversations : [];
+      setConversations(convs);
+
+      // Restore active conversation for this user
+      const savedActiveId = safeStorage.get("rockgpt-active-id");
+      const target = (savedActiveId && convs.find((c) => c && c.id === savedActiveId)) || convs[0];
+      if (target) {
+        setActiveId(target.id);
+        safeStorage.set("rockgpt-active-id", target.id);
+        setMessages(
+          Array.isArray(target.messages)
+            ? target.messages.map((m) => ({
+                ...m,
+                createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
+              }))
+            : []
+        );
+      } else {
+        setActiveId(null);
+        safeStorage.remove("rockgpt-active-id");
+        setMessages([]);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch conversations from server:", err);
+    }
   }, []);
 
   useEffect(() => {
@@ -4013,10 +4131,15 @@ export default function RockGPT() {
       .then((res) => {
         if (!res.ok) {
           if (res.status === 401) {
-            localStorage.removeItem("rockgpt-token");
-            localStorage.removeItem("rockgpt-user");
+            safeStorage.remove("rockgpt-token");
+            safeStorage.remove("rockgpt-user");
+            safeStorage.remove("rockgpt-active-id");
+            safeStorage.remove("rockgpt-conversations");
             setAuthToken(null);
             setUser(null);
+            setConversations([]);
+            setMessages([]);
+            setActiveId(null);
           }
           return null;
         }
@@ -4025,18 +4148,15 @@ export default function RockGPT() {
       .then((data) => {
         if (data?.user) {
           setUser(data.user);
-          localStorage.setItem("rockgpt-user", JSON.stringify(data.user));
+          safeStorage.set("rockgpt-user", JSON.stringify(data.user));
         }
       })
       .catch(() => {
         // Retain cached session during network delay or cold start
       });
-  }, [authToken]);
 
-  const notify = (text) => {
-    setNotice(text);
-    setTimeout(() => setNotice(null), 2800);
-  };
+    fetchConversations(authToken);
+  }, [authToken, fetchConversations]);
 
   const toggleSpeech = (msgId, text) => {
     if (!("speechSynthesis" in window)) {
@@ -4080,62 +4200,14 @@ export default function RockGPT() {
     setGateLocked(false);
     setSidebarOpen(false);
 
-    // 1. Load the logged-in user's existing saved conversations
-    const userKey = getStorageKey(loggedUser);
-    let loadedConvs = [];
-    try {
-      const raw = safeStorage.get(userKey) || safeStorage.get("rockgpt-conversations");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) loadedConvs = parsed;
-      }
-    } catch (e) {
-      console.warn("Failed to load user conversations:", e);
-    }
+    // Completely wipe previous in-memory chats to prevent cross-account leakage
+    setConversations([]);
+    setMessages([]);
+    setActiveId(null);
+    safeStorage.remove("rockgpt-active-id");
 
-    // 2. If the user had an active chat in progress before logging in, preserve it
-    if (messages && messages.length > 0) {
-      const currentId = activeId || uid("chat");
-      const existingIdx = loadedConvs.findIndex((c) => c && c.id === currentId);
-      const firstText = messages.find((m) => m && m.content)?.content;
-      const currentTitle = (typeof firstText === "string" ? firstText : "Chat").slice(0, 50) || "Chat";
-
-      const activeChatObj = {
-        id: currentId,
-        title: existingIdx >= 0 && loadedConvs[existingIdx]?.title ? loadedConvs[existingIdx].title : currentTitle,
-        pinned: existingIdx >= 0 && loadedConvs[existingIdx]?.pinned ? loadedConvs[existingIdx].pinned : false,
-        messages: messages,
-        updatedAt: new Date(),
-      };
-
-      if (existingIdx >= 0) {
-        loadedConvs[existingIdx] = activeChatObj;
-      } else {
-        loadedConvs = [activeChatObj, ...loadedConvs];
-      }
-
-      setActiveId(currentId);
-      safeStorage.set("rockgpt-active-id", currentId);
-      setConversations(loadedConvs);
-      safeStorage.set(userKey, JSON.stringify(loadedConvs));
-    } else if (loadedConvs.length > 0) {
-      // 3. User had no active chat, restore their most recent conversation ("backed as it is")
-      setConversations(loadedConvs);
-      const savedActiveId = safeStorage.get("rockgpt-active-id");
-      const targetConv = (savedActiveId && loadedConvs.find((c) => c && c.id === savedActiveId)) || loadedConvs[0];
-      if (targetConv && Array.isArray(targetConv.messages) && targetConv.messages.length > 0) {
-        setActiveId(targetConv.id);
-        safeStorage.set("rockgpt-active-id", targetConv.id);
-        setMessages(targetConv.messages.map((m) => ({
-          ...m,
-          createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
-        })));
-      }
-    } else {
-      setConversations([]);
-      setActiveId(null);
-      setMessages([]);
-    }
+    // Fetch this authenticated user's private conversations from the database
+    fetchConversations(token);
   };
 
   const handlePaymentSuccess = (updatedUser, token) => {
@@ -4149,29 +4221,37 @@ export default function RockGPT() {
     localStorage.setItem("rockgpt-model", "RockGPT 4o");
   };
 
-  // EXPLICIT LOGOUT FUNCTION
+  // EXPLICIT LOGOUT FUNCTION (ABSOLUTE ISOLATION & PURGE)
   const logout = () => {
-    localStorage.removeItem("rockgpt-token");
-    localStorage.removeItem("rockgpt-user");
+    setLogoutConfirmOpen(false);
+    abortRef.current?.abort();
+
+    // Clear authentication & shared session storage keys
+    safeStorage.remove("rockgpt-token");
+    safeStorage.remove("rockgpt-user");
+    safeStorage.remove("rockgpt-active-id");
+    safeStorage.remove("rockgpt-conversations");
+
     setAuthToken(null);
     setUser(null);
     setAuthModalOpen(false);
     setGateOpen(false);
     setProfileMenuOpen(false);
     setHeaderProfileOpen(false);
+    setSettingsOpen(false);
 
-    // Wipe user chats so guest starts fresh on a clean new page
+    // Complete purge of in-memory chat state
     setActiveId(null);
-    localStorage.removeItem("rockgpt-active-id");
     setMessages([]);
     setInput("");
     setStreaming("");
+    setTyping(false);
     setAttachment(null);
     setSelectedModel("RockGPT Flash");
 
     // Load clean guest conversations
     try {
-      const guestSaved = localStorage.getItem("rockgpt-conversations_guest");
+      const guestSaved = safeStorage.get("rockgpt-conversations_guest");
       setConversations(guestSaved ? JSON.parse(guestSaved) : []);
     } catch {
       setConversations([]);
@@ -4182,7 +4262,7 @@ export default function RockGPT() {
 
   const newChat = useCallback(() => {
     setActiveId(null);
-    localStorage.removeItem("rockgpt-active-id");
+    safeStorage.remove("rockgpt-active-id");
     setMessages([]);
     setInput("");
     setStreaming("");
@@ -4197,7 +4277,14 @@ export default function RockGPT() {
     if (!c) return;
     setActiveId(id);
     safeStorage.set("rockgpt-active-id", id);
-    setMessages(Array.isArray(c.messages) ? c.messages.map((m) => ({ ...m, createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date() })) : []);
+    setMessages(
+      Array.isArray(c.messages)
+        ? c.messages.map((m) => ({
+            ...m,
+            createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
+          }))
+        : []
+    );
     setSidebarOpen(false);
   };
 
@@ -4214,10 +4301,10 @@ export default function RockGPT() {
       };
       setConversations((prev) => [c, ...prev]);
       setActiveId(id);
-      localStorage.setItem("rockgpt-active-id", id);
+      safeStorage.set("rockgpt-active-id", id);
     } else {
       setConversations((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, messages: [...c.messages, firstMessage], updatedAt: new Date() } : c))
+        prev.map((c) => (c && c.id === id ? { ...c, messages: [...c.messages, firstMessage], updatedAt: new Date() } : c))
       );
     }
     return id;
@@ -4294,13 +4381,23 @@ export default function RockGPT() {
         const m = { id: uid("msg"), role: "assistant", content: fullText, createdAt: new Date(), liked: null };
         setMessages((prev) => [...prev, m]);
         setConversations((prev) =>
-          prev.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, m], updatedAt: new Date() } : c))
+          prev.map((c) => (c && c.id === convId ? { ...c, messages: [...c.messages, m], updatedAt: new Date() } : c))
         );
+        if (authToken && convId) {
+          fetch(`${BACKEND_URL}/api/conversations/${convId}/messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ role: "assistant", content: fullText }),
+          }).catch((err) => console.warn("Failed to persist assistant message to server:", err));
+        }
       }
     }
   };
 
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
     if ((!text && !attachment) || typing) return;
 
@@ -4333,10 +4430,86 @@ export default function RockGPT() {
     if (inputRef.current) inputRef.current.style.height = "auto";
     setTyping(true);
 
-    const convId = createConversationIfNeeded(userMsg);
+    let convId = activeId;
+    const currentTitle = (text || "Image message").slice(0, 50) || "New chat";
+
+    if (!convId) {
+      if (authToken) {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/conversations`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+              title: currentTitle,
+              model: selectedModel,
+              initialMessage: {
+                role: "user",
+                content: backendContent,
+                attachment: displayAttachment,
+              },
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.conversation?.id) {
+              convId = data.conversation.id;
+              const newConv = {
+                id: convId,
+                title: currentTitle,
+                model: selectedModel,
+                pinned: false,
+                messages: [userMsg],
+                updatedAt: new Date(),
+              };
+              setConversations((prev) => [newConv, ...prev]);
+              setActiveId(convId);
+              safeStorage.set("rockgpt-active-id", convId);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to create conversation on server:", e);
+        }
+      }
+
+      if (!convId) {
+        convId = uid("chat");
+        const newConv = {
+          id: convId,
+          title: currentTitle,
+          pinned: false,
+          messages: [userMsg],
+          updatedAt: new Date(),
+        };
+        setConversations((prev) => [newConv, ...prev]);
+        setActiveId(convId);
+        safeStorage.set("rockgpt-active-id", convId);
+      }
+    } else {
+      setConversations((prev) =>
+        prev.map((c) => (c && c.id === convId ? { ...c, messages: [...c.messages, userMsg], updatedAt: new Date() } : c))
+      );
+      if (authToken) {
+        fetch(`${BACKEND_URL}/api/conversations/${convId}/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            role: "user",
+            content: backendContent,
+            attachment: displayAttachment,
+          }),
+        }).catch((err) => console.warn("Failed to persist user message:", err));
+      }
+    }
+
     const history = updatedMessages.map((m) => ({ role: m.role, content: m.content }));
     streamFromBackend(history, convId);
-  }, [input, typing, activeId, messages, attachment, selectedModel, fastMode]);
+  }, [input, typing, activeId, messages, attachment, selectedModel, fastMode, authToken]);
 
   const stopGeneration = () => {
     abortRef.current?.abort();
@@ -4366,22 +4539,55 @@ export default function RockGPT() {
   };
 
   const deleteChat = (id) => {
-    setConversations((prev) => prev.filter((c) => c.id !== id));
+    setConversations((prev) => prev.filter((c) => c && c.id !== id));
     if (activeId === id) {
-      localStorage.removeItem("rockgpt-active-id");
+      safeStorage.remove("rockgpt-active-id");
       newChat();
+    }
+    if (authToken && id) {
+      fetch(`${BACKEND_URL}/api/conversations/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}` },
+      }).catch((e) => console.warn("Failed to delete chat on server:", e));
     }
   };
 
   const renameChat = (id, title) => {
-    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title } : c)));
+    setConversations((prev) => prev.map((c) => (c && c.id === id ? { ...c, title } : c)));
     setEditing(null);
+    if (authToken && id) {
+      fetch(`${BACKEND_URL}/api/conversations/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ title }),
+      }).catch((e) => console.warn("Failed to rename chat on server:", e));
+    }
   };
 
   const togglePinChat = (id) => {
+    let nextPinned = false;
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, pinned: !c.pinned } : c))
+      prev.map((c) => {
+        if (c && c.id === id) {
+          nextPinned = !c.pinned;
+          return { ...c, pinned: nextPinned };
+        }
+        return c;
+      })
     );
+    if (authToken && id) {
+      fetch(`${BACKEND_URL}/api/conversations/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ pinned: nextPinned }),
+      }).catch((e) => console.warn("Failed to update pin on server:", e));
+    }
   };
 
   const exportChat = () => {
@@ -4999,7 +5205,7 @@ export default function RockGPT() {
               dark={dark}
               isOpen={profileMenuOpen}
               onClose={() => setProfileMenuOpen(false)}
-              onLogout={logout}
+              onLogout={() => setLogoutConfirmOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenUpgrade={() => setPricingOpen(true)}
               onOpenSecurity={() => setSecurityOpen(true)}
@@ -5284,7 +5490,7 @@ export default function RockGPT() {
                         <Settings size={15} className="text-neutral-400" /> <span className="flex-1">Settings</span>
                       </button>
                       <div className="my-1 border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }} />
-                      <button onClick={() => { setHeaderProfileOpen(false); logout(); }} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-red-500 hover:bg-red-500/10 transition">
+                      <button onClick={() => { setHeaderProfileOpen(false); setLogoutConfirmOpen(true); }} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-semibold text-red-500 hover:bg-red-500/10 transition cursor-pointer">
                         <LogOut size={15} /> <span className="flex-1">Log out of RockGPT</span>
                       </button>
                     </div>
@@ -5832,6 +6038,15 @@ export default function RockGPT() {
         notify={notify}
       />
 
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={logoutConfirmOpen}
+        onClose={() => setLogoutConfirmOpen(false)}
+        onConfirm={logout}
+        dark={dark}
+        userEmail={user?.email}
+      />
+
       {/* Settings Modal (WITH CLEAR LOGOUT BUTTON) */}
       {settingsOpen && (
         <div
@@ -5907,10 +6122,16 @@ export default function RockGPT() {
                     if (window.confirm("Are you sure? This will delete ALL chat history forever.")) {
                       setConversations([]);
                       newChat();
+                      if (authToken) {
+                        fetch(`${BACKEND_URL}/api/conversations`, {
+                          method: "DELETE",
+                          headers: { Authorization: `Bearer ${authToken}` },
+                        }).catch((e) => console.warn("Failed to clear conversations on server:", e));
+                      }
                       notify("All chats cleared");
                     }
                   }}
-                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/20 transition"
+                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/20 transition cursor-pointer"
                 >
                   Clear
                 </button>
@@ -5997,9 +6218,9 @@ export default function RockGPT() {
                     <button
                       onClick={() => {
                         setSettingsOpen(false);
-                        logout();
+                        setLogoutConfirmOpen(true);
                       }}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-2.5 text-xs font-bold text-red-500 hover:bg-red-500/20 transition"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-500/10 py-2.5 text-xs font-bold text-red-500 hover:bg-red-500/20 transition cursor-pointer"
                     >
                       <LogOut size={14} /> Log out of RockGPT
                     </button>
