@@ -222,7 +222,7 @@ export function setGoogleOAuthClientForTesting(client) {
 
 export function getGoogleOAuthClient() {
   if (testOAuth2Client) return testOAuth2Client;
-  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientId = process.env.GOOGLE_CLIENT_ID || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com";
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     return null;
@@ -800,7 +800,7 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
       try {
         ticket = await client.verifyIdToken({
           idToken: tokens.id_token,
-          audience: process.env.GOOGLE_CLIENT_ID,
+          audience: process.env.GOOGLE_CLIENT_ID || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com",
         });
       } catch (verifyErr) {
         console.warn("Google ID token verification failed:", verifyErr.message);
