@@ -12,8 +12,13 @@ import {
   Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck, CreditCard,
   SquarePen, PenLine, Eye, EyeOff
 } from "lucide-react";
+import GoogleSignInButton from "./components/GoogleSignInButton.jsx";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://rockgpt.onrender.com";
+const BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL ||
+  (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+    ? "http://localhost:5000"
+    : "https://rockgpt.onrender.com");
 const UPI_ID = "mansurisumaan-2@okhdfcbank";
 const PAYEE_NAME = "RockGPT";
 
@@ -935,7 +940,7 @@ function AuthModal({
   initialMode = "login",
 }) {
   const [authMode, setAuthMode] = useState(initialMode || "login");
-  const [step, setStep] = useState("credentials"); // "credentials" | "otp" | "totp-2fa" | "google"
+  const [step, setStep] = useState("credentials"); // "credentials" | "otp" | "totp-2fa"
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -965,19 +970,6 @@ function AuthModal({
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutMinutes, setLockoutMinutes] = useState(15);
 
-  // Google in-app sign-in & Account Chooser state
-  const [googleInputEmail, setGoogleInputEmail] = useState("");
-  const [showAddGoogleAccount, setShowAddGoogleAccount] = useState(false);
-  const [savedGoogleAccounts, setSavedGoogleAccounts] = useState(() => {
-    try {
-      const raw = safeStorage.get("rockgpt_google_accounts");
-      const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
-    } catch {
-      return [];
-    }
-  });
-
   const saveGoogleAccountToStorage = (acc) => {
     try {
       if (!acc?.email) return;
@@ -996,23 +988,8 @@ function AuthModal({
         ...list,
       ].slice(0, 6);
       safeStorage.set("rockgpt_google_accounts", JSON.stringify(updated));
-      setSavedGoogleAccounts(updated);
     } catch {}
   };
-
-  // Load Google Identity Services script once
-  useEffect(() => {
-    if (!isOpen) return;
-    const scriptId = "google-jssdk-client";
-    if (!document.getElementById(scriptId)) {
-      const script = document.createElement("script");
-      script.id = scriptId;
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
-  }, [isOpen]);
 
   // Reset credentials and step whenever the modal is opened
   useEffect(() => {
@@ -1033,16 +1010,9 @@ function AuthModal({
       setTempToken("");
       setIsLocked(false);
       setLockoutMinutes(15);
-      setGoogleInputEmail("");
-      setShowAddGoogleAccount(false);
       setLoading(false);
       setResendActive(false);
       setOtpTimer(45);
-      try {
-        const raw = safeStorage.get("rockgpt_google_accounts");
-        const list = raw ? JSON.parse(raw) : [];
-        if (Array.isArray(list)) setSavedGoogleAccounts(list);
-      } catch {}
     }
   }, [isOpen, initialMode]);
 
@@ -1215,143 +1185,34 @@ function AuthModal({
     }
   };
 
-  // Request 6-digit email OTP for Google account verification
-  const requestGoogleEmailOtp = async (targetEmail, targetName = "") => {
-    const cleanEmail = (targetEmail || "").trim().toLowerCase();
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-      setError("Please enter a valid email address (e.g. name@gmail.com).");
-      setOtpShake(true);
-      setTimeout(() => setOtpShake(false), 500);
-      return;
-    }
-
-    setError("");
-    setLoading(true);
-    setLoadingText("Sending 6-digit security code...");
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: cleanEmail,
-          name: targetName || cleanEmail.split("@")[0],
-          mode: "google-verify",
-        }),
+  const handleGoogleSuccess = (userData, token) => {
+    safeStorage.set("rockgpt-token", token, rememberMe);
+    safeStorage.set("rockgpt-user", JSON.stringify(userData), rememberMe);
+    if (userData) {
+      saveGoogleAccountToStorage({
+        email: userData.email,
+        name: userData.name,
+        avatar: userData.avatar,
       });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(data?.error || "Unable to send verification code. Please check your email.");
-        setOtpShake(true);
-        setTimeout(() => setOtpShake(false), 500);
-        return;
-      }
-
-      setEmail(cleanEmail);
-      setName(targetName || cleanEmail.split("@")[0]);
-      setAuthMode("google-otp");
-      setStep("otp");
-      setOtpDigits(["", "", "", "", "", ""]);
-      setOtpTimer(45);
-      setResendActive(false);
-      notify(`🔐 6-digit verification code sent to ${cleanEmail}.`);
-      setTimeout(() => otpInputsRef.current[0]?.focus(), 150);
-    } catch (err) {
-      console.error("send-otp error:", err);
-      setError("Unable to connect to verification server. Please try again.");
-    } finally {
-      setLoading(false);
     }
+    onSuccess(userData, token);
+    notify(`Welcome to RockGPT, ${userData.name}!`);
+    onClose();
   };
 
-  const effectiveGoogleAccounts = useMemo(() => {
-    const list = [...savedGoogleAccounts];
-    if (email && email.includes("@")) {
-      const cleanEm = email.trim().toLowerCase();
-      if (!list.some((a) => a && a.email && a.email.toLowerCase() === cleanEm)) {
-        list.push({
-          email: cleanEm,
-          name: (name && name.trim()) || cleanEm.split("@")[0],
-          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEm)}`,
-          lastUsed: 0,
-        });
-      }
-    }
-    return list;
-  }, [savedGoogleAccounts, email, name]);
-
-  const triggerGoogleSignIn = () => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const isValidClientId = Boolean(
-      clientId &&
-      !clientId.includes("demo") &&
-      clientId.endsWith(".apps.googleusercontent.com")
-    );
-
-    if (isValidClientId && window.google?.accounts?.id) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: (response) => {
-            if (response?.credential) {
-              handleGoogleSignIn({ credential: response.credential });
-            }
-          },
-        });
-        window.google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            setError("");
-            setGoogleInputEmail("");
-            setStep("google");
-          }
-        });
-        return;
-      } catch (e) {
-        console.warn("GIS prompt fallback:", e);
-      }
-    }
-    setError("");
-    setGoogleInputEmail("");
-    setStep("google");
+  const handleGoogleRequire2FA = (data) => {
+    setTempToken(data.tempToken);
+    setStep("totp-2fa");
+    setTotpDigits(["", "", "", "", "", ""]);
+    notify("🛡️ Google Authenticator 2FA active. Please enter your 6-digit code.");
+    setTimeout(() => totpInputsRef.current[0]?.focus(), 150);
   };
 
-  // Render official Google Sign In button if GIS client ID is configured
-  useEffect(() => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const isValidClientId = Boolean(
-      clientId &&
-      !clientId.includes("demo") &&
-      clientId.endsWith(".apps.googleusercontent.com")
-    );
-    if (isValidClientId && window.google?.accounts?.id && isOpen && step === "google") {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: (response) => {
-            if (response?.credential) {
-              handleGoogleSignIn({ credential: response.credential });
-            }
-          },
-        });
-        const container = document.getElementById("google-gis-official-btn");
-        if (container) {
-          container.innerHTML = "";
-          window.google.accounts.id.renderButton(container, {
-            theme: dark ? "filled_black" : "outline",
-            size: "large",
-            width: 300,
-            text: "continue_with",
-            shape: "pill",
-          });
-        }
-      } catch (e) {
-        console.warn("GIS button render error:", e);
-      }
-    }
-  }, [isOpen, step, dark]);
+  const handleGoogleError = (errMsg) => {
+    setError(errMsg || "Google authentication failed.");
+    setOtpShake(true);
+    setTimeout(() => setOtpShake(false), 500);
+  };
 
   // Direct login with email + password
   const handleDirectLogin = async (e) => {
@@ -1599,7 +1460,7 @@ function AuthModal({
           name: name.trim(),
           email: email.trim(),
           password,
-          mode: authMode === "google-otp" ? "google-verify" : authMode,
+          mode: authMode,
         }),
         signal: controller.signal,
       });
@@ -1676,9 +1537,6 @@ function AuthModal({
       } else if (authMode === "forgot") {
         endpoint = "/api/auth/reset-password";
         body = { email: effectiveEmail, otp: enteredOtp, newPassword: effectivePassword };
-      } else if (authMode === "google-otp") {
-        endpoint = "/api/auth/google";
-        body = { email: effectiveEmail, otp: enteredOtp, name: effectiveName };
       }
 
       const res = await fetch(`${BACKEND_URL}${endpoint}`, {
@@ -1801,11 +1659,7 @@ function AuthModal({
           {step !== "credentials" ? (
             <button
               onClick={() => {
-                if (step === "otp" && authMode === "google-otp") {
-                  setStep("google");
-                } else {
-                  setStep("credentials");
-                }
+                setStep("credentials");
                 setError("");
               }}
               className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white"
@@ -2169,22 +2023,13 @@ function AuthModal({
                   </span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={triggerGoogleSignIn}
+                <GoogleSignInButton
+                  onSuccess={handleGoogleSuccess}
+                  onRequire2FA={handleGoogleRequire2FA}
+                  onError={handleGoogleError}
                   disabled={loading}
-                  className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-900 shadow-xl border border-neutral-300 hover:bg-neutral-100 hover:shadow-2xl active:scale-[0.98] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/40"
-                >
-                  <div className="grid h-6 w-6 place-items-center rounded-full bg-white shadow-sm border border-neutral-200 shrink-0">
-                    <GoogleIcon className="h-4 w-4 shrink-0" />
-                  </div>
-                  <span className="text-sm font-bold tracking-wide text-neutral-900">
-                    Continue with Google
-                  </span>
-                  <span className="absolute right-3.5 rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-bold text-neutral-600 group-hover:bg-neutral-200">
-                    1-Tap
-                  </span>
-                </button>
+                  backendUrl={BACKEND_URL}
+                />
               </div>
             )}
 
@@ -2225,155 +2070,6 @@ function AuthModal({
                 </button>
               )}
             </div>
-          </div>
-        ) : step === "google" ? (
-          /* =========================================================================
-             NATIVE GOOGLE ACCOUNT CHOOSER (1-TAP SELECTION & GMAIL LIST)
-             ========================================================================= */
-          <div className="rise space-y-4">
-            <div className="text-center">
-              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-white shadow-md border border-neutral-200">
-                <GoogleIcon className="h-6 w-6" />
-              </div>
-              <h2 className="text-base font-bold tracking-tight">Choose an account</h2>
-              <p className={`mt-0.5 text-xs ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
-                to continue to <strong className={dark ? "text-white" : "text-neutral-900"}>RockGPT</strong>
-              </p>
-            </div>
-
-            {error && (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-2.5 text-xs text-red-400 text-center font-medium">
-                {error}
-              </div>
-            )}
-
-            {/* Official GIS button container if configured */}
-            <div id="google-gis-official-btn" className="flex justify-center empty:hidden my-1" />
-
-            {/* Google Accounts List */}
-            <div
-              className="divide-y rounded-2xl border overflow-hidden shadow-sm"
-              style={{ borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }}
-            >
-              {effectiveGoogleAccounts.map((acc, i) => (
-                <button
-                  key={acc.email || i}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => {
-                    requestGoogleEmailOtp(acc.email, acc.name);
-                  }}
-                  className={`flex w-full items-center gap-3 p-3 text-left transition cursor-pointer ${
-                    dark ? "hover:bg-white/[0.06] bg-white/[0.02]" : "hover:bg-neutral-50 bg-white"
-                  }`}
-                >
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full overflow-hidden bg-gradient-to-tr from-cyan-500 to-blue-600 font-bold text-white text-xs shadow-sm">
-                    {acc.avatar && acc.avatar.startsWith("http") ? (
-                      <img src={acc.avatar} alt={acc.name} className="h-full w-full object-cover" />
-                    ) : (
-                      (acc.name || acc.email).slice(0, 1).toUpperCase()
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-bold">{acc.name}</div>
-                    <div className="truncate text-[11px] text-neutral-400">{acc.email}</div>
-                  </div>
-                  <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[9px] font-bold text-cyan-400 shrink-0">
-                    Verify ➔
-                  </span>
-                </button>
-              ))}
-
-              {/* Use another account toggle */}
-              <button
-                type="button"
-                onClick={() => setShowAddGoogleAccount((v) => !v)}
-                className={`flex w-full items-center gap-3 p-3 text-left transition cursor-pointer ${
-                  dark ? "hover:bg-white/[0.06] bg-white/[0.01]" : "hover:bg-neutral-50 bg-white"
-                }`}
-              >
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-dashed border-neutral-500 text-neutral-400">
-                  <User size={16} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold">Use another account</div>
-                  <div className="text-[10px] text-neutral-400">Verify a different Google email with 6-digit code</div>
-                </div>
-                <ChevronRight size={14} className="text-neutral-400" />
-              </button>
-            </div>
-
-            {/* Input to add another Google account */}
-            {(showAddGoogleAccount || effectiveGoogleAccounts.length === 0) && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const cleanEmail = googleInputEmail.trim().toLowerCase();
-                  requestGoogleEmailOtp(cleanEmail, cleanEmail.split("@")[0]);
-                }}
-                className="space-y-2.5 pt-1"
-              >
-                <div>
-                  <div className="relative">
-                    <Mail size={15} className="absolute left-3 top-3.5 text-neutral-500" />
-                    <input
-                      type="email"
-                      autoFocus
-                      required
-                      value={googleInputEmail}
-                      onChange={(e) => {
-                        setGoogleInputEmail(e.target.value);
-                        setError("");
-                      }}
-                      placeholder="Enter Google email (e.g. name@gmail.com)"
-                      className={`w-full rounded-xl border py-2.5 pl-9 pr-3 text-xs outline-none transition ${
-                        dark
-                          ? "border-white/15 bg-white/[0.04] text-white placeholder:text-white/30 focus:border-cyan-400"
-                          : "border-neutral-300 bg-neutral-50 text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500"
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || !googleInputEmail.trim()}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-white text-black font-bold py-2.5 text-xs shadow hover:bg-neutral-100 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin text-black" />
-                      <span>Sending 6-Digit Code...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck size={14} className="text-black" />
-                      <span>Send 6-Digit Verification Code ➔</span>
-                    </>
-                  )}
-                </button>
-                <p className="text-[10px] text-neutral-400 text-center leading-relaxed">
-                  🔒 A 6-digit security code will be sent to your email to verify account ownership.
-                </p>
-              </form>
-            )}
-
-            <p className="text-[10px] text-neutral-500 leading-relaxed text-center px-1">
-              To continue, Google will share your name, email address, and profile picture with RockGPT.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                setStep("credentials");
-                setError("");
-              }}
-              className={`w-full rounded-xl py-2 text-xs font-medium transition cursor-pointer ${
-                dark ? "text-neutral-400 hover:text-white" : "text-neutral-500 hover:text-neutral-900"
-              }`}
-            >
-              ← Back to email & password
-            </button>
           </div>
         ) : step === "totp-2fa" ? (
           /* =========================================================================
@@ -2471,11 +2167,7 @@ function AuthModal({
                 <div className="absolute -inset-1 -z-10 animate-ping rounded-2xl bg-amber-500/10" style={{ animationDuration: "2s" }} />
               </div>
               <h2 className="text-lg font-bold tracking-tight">
-                {authMode === "forgot"
-                  ? "Reset Your Password"
-                  : authMode === "google-otp"
-                  ? "Verify Google Account"
-                  : "Enter Security Code"}
+                {authMode === "forgot" ? "Reset Your Password" : "Enter Security Code"}
               </h2>
               <p className={`mt-1 text-xs leading-5 ${dark ? "text-neutral-400" : "text-neutral-500"}`}>
                 Check your inbox! We've sent a 6-digit code to <br />

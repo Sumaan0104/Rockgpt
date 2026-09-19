@@ -2,9 +2,11 @@
   "name": "rockgpt-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "node tests/test_google_oauth.mjs"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
+    "google-auth-library": "^11.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.5",
     "nodemailer": "^6.9.16",

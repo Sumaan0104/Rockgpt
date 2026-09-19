@@ -11,6 +11,7 @@ import nodemailer from "nodemailer";
 import User from "./models/User.js";
 import Conversation from "./models/Conversation.js";
 import Message from "./models/Message.js";
+import { OAuth2Client } from "google-auth-library";
 
 dotenv.config();
 
@@ -38,8 +39,10 @@ app.use((req, res, next) => {
 
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => { console.error("MongoDB connection error:", err.message); process.exit(1); });
+  .catch((err) => {
+    console.error("MongoDB connection error:", err.message);
+    if (process.env.NODE_ENV !== "test") process.exit(1);
+  });
 
 const groq = new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: "https://api.groq.com/openai/v1" });
 
@@ -211,29 +214,20 @@ function logSecurityEvent(user, action, req) {
   }
 }
 
-async function verifyGoogleCredential(credential) {
-  try {
-    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
-    if (!res.ok) {
-      throw new Error(`Google verification responded HTTP ${res.status}`);
-    }
-    const payload = await res.json();
-    if (!payload || !payload.email) {
-      throw new Error("Invalid Google token payload");
-    }
-    if (payload.email_verified === false || payload.email_verified === "false") {
-      throw new Error("Google email address is not verified by Google");
-    }
-    return {
-      success: true,
-      email: payload.email.toLowerCase().trim(),
-      name: (payload.name || payload.email.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50),
-      googleId: payload.sub,
-      avatar: payload.picture || "",
-    };
-  } catch (err) {
-    return { success: false, error: err.message };
+// ═══ GOOGLE OAUTH 2.0 HELPERS ═══
+let testOAuth2Client = null;
+export function setGoogleOAuthClientForTesting(client) {
+  testOAuth2Client = client;
+}
+
+export function getGoogleOAuthClient() {
+  if (testOAuth2Client) return testOAuth2Client;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return null;
   }
+  return new OAuth2Client(clientId, clientSecret, "postmessage");
 }
 
 // ═══ COMMUNITY APPRECIATION EMAIL AUTOMATION ═══
@@ -774,67 +768,92 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
   } catch (err) { console.error("Login:", err.message); res.status(500).json({ error: "Login failed." }); }
 });
 
-// ═══ GOOGLE OAUTH 2.0 / ONE-TAP SIGN-IN ═══
+// ═══ GOOGLE OAUTH 2.0 (AUTHORIZATION CODE FLOW) ═══
 app.post("/api/auth/google", authLimiter, async (req, res) => {
   try {
-    const { credential, email: directEmail, otp, name: directName, googleId: directGoogleId, avatar: directAvatar } = req.body;
-    let googleUser = null;
-
-    if (credential) {
-      const verified = await verifyGoogleCredential(credential);
-      if (verified.success) {
-        googleUser = verified;
-      } else {
-        return res.status(400).json({ error: `Google verification failed: ${verified.error}` });
-      }
-    } else if (directEmail && otp) {
-      const cleanEmail = directEmail.toLowerCase().trim();
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      if (!emailRegex.test(cleanEmail)) {
-        return res.status(400).json({ error: "Invalid email address format. Please enter a valid email." });
-      }
-      const otpR = verifyStoredOtp(cleanEmail, otp.trim());
-      if (!otpR.valid) {
-        return res.status(400).json({ error: otpR.error || "Invalid or expired verification code." });
-      }
-      googleUser = {
-        email: cleanEmail,
-        name: (directName || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50),
-        googleId: directGoogleId || `google_verified_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`,
-        avatar: directAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`,
-      };
-    } else {
-      return res.status(400).json({
-        error: "Security verification required. Please provide a verified Google credential or enter your 6-digit email verification code.",
-      });
+    const { code } = req.body;
+    if (!code || typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ error: "Authorization code is required." });
     }
 
-    let user = await User.findOne({
-      $or: [{ googleId: googleUser.googleId }, { email: googleUser.email }],
-    });
+    const client = getGoogleOAuthClient();
+    if (!client) {
+      console.error("Google OAuth configuration error: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
+      return res.status(500).json({ error: "Google OAuth credentials are not configured on the server." });
+    }
+
+    // 1. Exchange one-time authorization code server-side
+    let tokens;
+    try {
+      const tokenRes = await client.getToken(code.trim());
+      tokens = tokenRes?.tokens;
+    } catch (exchangeErr) {
+      console.warn("Google authorization code exchange failed:", exchangeErr.message);
+      return res.status(400).json({ error: "Invalid or expired Google authorization code. Please try again." });
+    }
+
+    if (!tokens || !tokens.id_token) {
+      return res.status(400).json({ error: "Failed to obtain verified identity from Google." });
+    }
+
+    // 2. Verify returned ID token with configured Google client ID as audience
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+    } catch (verifyErr) {
+      console.warn("Google ID token verification failed:", verifyErr.message);
+      return res.status(400).json({ error: "Google identity verification failed." });
+    }
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email || !payload.sub) {
+      return res.status(400).json({ error: "Incomplete profile received from Google." });
+    }
+
+    // 3. Enforce email verification by Google
+    if (payload.email_verified !== true && payload.email_verified !== "true") {
+      return res.status(400).json({ error: "Your Google account email is not verified by Google." });
+    }
+
+    const cleanEmail = payload.email.toLowerCase().trim();
+    const googleId = String(payload.sub);
+    const googleName = (payload.name || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50);
+    const googleAvatar = payload.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`;
+
+    // 4. Find existing user by googleId, or safely link by verified email
+    let user = await User.findOne({ googleId });
+    if (!user) {
+      user = await User.findOne({ email: cleanEmail });
+      if (user) {
+        user.googleId = googleId;
+        if (!user.avatar && googleAvatar) {
+          user.avatar = googleAvatar;
+        }
+      }
+    }
 
     let isNewUser = false;
     if (!user) {
       isNewUser = true;
       user = new User({
-        name: googleUser.name,
-        email: googleUser.email,
-        googleId: googleUser.googleId,
-        avatar: googleUser.avatar,
+        name: googleName,
+        email: cleanEmail,
+        googleId,
+        avatar: googleAvatar,
         plan: "Free",
         lastLoginAt: new Date(),
       });
-    } else {
-      if (!user.googleId) user.googleId = googleUser.googleId;
-      if (!user.avatar && googleUser.avatar) user.avatar = googleUser.avatar;
     }
 
-    // Google OAuth verification automatically clears any previous lockout
+    // Clear login lockouts on verified Google authentication
     user.failedLoginAttempts = 0;
     user.lockUntil = null;
     user.lastLoginAt = new Date();
 
-    // Check if 2FA is active on this account
+    // 5. Preserve TOTP 2FA if enabled on account
     if (user.twoFactorEnabled && user.twoFactorSecret) {
       const tempToken = jwt.sign({ tempId: user._id, purpose: "2fa" }, JWT_SECRET, { expiresIn: "10m" });
       logSecurityEvent(user, "Google Sign-In (2FA Code Required)", req);
@@ -852,7 +871,7 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
 
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
 
-    // Send appreciation email
+    // Send appreciation email (debounced)
     sendCommunityAppreciationEmail({
       to: user.email,
       name: user.name,
@@ -860,7 +879,7 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
       type: isNewUser ? "signup" : "login",
     }).catch(() => {});
 
-    res.json({
+    return res.json({
       token,
       user: {
         id: user._id,
@@ -874,7 +893,7 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error("Google Auth error:", err.message);
-    res.status(500).json({ error: `Google authentication failed: ${err.message}` });
+    return res.status(500).json({ error: "Google authentication could not be completed." });
   }
 });
 
@@ -1838,4 +1857,8 @@ app.get("/api/version", (req, res) => {
 });
 
 app.get("/", (req, res) => res.json({ status: "RockGPT v4.3 Enterprise backend operational." }));
-app.listen(PORT, () => console.log(`RockGPT backend on port ${PORT}`));
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => console.log(`RockGPT backend on port ${PORT}`));
+}
+
+export { app };
