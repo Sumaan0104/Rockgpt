@@ -1028,6 +1028,13 @@ function AuthModal({
     setTotpDigits(["", "", "", "", "", ""]);
   };
 
+  // Pre-warm backend when modal opens to eliminate cold-start delay
+  useEffect(() => {
+    if (isOpen) {
+      fetch(`${BACKEND_URL}/`).catch(() => {});
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     let interval = null;
     if (step === "otp" && otpTimer > 0) {
@@ -1399,12 +1406,29 @@ function AuthModal({
     const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: effectiveName, email: effectiveEmail, password: effectivePassword, mode: authMode }),
-        signal: controller.signal,
-      });
+      let res;
+      let lastErr;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: effectiveName, email: effectiveEmail, password: effectivePassword, mode: authMode }),
+            signal: controller.signal,
+          });
+          lastErr = null;
+          break;
+        } catch (fetchErr) {
+          lastErr = fetchErr;
+          if (attempt === 1 && fetchErr.name !== "AbortError") {
+            setLoadingText("Waking up server (Render free tier takes ~30s)...");
+            await new Promise((r) => setTimeout(r, 2000));
+          } else {
+            throw fetchErr;
+          }
+        }
+      }
+
       clearTimeout(timeoutId);
       clearTimeout(t1);
       clearTimeout(t2);
@@ -1432,11 +1456,11 @@ function AuthModal({
       clearTimeout(timeoutId);
       clearTimeout(t1);
       clearTimeout(t2);
-      console.error(err);
+      console.error("send-otp error:", err);
       if (err.name === "AbortError") {
-        setError("Server response took too long. Please tap Send again.");
+        setError("Server response took too long. The server might still be waking up — please tap again.");
       } else {
-        setError("Unable to connect to the authentication server. Please try again.");
+        setError("Server is waking up (Render free tier). Please tap 'Send Reset Code' again in a few seconds.");
       }
     } finally {
       setLoading(false);
