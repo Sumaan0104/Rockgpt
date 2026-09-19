@@ -5,14 +5,18 @@ import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ""
+import { isGoogleConfigured, rawGoogleClientId } from './components/GoogleSignInButton.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <GoogleOAuthProvider clientId={googleClientId}>
+      {isGoogleConfigured ? (
+        <GoogleOAuthProvider clientId={rawGoogleClientId.trim()}>
+          <App />
+        </GoogleOAuthProvider>
+      ) : (
         <App />
-      </GoogleOAuthProvider>
+      )}
     </ErrorBoundary>
   </StrictMode>,
 )

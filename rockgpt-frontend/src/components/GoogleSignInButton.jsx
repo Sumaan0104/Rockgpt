@@ -1,6 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, Component } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Loader2 } from "lucide-react";
+
+export const rawGoogleClientId =
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || "";
+
+export const isGoogleConfigured = Boolean(
+  rawGoogleClientId &&
+  typeof rawGoogleClientId === "string" &&
+  rawGoogleClientId.trim().length > 5 &&
+  !rawGoogleClientId.includes("your_google_client_id") &&
+  !rawGoogleClientId.includes("dummy") &&
+  !rawGoogleClientId.includes("unconfigured")
+);
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL ||
@@ -31,7 +43,37 @@ function GoogleIcon({ className = "w-5 h-5 flex-shrink-0" }) {
   );
 }
 
-export default function GoogleSignInButton({
+function FallbackGoogleSignInButton({
+  onError,
+  className = "",
+  disabled = false,
+  buttonText = "Continue with Google",
+}) {
+  const handleClick = (e) => {
+    e.preventDefault();
+    if (disabled) return;
+    onError?.(
+      "Google Sign-In is not configured yet. Please add VITE_GOOGLE_CLIENT_ID in your Vercel Project Settings > Environment Variables, or use email and password above."
+    );
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      aria-label={buttonText}
+      className={`group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-neutral-900 border border-neutral-200 shadow-md hover:bg-neutral-50 hover:shadow-lg active:scale-[0.98] transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-75 disabled:cursor-not-allowed ${className}`}
+    >
+      <div className="grid h-6 w-6 place-items-center rounded-full bg-white shadow-xs shrink-0">
+        <GoogleIcon className="w-5 h-5 flex-shrink-0" />
+      </div>
+      <span className="text-sm font-bold tracking-tight text-neutral-900">{buttonText}</span>
+    </button>
+  );
+}
+
+function ActiveGoogleSignInButton({
   onSuccess,
   onRequire2FA,
   onError,
@@ -103,12 +145,6 @@ export default function GoogleSignInButton({
     e.preventDefault();
     if (disabled || isConnecting) return;
 
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId || clientId.includes("your_google_client_id") || clientId.trim() === "") {
-      onError?.("Google OAuth Client ID is not configured. Please set VITE_GOOGLE_CLIENT_ID in rockgpt-frontend/.env");
-      return;
-    }
-
     setIsConnecting(true);
     try {
       googleLogin();
@@ -143,5 +179,39 @@ export default function GoogleSignInButton({
         </>
       )}
     </button>
+  );
+}
+
+class GoogleButtonErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.warn("GoogleButtonErrorBoundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <FallbackGoogleSignInButton {...this.props} />;
+    }
+    return this.props.children;
+  }
+}
+
+export default function GoogleSignInButton(props) {
+  if (!isGoogleConfigured) {
+    return <FallbackGoogleSignInButton {...props} />;
+  }
+
+  return (
+    <GoogleButtonErrorBoundary {...props}>
+      <ActiveGoogleSignInButton {...props} />
+    </GoogleButtonErrorBoundary>
   );
 }
