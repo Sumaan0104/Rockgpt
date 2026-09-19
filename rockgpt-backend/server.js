@@ -222,8 +222,8 @@ export function setGoogleOAuthClientForTesting(client) {
 
 export function getGoogleOAuthClient() {
   if (testOAuth2Client) return testOAuth2Client;
-  const clientId = process.env.GOOGLE_CLIENT_ID || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com";
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const clientId = (process.env.GOOGLE_CLIENT_ID || "").trim() || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com";
+  const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim().replace(/^["']|["']$/g, "");
   if (!clientId || !clientSecret) {
     return null;
   }
