@@ -787,8 +787,13 @@ app.post("/api/auth/google", authLimiter, async (req, res) => {
         const tokenRes = await client.getToken(code.trim());
         tokens = tokenRes?.tokens;
       } catch (exchangeErr) {
-        console.warn("Google authorization code exchange failed:", exchangeErr.message);
-        return res.status(400).json({ error: "Invalid or expired Google authorization code. Please try again." });
+        const gData = exchangeErr?.response?.data;
+        const msg = gData?.error_description || gData?.error || exchangeErr.message;
+        console.warn("Google authorization code exchange failed:", msg, gData);
+        if (msg === "invalid_grant" || msg?.includes?.("invalid_grant")) {
+          return res.status(400).json({ error: "Invalid or expired Google authorization code. Please try again." });
+        }
+        return res.status(400).json({ error: `Google exchange failed: ${msg}. Please check GOOGLE_CLIENT_SECRET on Render.` });
       }
 
       if (!tokens || !tokens.id_token) {

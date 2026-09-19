@@ -90,6 +90,7 @@ function ActiveGoogleSignInButton({
   buttonText = "Continue with Google",
 }) {
   const [isConnecting, setIsConnecting] = useState(false);
+  const exchangeInProgressRef = React.useRef(false);
 
   const googleLogin = useGoogleLogin({
     flow: "auth-code",
@@ -100,6 +101,8 @@ function ActiveGoogleSignInButton({
           throw new Error("No authorization code returned by Google.");
         }
 
+        if (exchangeInProgressRef.current) return;
+        exchangeInProgressRef.current = true;
         setIsConnecting(true);
 
         const res = await fetch(`${backendUrl}/api/auth/google`, {
@@ -128,10 +131,12 @@ function ActiveGoogleSignInButton({
         onError?.(err?.message || "Google authentication failed. Please try again.");
       } finally {
         setIsConnecting(false);
+        exchangeInProgressRef.current = false;
       }
     },
     onError: (errorResponse) => {
       setIsConnecting(false);
+      exchangeInProgressRef.current = false;
       console.warn("Google OAuth popup error:", errorResponse);
       if (errorResponse?.error === "popup_closed_by_user") {
         onError?.("Google sign-in was cancelled (popup was closed).");
