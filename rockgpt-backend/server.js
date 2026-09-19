@@ -771,57 +771,68 @@ app.post("/api/auth/login", authLimiter, async (req, res) => {
 // ═══ GOOGLE OAUTH 2.0 (AUTHORIZATION CODE FLOW) ═══
 app.post("/api/auth/google", authLimiter, async (req, res) => {
   try {
-    const { code } = req.body;
-    if (!code || typeof code !== "string" || !code.trim()) {
+    const { code, email: directEmail, otp, name: directName } = req.body;
+    let cleanEmail, googleId, googleName, googleAvatar;
+
+    if (code && typeof code === "string" && code.trim()) {
+      const client = getGoogleOAuthClient();
+      if (!client) {
+        console.error("Google OAuth configuration error: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
+        return res.status(500).json({ error: "Google OAuth credentials are not configured on the server." });
+      }
+
+      // 1. Exchange one-time authorization code server-side
+      let tokens;
+      try {
+        const tokenRes = await client.getToken(code.trim());
+        tokens = tokenRes?.tokens;
+      } catch (exchangeErr) {
+        console.warn("Google authorization code exchange failed:", exchangeErr.message);
+        return res.status(400).json({ error: "Invalid or expired Google authorization code. Please try again." });
+      }
+
+      if (!tokens || !tokens.id_token) {
+        return res.status(400).json({ error: "Failed to obtain verified identity from Google." });
+      }
+
+      // 2. Verify returned ID token with configured Google client ID as audience
+      let ticket;
+      try {
+        ticket = await client.verifyIdToken({
+          idToken: tokens.id_token,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+      } catch (verifyErr) {
+        console.warn("Google ID token verification failed:", verifyErr.message);
+        return res.status(400).json({ error: "Google identity verification failed." });
+      }
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email || !payload.sub) {
+        return res.status(400).json({ error: "Incomplete profile received from Google." });
+      }
+
+      // 3. Enforce email verification by Google
+      if (payload.email_verified !== true && payload.email_verified !== "true") {
+        return res.status(400).json({ error: "Your Google account email is not verified by Google." });
+      }
+
+      cleanEmail = payload.email.toLowerCase().trim();
+      googleId = String(payload.sub);
+      googleName = (payload.name || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50);
+      googleAvatar = payload.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`;
+    } else if (directEmail && otp) {
+      cleanEmail = directEmail.toLowerCase().trim();
+      const otpR = verifyStoredOtp(cleanEmail, String(otp).trim());
+      if (!otpR.valid) {
+        return res.status(400).json({ error: otpR.error || "Invalid or expired verification code." });
+      }
+      googleId = `google_verified_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      googleName = (directName || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50);
+      googleAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`;
+    } else {
       return res.status(400).json({ error: "Authorization code is required." });
     }
-
-    const client = getGoogleOAuthClient();
-    if (!client) {
-      console.error("Google OAuth configuration error: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
-      return res.status(500).json({ error: "Google OAuth credentials are not configured on the server." });
-    }
-
-    // 1. Exchange one-time authorization code server-side
-    let tokens;
-    try {
-      const tokenRes = await client.getToken(code.trim());
-      tokens = tokenRes?.tokens;
-    } catch (exchangeErr) {
-      console.warn("Google authorization code exchange failed:", exchangeErr.message);
-      return res.status(400).json({ error: "Invalid or expired Google authorization code. Please try again." });
-    }
-
-    if (!tokens || !tokens.id_token) {
-      return res.status(400).json({ error: "Failed to obtain verified identity from Google." });
-    }
-
-    // 2. Verify returned ID token with configured Google client ID as audience
-    let ticket;
-    try {
-      ticket = await client.verifyIdToken({
-        idToken: tokens.id_token,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-    } catch (verifyErr) {
-      console.warn("Google ID token verification failed:", verifyErr.message);
-      return res.status(400).json({ error: "Google identity verification failed." });
-    }
-
-    const payload = ticket.getPayload();
-    if (!payload || !payload.email || !payload.sub) {
-      return res.status(400).json({ error: "Incomplete profile received from Google." });
-    }
-
-    // 3. Enforce email verification by Google
-    if (payload.email_verified !== true && payload.email_verified !== "true") {
-      return res.status(400).json({ error: "Your Google account email is not verified by Google." });
-    }
-
-    const cleanEmail = payload.email.toLowerCase().trim();
-    const googleId = String(payload.sub);
-    const googleName = (payload.name || cleanEmail.split("@")[0]).replace(/<[^>]*>?/gm, "").trim().slice(0, 50);
-    const googleAvatar = payload.picture || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail.split("@")[0])}`;
 
     // 4. Find existing user by googleId, or safely link by verified email
     let user = await User.findOne({ googleId });
