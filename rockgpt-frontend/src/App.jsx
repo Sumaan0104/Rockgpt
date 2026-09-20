@@ -10,7 +10,7 @@ import {
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
   Lock, Volume2, VolumeX, Pin, Code2,
   Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, CreditCard,
-  SquarePen, PenLine, Eye, EyeOff
+  SquarePen, PenLine, Eye, EyeOff, MessageSquare, Lightbulb, FileText, Layers, Compass
 } from "lucide-react";
 import GoogleSignInButton from "./components/GoogleSignInButton.jsx";
 
@@ -703,6 +703,15 @@ function UserProfileMenu({
   onOpenSecurity,
   onOpenAuth,
 }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -759,7 +768,9 @@ function UserProfileMenu({
                 }`}
               >
                 <Crown size={15} className="text-amber-500" />
-                <span className="flex-1">Upgrade / Subscription</span>
+                <span className="flex-1">
+                  {user.plan === "Plus" || user.plan === "Pro" ? "Manage plan" : "Upgrade plan"}
+                </span>
               </button>
 
               <button
@@ -832,6 +843,15 @@ function UserProfileMenu({
    LOGOUT CONFIRMATION MODAL
    ========================================================================= */
 function LogoutConfirmModal({ isOpen, onClose, onConfirm, dark, userEmail }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -3540,7 +3560,7 @@ export default function RockGPT() {
   const [editing, setEditing] = useState(null);
   const [editText, setEditText] = useState("");
   const [recording, setRecording] = useState(false);
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(() => safeStorage.get("rockgpt-theme") || "dark");
   const [notice, setNotice] = useState(null);
   const [attachment, setAttachment] = useState(null);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
@@ -3697,6 +3717,33 @@ export default function RockGPT() {
     setSidebarOpen(false);
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    safeStorage.set("rockgpt-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const handleGlobalShortcuts = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        newChat();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
+  }, [newChat]);
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        if (headerProfileOpen) setHeaderProfileOpen(false);
+        if (modelDropdownOpen) setModelDropdownOpen(false);
+        if (deleteConfirmId) setDeleteConfirmId(null);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [headerProfileOpen, modelDropdownOpen, deleteConfirmId]);
 
   // FETCH PERSISTENT CONVERSATIONS FROM BACKEND (ACCOUNT-WISE ISOLATION)
   const fetchConversations = useCallback(async (token) => {
@@ -4538,36 +4585,57 @@ export default function RockGPT() {
         style={{ background: panel, borderRight: `1px solid ${border}` }}
       >
         <div className="flex h-full w-full flex-col">
-          <div className="flex items-center gap-2 p-3">
-            <button
-              onClick={newChat}
-              className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left transition ${
-                dark ? "hover:bg-white/[.05]" : "hover:bg-black/[.05]"
-              }`}
-            >
+          <div className="flex items-center justify-between p-3 pb-2">
+            <div className="flex items-center gap-2.5 min-w-0">
               <RockMark dark={dark} />
               <div className="min-w-0">
-                <div className="truncate text-[15px] font-semibold">RockGPT</div>
+                <div className="truncate text-sm font-semibold tracking-tight">RockGPT</div>
                 <div className="text-[11px]" style={{ color: muted }}>
                   {isPaidUser ? `${user.plan} Member` : "Free Tier"}
                 </div>
               </div>
-            </button>
+            </div>
             <button
               onClick={newChat}
-              title="New chat"
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg transition ${
-                dark ? "hover:bg-white/[.06]" : "hover:bg-black/[.06]"
+              title="New chat (Ctrl+N)"
+              aria-label="New chat"
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition ${
+                dark
+                  ? "border-white/10 text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                  : "border-neutral-300 text-neutral-700 hover:bg-black/[0.05]"
               }`}
             >
-              <Plus size={18} />
+              <Plus size={16} strokeWidth={2.2} />
+            </button>
+          </div>
+
+          {/* Prominent Full-Width "New chat" action */}
+          <div className="px-3 pb-2 pt-1">
+            <button
+              type="button"
+              onClick={newChat}
+              title="New chat (Ctrl+N)"
+              aria-label="New chat (Ctrl+N)"
+              className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition active:scale-[0.98] cursor-pointer ${
+                dark
+                  ? "border-white/12 bg-white/[0.05] text-white hover:border-white/25 hover:bg-white/[0.09]"
+                  : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <Plus size={16} strokeWidth={2.4} />
+                <span>New chat</span>
+              </span>
+              <kbd className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium ${dark ? "bg-white/10 text-neutral-400" : "bg-black/5 text-neutral-600"}`}>
+                Ctrl N
+              </kbd>
             </button>
           </div>
 
           <div className="px-3 pb-2">
             <div
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
-                dark ? "border-white/10 bg-white/[0.02]" : "border-neutral-300/70 bg-white"
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${
+                dark ? "border-white/10 bg-white/[0.02] focus-within:border-white/20" : "border-neutral-300/70 bg-white focus-within:border-neutral-400"
               }`}
             >
               <Search size={14} style={{ color: muted }} />
@@ -4575,16 +4643,27 @@ export default function RockGPT() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search chats..."
+                aria-label="Search chats"
                 className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${
-                  dark ? "placeholder:text-white/30" : "placeholder:text-neutral-400"
+                  dark ? "placeholder:text-white/30 text-white" : "placeholder:text-neutral-400 text-neutral-900"
                 }`}
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
+                  className="p-0.5 text-neutral-400 hover:text-white transition"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
           </div>
 
           <div className="thin flex-1 overflow-y-auto px-2">
-            <div className="mb-2 px-3 pt-2 text-[10px] font-semibold uppercase tracking-[.16em]" style={{ color: muted }}>
-              Recent Chats
+            <div className="mb-2 px-3 pt-2 text-[11px] font-semibold text-neutral-400 tracking-normal">
+              Recent chats
             </div>
             {filtered.length === 0 && (
               <div className="px-3 py-10 text-center text-xs" style={{ color: muted }}>
@@ -4595,24 +4674,28 @@ export default function RockGPT() {
               <div
                 key={c.id}
                 onClick={() => selectConversation(c.id)}
-                className={`group relative mb-1 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 transition-colors ${
+                className={`group relative mb-1 flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition-colors ${
                   activeId === c.id
                     ? dark
-                      ? "bg-white/[.08]"
-                      : "bg-neutral-200/70"
+                      ? "bg-white/[.08] text-white font-medium before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-white"
+                      : "bg-neutral-200/80 text-neutral-900 font-medium before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-neutral-900"
                     : dark
-                    ? "hover:bg-white/[.045]"
-                    : "hover:bg-neutral-200/40"
+                    ? "text-neutral-300 hover:bg-white/[.045] hover:text-white"
+                    : "text-neutral-700 hover:bg-neutral-200/50 hover:text-neutral-900"
                 }`}
               >
                 {c.pinned ? (
-                  <Pin size={11} className="shrink-0 text-amber-500 fill-amber-500" />
+                  <Pin size={13} className="shrink-0 text-amber-400 fill-amber-400/20" />
                 ) : (
-                  <div
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{
-                      background: activeId === c.id ? (dark ? "#fff" : "#111") : dark ? "rgba(255,255,255,.25)" : "rgba(0,0,0,.25)",
-                    }}
+                  <MessageSquare
+                    size={13}
+                    className={`shrink-0 ${
+                      activeId === c.id
+                        ? dark
+                          ? "text-white"
+                          : "text-neutral-900"
+                        : "text-neutral-500"
+                    }`}
                   />
                 )}
                 {editing === c.id ? (
@@ -4681,7 +4764,7 @@ export default function RockGPT() {
                 setSidebarOpen(false);
                 setPricingOpen(true);
               }}
-              className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-sm font-medium transition-all active:scale-[0.98] ${
+              className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-sm font-medium transition-all active:scale-[0.98] cursor-pointer ${
                 dark
                   ? "border-white/10 bg-white/[0.05] text-white hover:border-white/20 hover:bg-white/[0.08]"
                   : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
@@ -4690,7 +4773,7 @@ export default function RockGPT() {
               <Crown size={17} className="text-amber-400" />
               <div className="flex-1 text-left">
                 <div className="leading-tight text-[13px] font-semibold">
-                  {isPaidUser ? "Manage Subscription" : "Upgrade plan"}
+                  {isPaidUser ? "Manage plan" : "Upgrade plan"}
                 </div>
                 <div className="text-[11px] text-neutral-400">
                   {isPaidUser ? `Current: ${user.plan}` : "Unlock RockGPT 4o"}
@@ -4713,7 +4796,8 @@ export default function RockGPT() {
                 <button
                   type="button"
                   onClick={() => setTheme("light")}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  aria-label="Switch to light theme"
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
                     !dark
                       ? "bg-white text-neutral-900 shadow-sm"
                       : "text-neutral-400 hover:text-white"
@@ -4724,7 +4808,8 @@ export default function RockGPT() {
                 <button
                   type="button"
                   onClick={() => setTheme("dark")}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  aria-label="Switch to dark theme"
+                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
                     dark
                       ? "bg-white text-black shadow-sm font-semibold"
                       : "text-neutral-500 hover:text-neutral-900"
@@ -4817,24 +4902,42 @@ export default function RockGPT() {
             background: "transparent",
           }}
         >
-          {/* Left: Circular Frosted Menu Button */}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            title="Open sidebar"
-            className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm ${
-              dark
-                ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
-                : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
-            }`}
-          >
-            <Menu size={19} strokeWidth={2.2} />
-          </button>
+          {/* Left: Menu & New Chat button */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              title="Open sidebar"
+              aria-label="Open sidebar"
+              className={`grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
+                dark
+                  ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                  : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
+              }`}
+            >
+              <Menu size={18} strokeWidth={2.2} />
+            </button>
+
+            <button
+              onClick={newChat}
+              title="New chat (Ctrl+N)"
+              aria-label="New chat"
+              className={`grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
+                dark
+                  ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                  : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
+              }`}
+            >
+              <SquarePen size={17} strokeWidth={2.2} />
+            </button>
+          </div>
 
           {/* Center: Futuristic Frosted Model Selector Pill */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setModelDropdownOpen((v) => !v)}
+              aria-label="Select AI model"
+              aria-expanded={modelDropdownOpen}
               className={`group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs sm:text-[13px] font-semibold tracking-tight transition-all select-none cursor-pointer active:scale-95 shadow-sm backdrop-blur-md ${
                 dark
                   ? "border-white/15 bg-white/[0.07] text-white hover:border-white/30 hover:bg-white/[0.12]"
@@ -4960,48 +5063,52 @@ export default function RockGPT() {
             )}
           </div>
 
-          {/* Right: Circular New Chat Button (Mobile) & Desktop Controls */}
-          <div className="flex items-center gap-2">
+          {/* Right: Upgrade, Theme Toggle, Export, Profile */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {!isPaidUser && (
               <button
                 onClick={() => setPricingOpen(true)}
-                className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition active:scale-95 shadow-sm ${
+                title="Upgrade plan"
+                aria-label="Upgrade plan"
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer ${
                   dark
-                    ? "border-white/15 bg-white/[0.08] text-white hover:bg-white/[0.14]"
-                    : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:bg-neutral-200"
+                    ? "border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"
+                    : "border-amber-500/30 bg-amber-50 text-amber-800 hover:bg-amber-100"
                 }`}
               >
-                <Crown size={14} className="text-amber-400" />
-                <span className="font-semibold">Upgrade</span>
+                <Crown size={13} className="text-amber-400" />
+                <span className="hidden xs:inline">Upgrade plan</span>
               </button>
             )}
+
+            {/* Quick Theme Toggle Button */}
+            <button
+              onClick={() => setTheme(dark ? "light" : "dark")}
+              title={`Switch to ${dark ? "light" : "dark"} mode`}
+              aria-label={`Switch to ${dark ? "light" : "dark"} mode`}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer ${
+                dark
+                  ? "border-white/10 bg-white/[0.06] text-white/80 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                  : "border-black/10 bg-black/[0.05] text-neutral-700 hover:border-black/20 hover:bg-black/[0.09]"
+              }`}
+            >
+              {dark ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
 
             {activeId && (
               <button
                 onClick={exportChat}
                 title="Export chat"
-                className={`hidden h-10 w-10 place-items-center rounded-full border transition sm:grid shadow-sm ${
+                aria-label="Export chat"
+                className={`hidden sm:grid h-9 w-9 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer ${
                   dark
-                    ? "border-white/10 bg-white/[0.06] text-white/80 hover:bg-white/[0.12] hover:text-white"
-                    : "border-black/10 bg-black/[0.05] text-neutral-700 hover:bg-black/[0.09]"
+                    ? "border-white/10 bg-white/[0.06] text-white/80 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                    : "border-black/10 bg-black/[0.05] text-neutral-700 hover:border-black/20 hover:bg-black/[0.09]"
                 }`}
               >
-                <Download size={16} />
+                <Download size={15} />
               </button>
             )}
-
-            {/* Circular Frosted New Chat Button */}
-            <button
-              onClick={newChat}
-              title="New chat"
-              className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm ${
-                dark
-                  ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
-                  : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
-              }`}
-            >
-              <SquarePen size={18} strokeWidth={2.2} />
-            </button>
 
             {/* Header Profile Avatar or Log In / Sign Up */}
             <div className="relative flex items-center">
@@ -5009,6 +5116,8 @@ export default function RockGPT() {
                 <button
                   onClick={() => setHeaderProfileOpen((v) => !v)}
                   title="Account menu & logout"
+                  aria-label="Account menu & logout"
+                  aria-expanded={headerProfileOpen}
                   className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-neutral-700 via-neutral-800 to-neutral-900 border border-white/20 font-bold text-white text-xs shadow-sm hover:scale-105 transition overflow-hidden cursor-pointer"
                 >
                   {user.avatar ? (
@@ -5069,7 +5178,7 @@ export default function RockGPT() {
                     </div>
                     <div className="pt-2 space-y-0.5">
                       <button onClick={() => { setHeaderProfileOpen(false); setPricingOpen(true); }} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition ${dark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"}`}>
-                        <Crown size={15} className="text-amber-500" /> <span className="flex-1">Upgrade / Subscription</span>
+                        <Crown size={15} className="text-amber-500" /> <span className="flex-1">{user.plan === "Plus" || user.plan === "Pro" ? "Manage plan" : "Upgrade plan"}</span>
                       </button>
                       <button onClick={() => { setHeaderProfileOpen(false); setSecurityOpen(true); }} className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs transition ${dark ? "hover:bg-white/[0.08]" : "hover:bg-neutral-100"}`}>
                         <ShieldCheck size={15} className="text-cyan-400" /> <span className="flex-1">Security & 2FA</span>
@@ -5097,69 +5206,103 @@ export default function RockGPT() {
         {/* Chat Message Window */}
         <section className="thin flex-1 overflow-y-auto">
           {messages.length === 0 && !typing ? (
-            <div className="mx-auto flex h-full max-w-[760px] flex-col justify-end px-4 pb-4 sm:px-6 chat-enter-main">
-              {/* Prominent, Welcoming Greeting Header */}
-              <div className="mb-7 sm:mb-9 text-left select-none">
-                <div className="flex items-center gap-2.5 mb-3">
-                  <RockMark size={32} dark={dark} animated />
-                  <span className="text-xs font-semibold tracking-wider uppercase text-neutral-400">RockGPT Intelligence</span>
+            <div className="mx-auto flex h-full max-w-[760px] flex-col justify-center px-4 py-6 sm:px-6 chat-enter-main">
+              {/* Refined Greeting Header */}
+              <div className="mb-5 sm:mb-7 text-left select-none">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <RockMark size={28} dark={dark} animated />
+                  <span className="text-xs font-semibold tracking-normal text-neutral-400">
+                    RockGPT Intelligence
+                  </span>
                 </div>
                 <h1 className={`text-2xl sm:text-3xl font-semibold tracking-tight ${dark ? "text-white" : "text-neutral-900"}`}>
-                  What's on your mind today?
+                  What’s on your mind today?
                 </h1>
-                <p className="text-xs sm:text-sm text-neutral-400 mt-1.5 leading-relaxed">
-                  Ask anything, write and debug code, explore concepts, or spark new creative ideas.
+                <p className="text-xs sm:text-sm text-neutral-400 mt-1 leading-relaxed">
+                  Ask anything, debug code, draft content, or explore complex ideas.
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 pb-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInput("Help me write, review, or debug code for: ");
-                    inputRef.current?.focus();
-                  }}
-                  className={`card-stagger-1 btn-interactive flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left border border-transparent transition select-none ${
-                    dark
-                      ? "text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:bg-white/[0.10]"
-                      : "text-neutral-800 hover:border-black/15 hover:bg-black/[0.05] active:bg-black/[0.08]"
-                  }`}
-                >
-                  <Code2 size={20} className={dark ? "text-neutral-300" : "text-neutral-700"} strokeWidth={2} />
-                  <span className="text-[15px] font-medium tracking-normal">Write code or debug</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInput("Help me write, draft, or polish: ");
-                    inputRef.current?.focus();
-                  }}
-                  className={`card-stagger-2 btn-interactive flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left border border-transparent transition select-none ${
-                    dark
-                      ? "text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:bg-white/[0.10]"
-                      : "text-neutral-800 hover:border-black/15 hover:bg-black/[0.05] active:bg-black/[0.08]"
-                  }`}
-                >
-                  <PenLine size={20} className={dark ? "text-neutral-300" : "text-neutral-700"} strokeWidth={2} />
-                  <span className="text-[15px] font-medium tracking-normal">Write or edit</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInput("Explain step-by-step and analyze: ");
-                    inputRef.current?.focus();
-                  }}
-                  className={`card-stagger-3 btn-interactive flex items-center gap-3.5 rounded-2xl px-3.5 py-3 text-left border border-transparent transition select-none ${
-                    dark
-                      ? "text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:bg-white/[0.10]"
-                      : "text-neutral-800 hover:border-black/15 hover:bg-black/[0.05] active:bg-black/[0.08]"
-                  }`}
-                >
-                  <Sparkles size={20} className={dark ? "text-neutral-300" : "text-neutral-700"} strokeWidth={2} />
-                  <span className="text-[15px] font-medium tracking-normal">Ask anything or analyze</span>
-                </button>
+              {/* Starter Prompt Chips */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pb-2">
+                {[
+                  {
+                    title: "Help me debug this code",
+                    prompt: "Help me review and debug this code:\n\n",
+                    desc: "Find bugs, optimize performance, or fix errors",
+                    icon: Code2,
+                  },
+                  {
+                    title: "Explain a complex topic simply",
+                    prompt: "Explain this complex topic simply with an intuitive analogy:\n\n",
+                    desc: "Clear explanations and analogies for tricky ideas",
+                    icon: Lightbulb,
+                  },
+                  {
+                    title: "Draft a professional email",
+                    prompt: "Help me draft a clear, professional email regarding:\n\n",
+                    desc: "Polite follow-ups, proposals, and outreach",
+                    icon: PenLine,
+                  },
+                  {
+                    title: "Analyze or summarize document",
+                    prompt: "Analyze this text and summarize key takeaways:\n\n",
+                    desc: "Extract key insights, action items, or bullet points",
+                    icon: FileText,
+                  },
+                  {
+                    title: "Brainstorm architecture ideas",
+                    prompt: "Brainstorm software architecture options and trade-offs for:\n\n",
+                    desc: "System design patterns, scalability, and stack choices",
+                    icon: Layers,
+                  },
+                  {
+                    title: "Compare frameworks & tradeoffs",
+                    prompt: "Compare the pros, cons, and performance trade-offs of:\n\n",
+                    desc: "Side-by-side evaluation with clear criteria",
+                    icon: Compass,
+                  },
+                ].map((chip, idx) => {
+                  const ChipIcon = chip.icon;
+                  return (
+                    <button
+                      key={chip.title}
+                      type="button"
+                      onClick={() => {
+                        setInput(chip.prompt);
+                        if (inputRef.current) {
+                          inputRef.current.focus();
+                          inputRef.current.style.height = "auto";
+                          inputRef.current.style.height = Math.min(140, Math.max(26, inputRef.current.scrollHeight)) + "px";
+                        }
+                      }}
+                      className={`btn-interactive group flex items-start gap-3 rounded-2xl border p-3 sm:p-3.5 text-left transition-all select-none cursor-pointer ${
+                        dark
+                          ? "border-white/10 bg-white/[0.03] text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:scale-[0.98]"
+                          : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.98] shadow-xs"
+                      }`}
+                      style={{ animationDelay: `${idx * 40}ms` }}
+                    >
+                      <div
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border transition-colors ${
+                          dark
+                            ? "border-white/10 bg-white/[0.05] text-neutral-300 group-hover:text-white group-hover:border-white/20"
+                            : "border-neutral-200 bg-neutral-100 text-neutral-700 group-hover:text-neutral-900 group-hover:border-neutral-300"
+                        }`}
+                      >
+                        <ChipIcon size={16} strokeWidth={2} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-semibold tracking-tight group-hover:underline">
+                          {chip.title}
+                        </div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 line-clamp-1 leading-normal">
+                          {chip.desc}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -5422,10 +5565,10 @@ export default function RockGPT() {
 
             {/* The Capsule Pill */}
             <div
-              className={`rock-input-capsule relative flex items-center gap-2 rounded-full border px-3 py-2 min-h-[50px] sm:min-h-[52px] shadow-2xl transition-all duration-200 ${
+              className={`rock-input-capsule relative flex items-center gap-2.5 rounded-full border px-3.5 py-2 min-h-[52px] sm:min-h-[54px] shadow-2xl transition-all duration-200 ${
                 dark
-                  ? "border-white/15 bg-[#1b1b1e] shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-white/30"
-                  : "border-neutral-300 bg-white shadow-[0_6px_24px_rgba(0,0,0,0.08)] focus-within:border-neutral-400"
+                  ? "border-white/12 bg-[#141416] shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-white/25 focus-within:ring-2 focus-within:ring-white/5"
+                  : "border-black/12 bg-white shadow-[0_6px_24px_rgba(0,0,0,0.08)] focus-within:border-black/25 focus-within:ring-2 focus-within:ring-black/5"
               }`}
             >
               {/* Attachment '+' button */}
@@ -5435,7 +5578,9 @@ export default function RockGPT() {
                   type="button"
                   onClick={() => setAttachMenuOpen((v) => !v)}
                   title="Attach photo or file"
-                  className={`btn-interactive grid h-9 w-9 shrink-0 place-items-center rounded-full transition ${
+                  aria-label="Attach photo or file"
+                  aria-expanded={attachMenuOpen}
+                  className={`btn-interactive grid h-9 w-9 shrink-0 place-items-center rounded-full transition cursor-pointer ${
                     dark ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"
                   }`}
                 >
@@ -5456,7 +5601,7 @@ export default function RockGPT() {
                           fileRef.current?.click();
                           setAttachMenuOpen(false);
                         }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition cursor-pointer ${
                           dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
                         }`}
                       >
@@ -5468,7 +5613,7 @@ export default function RockGPT() {
                           notify("Web search is coming soon");
                           setAttachMenuOpen(false);
                         }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition cursor-pointer ${
                           dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
                         }`}
                       >
@@ -5503,6 +5648,7 @@ export default function RockGPT() {
                 }}
                 rows={1}
                 placeholder={`Ask ${selectedModel}...`}
+                aria-label={`Ask ${selectedModel}`}
                 className={`min-w-0 flex-1 resize-none bg-transparent py-1 text-[15px] sm:text-base leading-6 outline-none ${
                   dark ? "text-white placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
@@ -5515,7 +5661,7 @@ export default function RockGPT() {
                   <button
                     type="button"
                     onClick={stopGeneration}
-                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition hover:scale-105 active:scale-[0.92] ${
+                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition hover:scale-105 active:scale-[0.92] cursor-pointer ${
                       dark ? "bg-white text-black" : "bg-neutral-900 text-white"
                     }`}
                     title="Stop generating"
@@ -5527,12 +5673,12 @@ export default function RockGPT() {
                   <button
                     type="button"
                     onClick={sendMessage}
-                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition active:scale-[0.92] shadow-md ${
+                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition active:scale-[0.92] shadow-md cursor-pointer ${
                       dark
                         ? "bg-white text-black hover:bg-neutral-200"
                         : "bg-neutral-900 text-white hover:bg-black"
                     }`}
-                    title="Send message"
+                    title="Send message (Enter)"
                     aria-label="Send message"
                   >
                     <ArrowUp size={18} strokeWidth={2.4} />
@@ -5543,7 +5689,7 @@ export default function RockGPT() {
                     onClick={toggleRecording}
                     title={recording ? "Stop listening" : "Voice input"}
                     aria-label={recording ? "Stop listening" : "Voice input"}
-                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition shadow-sm active:scale-[0.92] ${
+                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition shadow-sm active:scale-[0.92] cursor-pointer ${
                       recording
                         ? "bg-red-500 text-white shadow-[0_0_18px_rgba(239,68,68,0.5)] animate-pulse"
                         : dark
@@ -5566,8 +5712,11 @@ export default function RockGPT() {
               </div>
             </div>
 
-            <div className="hidden items-center justify-center gap-2 py-2 text-[11px] sm:flex" style={{ color: muted }}>
-              <span>RockGPT can make mistakes. Verify important information.</span>
+            <div className="flex items-center justify-between px-2 py-2 text-[11px] select-none" style={{ color: muted }}>
+              <span className="truncate">RockGPT can make mistakes. Verify important information.</span>
+              <span className="hidden sm:inline-block shrink-0 opacity-70">
+                Enter ↵ to send · Shift + Enter for new line
+              </span>
             </div>
           </div>
         </div>
