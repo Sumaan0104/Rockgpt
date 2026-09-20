@@ -10,7 +10,8 @@ import {
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
   Lock, Volume2, VolumeX, Pin, Code2,
   Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, CreditCard,
-  SquarePen, PenLine, Eye, EyeOff, MessageSquare, Lightbulb, FileText, Layers, Compass
+  SquarePen, Eye, EyeOff, MessageSquare, Lightbulb, FileText, Compass,
+  Brain, Play, Terminal, TrendingUp, GraduationCap, Plane, Palette, Sliders, Folder, Bell, Share2, BookOpen, Image, FileCode, PlaySquare
 } from "lucide-react";
 import GoogleSignInButton from "./components/GoogleSignInButton.jsx";
 
@@ -59,6 +60,13 @@ const safeStorage = {
   sessionSet: (key, val) => {
     try {
       sessionStorage.setItem(key, val);
+    } catch {
+      /* ignore storage errors */
+    }
+  },
+  sessionRemove: (key) => {
+    try {
+      sessionStorage.removeItem(key);
     } catch {
       /* ignore storage errors */
     }
@@ -3477,6 +3485,796 @@ function UpiCheckoutModal({
   );
 }
 
+const CATEGORY_PROMPTS = {
+  trending: [
+    { title: "Help me review and debug this code", prompt: "Help me review and debug this code:\n\n" },
+    { title: "Generate a logo for my brand", prompt: "Brainstorm creative concepts, color palettes, and a minimalist logo design for my brand:\n\n" },
+    { title: "Explain this concept in simple words", prompt: "Explain this concept in simple words with an intuitive analogy:\n\n" },
+    { title: "Make a study plan for 3 months", prompt: "Create a structured, week-by-week study plan for the next 3 months to learn:\n\n" },
+    { title: "Create a website design for a crystal shop", prompt: "Design the UI/UX layout, typography, and color palette for a luxury crystal e-commerce store:\n\n" },
+    { title: "Suggest business ideas for students", prompt: "Suggest high-potential, low-capital online business ideas tailored for college students:\n\n" },
+  ],
+  study: [
+    { title: "Summarize this topic into key study notes", prompt: "Summarize this topic into concise bullet-point study notes, core formulas, and flashcard facts:\n\n" },
+    { title: "Quiz me on basic data structures", prompt: "Quiz me with 5 multiple-choice questions on trees, heaps, and hash maps:\n\n" },
+    { title: "Explain quantum computing to a beginner", prompt: "Explain how quantum computers work using everyday analogies without complex math:\n\n" },
+    { title: "Create a 30-day exam revision timetable", prompt: "Build an intensive 30-day daily revision timetable with active recall intervals for:\n\n" },
+    { title: "Give memory mnemonics for tricky formulas", prompt: "Provide memorable acronyms and mnemonics to memorize these scientific principles:\n\n" },
+    { title: "Help me solve this calculus problem step-by-step", prompt: "Walk me step-by-step through solving this calculus problem:\n\n" },
+  ],
+  code: [
+    { title: "Write a React 19 hook for debounced API calls", prompt: "Write a clean TypeScript React 19 custom hook for debounced async search requests:\n\n" },
+    { title: "Debug this recursive tree traversal function", prompt: "Analyze this recursive tree traversal function and fix the stack overflow error:\n\n" },
+    { title: "Generate optimized MongoDB aggregation pipelines", prompt: "Write an efficient MongoDB aggregation pipeline to compute daily active user retention:\n\n" },
+    { title: "Convert Python pandas script into TypeScript", prompt: "Refactor this Python data transformation logic into modern TypeScript:\n\n" },
+    { title: "Explain Docker vs Kubernetes trade-offs", prompt: "Compare Docker and Kubernetes architecture, deployment complexity, and microservice use-cases:\n\n" },
+    { title: "Build secure JWT authentication middleware", prompt: "Write an Express.js security middleware verifying JWT with rate-limiting and token refresh:\n\n" },
+  ],
+  image: [
+    { title: "Photorealistic cyberpunk city in the rain", prompt: "Photorealistic cyberpunk neon metropolis in heavy rain with reflective puddles, 8k cinematic lighting" },
+    { title: "Minimalist modern 3D geometric logo", prompt: "Minimalist modern 3D geometric crystal logo on sleek dark matte background, studio lighting" },
+    { title: "Vintage retro anime character in coffee shop", prompt: "90s aesthetic vintage anime illustration of a person studying in a warm rainy coffee shop" },
+    { title: "Futuristic glowing crystal orb floating on water", prompt: "Ethereal glowing amethyst crystal orb floating above calm reflective dark water, cosmic bokeh" },
+    { title: "Cinematic macro shot of an espresso pour", prompt: "Cinematic macro 8k photo of rich golden crema flowing from a bottomless portafilter into a glass cup" },
+    { title: "Isometric 3D developer workspace with holograms", prompt: "Isometric cute 3D render of a futuristic software developer desk with glowing floating code widgets" },
+  ],
+  travel: [
+    { title: "Plan a 5-day budget itinerary for Tokyo, Japan", prompt: "Create a detailed 5-day budget itinerary for Tokyo including food spots, transit, and neighborhoods:\n\n" },
+    { title: "Best scenic hidden spots in Switzerland", prompt: "List the top 7 scenic, lesser-known alpine villages and train routes in Switzerland:\n\n" },
+    { title: "Packing checklist for a winter mountain trek", prompt: "Generate an ultralight packing checklist for a 4-day winter mountain trek:\n\n" },
+    { title: "Top culinary food guide for Rome and Florence", prompt: "Curate a 3-day authentic food and trattoria guide for Rome and Florence:\n\n" },
+    { title: "Weekend road trip itinerary for coastal highways", prompt: "Plan a 3-day scenic coastal road trip itinerary with sunrise viewpoints and stops:\n\n" },
+    { title: "Essential travel safety checklist for solo trips", prompt: "Provide an essential safety and digital preparation checklist for solo travelers abroad:\n\n" },
+  ],
+  more: [
+    { title: "Draft a polite salary negotiation email", prompt: "Draft a respectful, confident email negotiating a higher base salary after receiving a job offer:\n\n" },
+    { title: "Write a catchy script for a 60-second tech reel", prompt: "Write an engaging, high-retention 60-second short video script explaining:\n\n" },
+    { title: "Analyze pros and cons of remote vs hybrid work", prompt: "Analyze productivity, team culture, and cost trade-offs of remote vs hybrid work models:\n\n" },
+    { title: "Create a healthy weekly meal prep plan", prompt: "Design a high-protein, balanced weekly meal prep plan with simple grocery list:\n\n" },
+    { title: "Brainstorm unique SaaS startup ideas with low barrier", prompt: "Brainstorm 5 B2B SaaS micro-tools that can be built by a solo founder in 2 weeks:\n\n" },
+    { title: "Write a high-impact LinkedIn post about AI development", prompt: "Draft an insightful LinkedIn post sharing lessons learned building production AI applications:\n\n" },
+  ],
+};
+
+function CodeRunnerModal({ isOpen, onClose, onInsertCode, dark }) {
+  const [code, setCode] = useState(`// Quick Code Sandbox
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+console.log("Fibonacci(10):", fibonacci(10));
+console.log("RockGPT Engine:", "Ready & Executing smoothly!");
+`);
+  const [output, setOutput] = useState([]);
+  const [isRunning, setIsRunning] = useState(false);
+  const [execTime, setExecTime] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const runCode = () => {
+    setIsRunning(true);
+    const logs = [];
+    const customConsole = {
+      log: (...args) => logs.push({ type: "log", text: args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ") }),
+      error: (...args) => logs.push({ type: "error", text: args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ") }),
+      warn: (...args) => logs.push({ type: "warn", text: args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ") }),
+      info: (...args) => logs.push({ type: "info", text: args.map((a) => (typeof a === "object" ? JSON.stringify(a, null, 2) : String(a))).join(" ") }),
+    };
+
+    const startTime = performance.now();
+    try {
+      const fn = new Function("console", code);
+      fn(customConsole);
+      const duration = (performance.now() - startTime).toFixed(2);
+      setExecTime(duration);
+      if (logs.length === 0) {
+        logs.push({ type: "info", text: "Code executed successfully (no console output returned)." });
+      }
+    } catch (err) {
+      logs.push({ type: "error", text: `Error: ${err.message}` });
+      setExecTime((performance.now() - startTime).toFixed(2));
+    }
+    setOutput(logs);
+    setIsRunning(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md fade" onClick={onClose}>
+      <div
+        className={`pop relative w-full max-w-2xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
+          dark ? "border-white/15 bg-[#121215] text-white" : "border-neutral-200 bg-white text-neutral-900"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-3.5" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <Code2 size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                <span>Code Runner</span>
+                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-mono text-emerald-400">JavaScript Sandbox</span>
+              </div>
+              <div className="text-[11px] text-neutral-400">Test algorithms, snippets & logic instantly in your browser</div>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close code runner" className={`grid h-8 w-8 place-items-center rounded-full transition cursor-pointer ${dark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-neutral-500 hover:bg-black/5"}`}>
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="p-4 flex-1 overflow-y-auto space-y-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <span className="text-neutral-400">Code Editor</span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setCode("")} className="text-[11px] text-neutral-400 hover:text-white transition cursor-pointer">Clear</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(code);
+                  }}
+                  className="text-[11px] text-neutral-400 hover:text-white transition cursor-pointer"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              rows={8}
+              className={`w-full rounded-2xl border p-3 font-mono text-xs leading-relaxed outline-none resize-y ${
+                dark ? "border-white/10 bg-[#0c0c0e] text-emerald-400 placeholder:text-white/20 focus:border-emerald-500/50" : "border-neutral-200 bg-neutral-900 text-emerald-300"
+              }`}
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={runCode}
+              disabled={isRunning || !code.trim()}
+              className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-400 active:scale-95 transition cursor-pointer disabled:opacity-50"
+            >
+              <Play size={13} fill="currentColor" />
+              <span>Run Code</span>
+            </button>
+            {execTime && (
+              <span className="font-mono text-[11px] text-neutral-400">Executed in {execTime}ms</span>
+            )}
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <span className="text-xs font-semibold text-neutral-400">Output Console</span>
+            <div className={`min-h-[100px] max-h-[180px] overflow-y-auto rounded-2xl border p-3 font-mono text-xs space-y-1 ${
+              dark ? "border-white/10 bg-[#09090b] text-neutral-300" : "border-neutral-200 bg-black text-neutral-200"
+            }`}>
+              {output.length === 0 ? (
+                <div className="text-neutral-500 italic text-[11px]">Click "Run Code" above to view execution output...</div>
+              ) : (
+                output.map((out, i) => (
+                  <div key={i} className={`whitespace-pre-wrap ${out.type === "error" ? "text-red-400" : out.type === "warn" ? "text-amber-300" : "text-emerald-300"}`}>
+                    {out.text}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-3" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`rounded-xl px-4 py-2 text-xs font-semibold transition cursor-pointer ${dark ? "bg-white/5 hover:bg-white/10 text-white" : "bg-neutral-100 hover:bg-neutral-200"}`}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onInsertCode(`\`\`\`javascript\n${code}\n\`\`\``);
+              onClose();
+            }}
+            className="rounded-xl bg-white text-black px-4 py-2 text-xs font-bold shadow-md hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
+          >
+            Insert into Chat
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageGenModal({ isOpen, onClose, onInsertImage, dark }) {
+  const [prompt, setPrompt] = useState("");
+  const [style, setStyle] = useState("photorealistic");
+  const [generating, setGenerating] = useState(false);
+  const [imageUrl, setImageUrl] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const handleGenerate = () => {
+    if (!prompt.trim()) return;
+    setGenerating(true);
+    setImageUrl(null);
+    const fullPrompt = `${prompt}, ${style} style, 8k resolution, highly detailed`;
+    const encoded = encodeURIComponent(fullPrompt);
+    const url = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
+    const img = new window.Image();
+    img.onload = () => {
+      setImageUrl(url);
+      setGenerating(false);
+    };
+    img.onerror = () => {
+      setImageUrl(url);
+      setGenerating(false);
+    };
+    img.src = url;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md fade" onClick={onClose}>
+      <div
+        className={`pop relative w-full max-w-lg rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh] ${
+          dark ? "border-white/15 bg-[#121215] text-white" : "border-neutral-200 bg-white text-neutral-900"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-3.5" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-8 w-8 place-items-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              <Image size={18} />
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                <span>AI Image Generator</span>
+                <span className="rounded-full bg-purple-500/20 px-2 py-0.5 text-[9px] font-semibold text-purple-300">Visual Engine</span>
+              </div>
+              <div className="text-[11px] text-neutral-400">Generate stunning 8K AI artwork and graphics</div>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close image generator" className={`grid h-8 w-8 place-items-center rounded-full transition cursor-pointer ${dark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-neutral-500 hover:bg-black/5"}`}>
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4 overflow-y-auto">
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 text-neutral-300">Prompt Description</label>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="e.g. A futuristic crystal city at dusk with floating glowing airships..."
+              rows={3}
+              className={`w-full rounded-2xl border p-3 text-xs leading-relaxed outline-none resize-none ${
+                dark ? "border-white/10 bg-[#0c0c0e] text-white placeholder:text-white/30 focus:border-purple-500/50" : "border-neutral-200 bg-neutral-50 text-neutral-900"
+              }`}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 text-neutral-300">Art Style</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "photorealistic", label: "Photorealistic" },
+                { id: "anime", label: "Anime / Manga" },
+                { id: "3d-render", label: "3D Render" },
+                { id: "cyberpunk", label: "Cyberpunk" },
+                { id: "minimalist", label: "Minimalist" },
+                { id: "cinematic", label: "Cinematic" },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setStyle(s.id)}
+                  className={`rounded-xl border py-2 text-xs font-semibold transition cursor-pointer ${
+                    style === s.id
+                      ? "border-purple-500 bg-purple-500/20 text-purple-300 shadow-sm"
+                      : dark
+                      ? "border-white/10 bg-white/[0.03] text-neutral-400 hover:text-white"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-700"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generating || !prompt.trim()}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 py-3 text-xs font-bold text-white shadow-lg shadow-purple-500/25 hover:from-purple-500 hover:to-indigo-500 active:scale-[0.98] transition cursor-pointer disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>Dreaming & Rendering visual...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} />
+                <span>Generate Image</span>
+              </>
+            )}
+          </button>
+
+          {imageUrl && (
+            <div className="space-y-2.5 pt-2">
+              <div className="relative rounded-2xl overflow-hidden border border-white/15 bg-black">
+                <img src={imageUrl} alt={prompt} className="w-full h-64 object-cover" />
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={imageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  download="rockgpt-artwork.png"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 py-2 text-xs font-semibold text-white hover:bg-white/10 transition"
+                >
+                  <Download size={14} /> Download
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onInsertImage(imageUrl, prompt);
+                    onClose();
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white text-black py-2 text-xs font-bold shadow hover:bg-neutral-200 transition cursor-pointer"
+                >
+                  <ArrowRight size={14} /> Send to Chat
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YouTubeModal({ isOpen, onClose, onSelectPrompt, dark }) {
+  const [url, setUrl] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const handleApply = () => {
+    if (!url.trim()) return;
+    const prompt = `Please summarize this YouTube video with:
+1. High-level executive overview (TL;DR)
+2. Detailed timestamped chapter-by-chapter key takeaways
+3. Actionable insights and notable quotes
+4. Critical review or counter-perspectives
+
+Video URL / Title: ${url}`;
+    onSelectPrompt(prompt);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md fade" onClick={onClose}>
+      <div
+        className={`pop relative w-full max-w-md rounded-3xl border p-5 shadow-2xl ${
+          dark ? "border-white/15 bg-[#121215] text-white" : "border-neutral-200 bg-white text-neutral-900"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-8 w-8 place-items-center rounded-xl bg-red-500/10 text-red-500 border border-red-500/20">
+              <PlaySquare size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold">YouTube Summarizer</h3>
+              <p className="text-[11px] text-neutral-400">Extract chapters, notes, and takeaways</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-neutral-400 hover:text-white cursor-pointer">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold mb-1 text-neutral-300">YouTube Video URL or Title</label>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://youtube.com/watch?v=..."
+              className={`w-full rounded-xl border px-3 py-2.5 text-xs outline-none ${
+                dark ? "border-white/10 bg-[#0c0c0e] text-white placeholder:text-white/30" : "border-neutral-200 bg-neutral-50 text-neutral-900"
+              }`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={!url.trim()}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-500 py-2.5 text-xs font-bold text-white shadow-lg shadow-red-600/20 active:scale-95 transition cursor-pointer disabled:opacity-50"
+          >
+            <span>Generate Video Summary Prompt</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolsPanelContent({
+  isDrawer = false,
+  border,
+  dark,
+  recording,
+  webSearchActive,
+  onCloseDrawer,
+  onOpenImageGen,
+  onTriggerFile,
+  onToggleRecording,
+  onToggleSpeech,
+  onToggleWebSearch,
+  onOpenCodeRunner,
+  onOpenYoutube,
+  onSelectPdfNotes,
+  onOpenUpgrade,
+  notify,
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-1 border-b" style={{ borderColor: border }}>
+        <div className="flex items-center gap-2">
+          <Zap size={15} className="text-amber-400 fill-amber-400" />
+          <span className="text-xs sm:text-sm font-bold tracking-tight">Tools</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-neutral-400">8</span>
+        </div>
+        {isDrawer ? (
+          <button
+            type="button"
+            onClick={onCloseDrawer}
+            aria-label="Close tools panel"
+            className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 text-neutral-400 hover:text-white transition cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => notify("All 8 AI tools are active")}
+            className="text-[11px] font-semibold text-neutral-400 hover:text-white transition flex items-center gap-1 cursor-pointer"
+          >
+            <span>See all</span>
+            <ArrowRight size={11} />
+          </button>
+        )}
+      </div>
+
+      {/* 8 Interactive Tool Cards */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            onOpenImageGen();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <Image size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">Image Generator</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">Create AI art</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onTriggerFile();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <FileCode size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">File Analyzer</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">Inspect docs & code</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onToggleRecording();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            recording
+              ? "border-amber-400/40 bg-amber-400/10 text-amber-300 shadow-sm"
+              : dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${recording ? "border-amber-400/30 bg-amber-400/20 text-amber-300" : dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <Mic size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">Voice Input</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">{recording ? "Recording..." : "Speech to text"}</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onToggleSpeech();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <Volume2 size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">Text to Speech</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">Listen aloud</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onToggleWebSearch();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            webSearchActive
+              ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300 shadow-sm"
+              : dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${webSearchActive ? "border-cyan-400/30 bg-cyan-400/20 text-cyan-300" : dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <Globe size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">Web Search</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">{webSearchActive ? "Active" : "Live web lookup"}</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onOpenCodeRunner();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <Play size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">Code Runner</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">JS sandbox</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onOpenYoutube();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <PlaySquare size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">YouTube Summarizer</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">Video insights</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            onSelectPdfNotes();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className={`group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all select-none cursor-pointer active:scale-95 ${
+            dark
+              ? "border-white/10 bg-white/[0.03] text-neutral-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <div className={`grid h-7 w-7 place-items-center rounded-lg border transition ${dark ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white" : "border-neutral-200 bg-neutral-100 text-neutral-700"}`}>
+              <BookOpen size={14} />
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-bold tracking-tight truncate group-hover:underline">PDF to Notes</div>
+            <div className="text-[10px] text-neutral-400 mt-0.5 truncate">Extract notes</div>
+          </div>
+        </button>
+      </div>
+
+      {/* Upgrade to Pro Card */}
+      <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/15 via-neutral-900/90 to-neutral-950 p-4 shadow-xl select-none">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="grid h-7 w-7 place-items-center rounded-full bg-amber-400/20 text-amber-400 border border-amber-400/30">
+            <Crown size={15} />
+          </div>
+          <div className="font-bold text-xs text-white">Upgrade to Pro</div>
+        </div>
+        <p className="text-[11px] text-neutral-300 mb-3 leading-relaxed">
+          Supercharge your workflow with full access to RockGPT 4o Omni, unlimited image generation, and sandbox code execution.
+        </p>
+        <div className="space-y-1 text-[10px] text-neutral-400 mb-3.5">
+          <div className="flex items-center gap-1.5">
+            <Check size={11} className="text-amber-400 shrink-0" />
+            <span>RockGPT 4o Omni 120B model</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Check size={11} className="text-amber-400 shrink-0" />
+            <span>Full JavaScript Sandbox execution</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Check size={11} className="text-amber-400 shrink-0" />
+            <span>Priority compute with zero latency</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onOpenUpgrade();
+            if (isDrawer) onCloseDrawer();
+          }}
+          className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 py-2 text-xs font-bold text-black shadow-md hover:from-amber-300 hover:to-amber-400 active:scale-95 transition cursor-pointer"
+        >
+          <span>Upgrade Now</span>
+          <ArrowRight size={13} />
+        </button>
+      </div>
+
+      {/* Inspiring Quote Widget */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 text-center select-none">
+        <div className="text-xs font-medium italic text-neutral-300 leading-relaxed">
+          “A smarter you, for a brighter tomorrow.”
+        </div>
+        <div className="text-[10px] text-neutral-500 mt-1 font-semibold uppercase tracking-wider">
+          — RockGPT Intelligence
+        </div>
+      </div>
+
+      {/* Social & Community Footer */}
+      <div className="pt-1 text-center select-none">
+        <div className="flex items-center justify-center gap-2 mb-2 text-neutral-400">
+          <button
+            type="button"
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({ title: "RockGPT", url: window.location.href });
+              } else {
+                navigator.clipboard.writeText(window.location.href);
+                notify("Link copied to clipboard");
+              }
+            }}
+            title="Share RockGPT"
+            className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition cursor-pointer"
+          >
+            <Share2 size={13} />
+          </button>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noreferrer"
+            title="GitHub"
+            className="p-1.5 rounded-lg border border-white/10 hover:bg-white/10 hover:text-white transition"
+          >
+            <Code2 size={13} />
+          </a>
+        </div>
+        <div className="text-[10px] text-neutral-500">
+          v2.1.0 • Built with ❤️ by Suman Mansuri
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SIDEBAR_TABS = [
+  { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "explore", label: "Explore", icon: Compass },
+  { id: "tools", label: "Tools", icon: Sliders },
+  { id: "library", label: "Library", icon: Folder },
+  { id: "prompts", label: "Prompts", icon: Sparkles },
+  { id: "images", label: "Images", icon: Image },
+  { id: "documents", label: "Documents", icon: FileText },
+  { id: "settings", label: "Settings", icon: Settings },
+];
+
+const CAPABILITY_CARDS = [
+  { id: "ask", title: "Ask Anything", desc: "Get quick answers & insights", icon: MessageSquare },
+  { id: "image", title: "Generate Images", desc: "Turn text to stunning AI art", icon: Image },
+  { id: "code", title: "Write / Debug Code", desc: "Scripts, bugs, and reviews", icon: Code2 },
+  { id: "summary", title: "Summarize", desc: "Key takeaways & outlines", icon: FileText },
+  { id: "files", title: "Analyze Files", desc: "Inspect docs, data, & code", icon: Folder },
+  { id: "brainstorm", title: "Brainstorm Ideas", desc: "Creative plans & roadmaps", icon: Lightbulb },
+];
+
 /* =========================================================================
    MAIN ROCKGPT APP
    ========================================================================= */
@@ -3505,39 +4303,37 @@ export default function RockGPT() {
 
   const [activeId, setActiveId] = useState(() => {
     try {
-      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
-      const key = getStorageKey(savedUser);
-      const saved = safeStorage.get(key);
-      const savedActiveId = safeStorage.get("rockgpt-active-id");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const target = (savedActiveId && parsed.find((c) => c && c.id === savedActiveId)) || parsed[0];
-          if (target) return target.id;
-        }
+      const isSessionActive = safeStorage.sessionGet("rockgpt-in-session");
+      if (!isSessionActive) {
+        // Fresh tab launch -> always start on a clean New Chat page!
+        safeStorage.sessionSet("rockgpt-in-session", "true");
+        return null;
       }
+      return safeStorage.get("rockgpt-active-id") || null;
     } catch {
-      /* ignore */
+      return null;
     }
-    return safeStorage.get("rockgpt-active-id") || null;
   });
 
   const [messages, setMessages] = useState(() => {
     try {
+      const isSessionActive = safeStorage.sessionGet("rockgpt-in-session");
+      if (!isSessionActive) {
+        return [];
+      }
+      const savedActiveId = safeStorage.get("rockgpt-active-id");
+      if (!savedActiveId) return [];
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
       const key = getStorageKey(savedUser);
       const savedConvs = safeStorage.get(key);
-      const savedActiveId = safeStorage.get("rockgpt-active-id");
       if (savedConvs) {
         const parsed = JSON.parse(savedConvs);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const target = (savedActiveId && parsed.find((c) => c && c.id === savedActiveId)) || parsed[0];
-          if (target && Array.isArray(target.messages)) {
-            return target.messages.map((m) => ({
-              ...m,
-              createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
-            }));
-          }
+        const cur = parsed.find((c) => c && c.id === savedActiveId);
+        if (cur && Array.isArray(cur.messages)) {
+          return cur.messages.map((m) => ({
+            ...m,
+            createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
+          }));
         }
       }
     } catch {
@@ -3545,10 +4341,22 @@ export default function RockGPT() {
     }
     return [];
   });
+
+  // 3-Column Layout & Feature States
+  const [toolsPanelOpen, setToolsPanelOpen] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState("chat");
+  const [selectedCategory, setSelectedCategory] = useState("trending");
+  const [webSearchActive, setWebSearchActive] = useState(false);
+  const [deepThinkActive, setDeepThinkActive] = useState(false);
+  const [showAllRecentChats, setShowAllRecentChats] = useState(false);
+  const [codeRunnerOpen, setCodeRunnerOpen] = useState(false);
+  const [imageGenModalOpen, setImageGenModalOpen] = useState(false);
+  const [youtubeModalOpen, setYoutubeModalOpen] = useState(false);
+
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [input, setInput] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth >= 1024 : false));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
@@ -3570,6 +4378,8 @@ export default function RockGPT() {
   // Profile Popover State
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [headerProfileOpen, setHeaderProfileOpen] = useState(false);
+
+
 
   // --- Auth & Subscription State ---
   const [user, setUser] = useState(() => {
@@ -3628,6 +4438,45 @@ export default function RockGPT() {
   const dark = theme === "dark";
 
   const prevUserRef = useRef(user);
+
+  const applyPromptToInput = (promptText) => {
+    setInput(promptText);
+    if (inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = Math.min(140, Math.max(26, inputRef.current.scrollHeight)) + "px";
+    }
+  };
+
+  const handleSidebarTabClick = (tabId) => {
+    setActiveSidebarTab(tabId);
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+    if (tabId === "chat") newChat();
+    else if (tabId === "explore") setSelectedCategory("trending");
+    else if (tabId === "tools") setToolsPanelOpen(true);
+    else if (tabId === "library") notify("Library: Saved conversations & artifacts");
+    else if (tabId === "prompts") setSelectedCategory("more");
+    else if (tabId === "images") setImageGenModalOpen(true);
+    else if (tabId === "documents") {
+      if (fileRef.current) fileRef.current.click();
+    } else if (tabId === "settings") setSettingsOpen(true);
+  };
+
+  const handleCapabilityCardClick = (cardId) => {
+    if (cardId === "ask") {
+      if (inputRef.current) inputRef.current.focus();
+    } else if (cardId === "image") {
+      setImageGenModalOpen(true);
+    } else if (cardId === "code") {
+      applyPromptToInput("Help me write and debug a code snippet for: ");
+    } else if (cardId === "summary") {
+      applyPromptToInput("Please summarize the following text into key takeaways:\n\n");
+    } else if (cardId === "files") {
+      if (fileRef.current) fileRef.current.click();
+    } else if (cardId === "brainstorm") {
+      applyPromptToInput("Brainstorm innovative and creative ideas for: ");
+    }
+  };
 
   useEffect(() => {
     if (prevUserRef.current !== user) {
@@ -3762,24 +4611,22 @@ export default function RockGPT() {
       const convs = Array.isArray(data.conversations) ? data.conversations : [];
       setConversations(convs);
 
-      // Restore active conversation for this user
+      // Only restore active conversation if the user is already inside an active chat in this session
       const savedActiveId = safeStorage.get("rockgpt-active-id");
-      const target = (savedActiveId && convs.find((c) => c && c.id === savedActiveId)) || convs[0];
-      if (target) {
-        setActiveId(target.id);
-        safeStorage.set("rockgpt-active-id", target.id);
-        setMessages(
-          Array.isArray(target.messages)
-            ? target.messages.map((m) => ({
-                ...m,
-                createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
-              }))
-            : []
-        );
-      } else {
-        setActiveId(null);
-        safeStorage.remove("rockgpt-active-id");
-        setMessages([]);
+      const inSessionChat = safeStorage.sessionGet("rockgpt-in-session-chat");
+      if (inSessionChat && savedActiveId) {
+        const target = convs.find((c) => c && c.id === savedActiveId);
+        if (target) {
+          setActiveId(target.id);
+          setMessages(
+            Array.isArray(target.messages)
+              ? target.messages.map((m) => ({
+                  ...m,
+                  createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
+                }))
+              : []
+          );
+        }
       }
     } catch (err) {
       console.warn("Failed to fetch conversations from server:", err);
@@ -4033,7 +4880,15 @@ export default function RockGPT() {
     const text = input.trim();
     if ((!text && !attachment) || typing) return;
 
-    let backendContent = text;
+    let promptPrefix = "";
+    if (deepThinkActive) {
+      promptPrefix += "[Deep Think / Extended Reasoning Mode: Enabled. Think through this step-by-step.]\n\n";
+    }
+    if (webSearchActive) {
+      promptPrefix += "[Web Search Mode: Enabled. Search and provide up-to-date real-world facts.]\n\n";
+    }
+
+    let backendContent = promptPrefix ? promptPrefix + text : text;
     let displayAttachment = null;
 
     if (attachment?.kind === "image") {
@@ -4278,6 +5133,118 @@ export default function RockGPT() {
       .filter((c) => c && typeof c === "object" && String(c.title || "New chat").toLowerCase().includes((search || "").toLowerCase()))
       .sort((a, b) => ((b && b.pinned) ? 1 : 0) - ((a && a.pinned) ? 1 : 0));
   }, [conversations, search]);
+
+  const recentGroups = useMemo(() => {
+    const today = [];
+    const yesterday = [];
+    const older = [];
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 86400000;
+
+    for (const c of filtered) {
+      const time = c.updatedAt ? new Date(c.updatedAt).getTime() : c.createdAt ? new Date(c.createdAt).getTime() : 0;
+      if (time === 0 || time >= todayStart) {
+        today.push(c);
+      } else if (time >= yesterdayStart) {
+        yesterday.push(c);
+      } else {
+        older.push(c);
+      }
+    }
+    return { today, yesterday, older };
+  }, [filtered]);
+
+  const renderChatItem = (c) => (
+    <div
+      key={c.id}
+      onClick={() => {
+        selectConversation(c.id);
+        if (window.innerWidth < 1024) setSidebarOpen(false);
+      }}
+      className={`group relative mb-1 flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-1.5 text-[13px] transition-colors ${
+        activeId === c.id
+          ? dark
+            ? "bg-white/[.08] text-white font-medium before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-white"
+            : "bg-neutral-200/80 text-neutral-900 font-medium before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-neutral-900"
+          : dark
+          ? "text-neutral-300 hover:bg-white/[.045] hover:text-white"
+          : "text-neutral-700 hover:bg-neutral-200/50 hover:text-neutral-900"
+      }`}
+    >
+      {c.pinned ? (
+        <Pin size={13} className="shrink-0 text-amber-400 fill-amber-400/20" />
+      ) : (
+        <MessageSquare
+          size={13}
+          className={`shrink-0 ${
+            activeId === c.id
+              ? dark
+                ? "text-white"
+                : "text-neutral-900"
+              : "text-neutral-500"
+          }`}
+        />
+      )}
+      {editing === c.id ? (
+        <input
+          autoFocus
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onBlur={() => renameChat(c.id, editText)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") renameChat(c.id, editText);
+          }}
+          className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+        />
+      ) : (
+        <span className="min-w-0 flex-1 truncate text-[13px]">{c.title}</span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          togglePinChat(c.id);
+        }}
+        title={c.pinned ? "Unpin chat" : "Pin chat"}
+        aria-label={c.pinned ? "Unpin chat" : "Pin chat"}
+        className={`hidden shrink-0 rounded-md p-1 group-hover:block cursor-pointer ${
+          dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
+        }`}
+      >
+        <Pin size={12} className={c.pinned ? "text-amber-500" : ""} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditing(c.id);
+          setEditText(c.title);
+        }}
+        title="Rename chat"
+        aria-label="Rename chat"
+        className={`hidden shrink-0 rounded-md p-1 group-hover:block cursor-pointer ${
+          dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
+        }`}
+      >
+        <Edit3 size={12} />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setDeleteConfirmId(c.id);
+        }}
+        title="Delete chat"
+        aria-label="Delete chat"
+        className="hidden shrink-0 rounded-md p-1 text-red-500 group-hover:block hover:bg-red-500/10 cursor-pointer"
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  );
+
+
 
   const surface = dark ? "#0a0a0a" : "#ffffff";
   const panel = dark ? "#111111" : "#f7f7f8";
@@ -4579,12 +5546,13 @@ export default function RockGPT() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-50 h-full w-[85vw] max-w-[290px] shrink-0 overflow-hidden transition-transform duration-300 sm:w-[270px] ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed lg:static inset-y-0 left-0 z-50 lg:z-30 h-full w-[265px] shrink-0 overflow-hidden transition-all duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:hidden"
         }`}
         style={{ background: panel, borderRight: `1px solid ${border}` }}
       >
         <div className="flex h-full w-full flex-col">
+          {/* Top Brand Header */}
           <div className="flex items-center justify-between p-3 pb-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <RockMark dark={dark} />
@@ -4595,57 +5563,69 @@ export default function RockGPT() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={newChat}
-              title="New chat (Ctrl+N)"
-              aria-label="New chat"
-              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition ${
-                dark
-                  ? "border-white/10 text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                  : "border-neutral-300 text-neutral-700 hover:bg-black/[0.05]"
-              }`}
-            >
-              <Plus size={16} strokeWidth={2.2} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  newChat();
+                  if (window.innerWidth < 1024) setSidebarOpen(false);
+                }}
+                title="New chat (Ctrl+N)"
+                aria-label="New chat"
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition cursor-pointer ${
+                  dark
+                    ? "border-white/10 text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                    : "border-neutral-300 text-neutral-700 hover:bg-black/[0.05]"
+                }`}
+              >
+                <Plus size={16} strokeWidth={2.2} />
+              </button>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                title="Close sidebar"
+                aria-label="Close sidebar"
+                className={`lg:hidden grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition cursor-pointer ${
+                  dark
+                    ? "border-white/10 text-neutral-400 hover:text-white"
+                    : "border-neutral-300 text-neutral-600 hover:text-black"
+                }`}
+              >
+                <X size={15} />
+              </button>
+            </div>
           </div>
 
-          {/* Prominent Full-Width "New chat" action */}
-          <div className="px-3 pb-2 pt-1">
+          {/* Prominent White Pill "+ New Chat" Button */}
+          <div className="px-3 pb-2 pt-0.5">
             <button
               type="button"
-              onClick={newChat}
+              onClick={() => {
+                newChat();
+                if (window.innerWidth < 1024) setSidebarOpen(false);
+              }}
               title="New chat (Ctrl+N)"
               aria-label="New chat (Ctrl+N)"
-              className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition active:scale-[0.98] cursor-pointer ${
-                dark
-                  ? "border-white/12 bg-white/[0.05] text-white hover:border-white/25 hover:bg-white/[0.09]"
-                  : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
-              }`}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-xs sm:text-sm font-bold text-black shadow-md transition-all hover:bg-neutral-200 active:scale-[0.98] cursor-pointer"
             >
-              <span className="flex items-center gap-2.5">
-                <Plus size={16} strokeWidth={2.4} />
-                <span>New chat</span>
-              </span>
-              <kbd className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium ${dark ? "bg-white/10 text-neutral-400" : "bg-black/5 text-neutral-600"}`}>
-                Ctrl N
-              </kbd>
+              <Plus size={16} strokeWidth={2.6} />
+              <span>New Chat</span>
             </button>
           </div>
 
+          {/* Search Pill */}
           <div className="px-3 pb-2">
             <div
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${
-                dark ? "border-white/10 bg-white/[0.02] focus-within:border-white/20" : "border-neutral-300/70 bg-white focus-within:border-neutral-400"
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 transition-colors ${
+                dark ? "border-white/10 bg-[#161619] focus-within:border-white/25" : "border-neutral-200 bg-white focus-within:border-neutral-400"
               }`}
             >
-              <Search size={14} style={{ color: muted }} />
+              <Search size={13} style={{ color: muted }} />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search chats..."
                 aria-label="Search chats"
-                className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${
-                  dark ? "placeholder:text-white/30 text-white" : "placeholder:text-neutral-400 text-neutral-900"
+                className={`min-w-0 flex-1 bg-transparent text-xs outline-none ${
+                  dark ? "placeholder:text-neutral-500 text-white" : "placeholder:text-neutral-400 text-neutral-900"
                 }`}
               />
               {search && (
@@ -4653,180 +5633,159 @@ export default function RockGPT() {
                   type="button"
                   onClick={() => setSearch("")}
                   aria-label="Clear search"
-                  className="p-0.5 text-neutral-400 hover:text-white transition"
+                  className="p-0.5 text-neutral-400 hover:text-white transition cursor-pointer"
                 >
-                  <X size={13} />
+                  <X size={12} />
                 </button>
               )}
             </div>
           </div>
 
+          {/* Vertical Navigation Tabs */}
+          <div className="px-2 py-1 space-y-0.5 border-b pb-2 mb-1" style={{ borderColor: border }}>
+            {SIDEBAR_TABS.map((tab) => {
+              const TabIcon = tab.icon;
+              const isActive = activeSidebarTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleSidebarTabClick(tab.id)}
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-xs font-medium transition cursor-pointer ${
+                    isActive
+                      ? dark
+                        ? "bg-white/[0.08] text-white font-semibold"
+                        : "bg-neutral-200 text-neutral-900 font-semibold"
+                      : dark
+                      ? "text-neutral-400 hover:bg-white/[0.04] hover:text-white"
+                      : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+                  }`}
+                >
+                  <TabIcon size={14} className={isActive ? "text-white" : "text-neutral-500"} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Recent Chats with Date Grouping */}
           <div className="thin flex-1 overflow-y-auto px-2">
-            <div className="mb-2 px-3 pt-2 text-[11px] font-semibold text-neutral-400 tracking-normal">
+            <div className="mb-1.5 px-2.5 pt-1 text-[11px] font-semibold text-neutral-400 tracking-normal">
               Recent chats
             </div>
-            {filtered.length === 0 && (
-              <div className="px-3 py-10 text-center text-xs" style={{ color: muted }}>
+            {filtered.length === 0 ? (
+              <div className="px-3 py-8 text-center text-xs" style={{ color: muted }}>
                 No chats yet
               </div>
-            )}
-            {filtered.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => selectConversation(c.id)}
-                className={`group relative mb-1 flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] transition-colors ${
-                  activeId === c.id
-                    ? dark
-                      ? "bg-white/[.08] text-white font-medium before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-white"
-                      : "bg-neutral-200/80 text-neutral-900 font-medium before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-neutral-900"
-                    : dark
-                    ? "text-neutral-300 hover:bg-white/[.045] hover:text-white"
-                    : "text-neutral-700 hover:bg-neutral-200/50 hover:text-neutral-900"
-                }`}
-              >
-                {c.pinned ? (
-                  <Pin size={13} className="shrink-0 text-amber-400 fill-amber-400/20" />
-                ) : (
-                  <MessageSquare
-                    size={13}
-                    className={`shrink-0 ${
-                      activeId === c.id
-                        ? dark
-                          ? "text-white"
-                          : "text-neutral-900"
-                        : "text-neutral-500"
-                    }`}
-                  />
+            ) : (
+              <div className="space-y-3">
+                {recentGroups.today.length > 0 && (
+                  <div>
+                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      Today
+                    </div>
+                    {recentGroups.today.map((c) => renderChatItem(c))}
+                  </div>
                 )}
-                {editing === c.id ? (
-                  <input
-                    autoFocus
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onBlur={() => renameChat(c.id, editText)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") renameChat(c.id, editText);
-                    }}
-                    className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
-                  />
-                ) : (
-                  <span className="min-w-0 flex-1 truncate text-[13px]">{c.title}</span>
+                {recentGroups.yesterday.length > 0 && (
+                  <div>
+                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      Yesterday
+                    </div>
+                    {recentGroups.yesterday.map((c) => renderChatItem(c))}
+                  </div>
                 )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePinChat(c.id);
-                  }}
-                  title={c.pinned ? "Unpin chat" : "Pin chat"}
-                  aria-label={c.pinned ? "Unpin chat" : "Pin chat"}
-                  className={`hidden shrink-0 rounded-md p-1 group-hover:block ${
-                    dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
-                  }`}
-                >
-                  <Pin size={12} className={c.pinned ? "text-amber-500" : ""} />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(c.id);
-                    setEditText(c.title);
-                  }}
-                  title="Rename chat"
-                  aria-label="Rename chat"
-                  className={`hidden shrink-0 rounded-md p-1 group-hover:block ${
-                    dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
-                  }`}
-                >
-                  <Edit3 size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteConfirmId(c.id);
-                  }}
-                  title="Delete chat"
-                  aria-label="Delete chat"
-                  className="hidden shrink-0 rounded-md p-1 text-red-500 group-hover:block hover:bg-red-500/10"
-                >
-                  <Trash2 size={12} />
-                </button>
+                {recentGroups.older.length > 0 && (
+                  <div>
+                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      Older
+                    </div>
+                    {(showAllRecentChats ? recentGroups.older : recentGroups.older.slice(0, 5)).map((c) => renderChatItem(c))}
+                    {recentGroups.older.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllRecentChats((v) => !v)}
+                        className="w-full text-left px-3 py-1.5 text-[11px] font-medium text-neutral-400 hover:text-white transition cursor-pointer"
+                      >
+                        {showAllRecentChats ? "Show less ⌃" : `Show ${recentGroups.older.length - 5} more ⌄`}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
+            )}
           </div>
 
           {/* Sidebar Footer with Profile & Menu */}
           <div className="relative border-t p-2 space-y-1" style={{ borderColor: border }}>
             <button
               onClick={() => {
-                setSidebarOpen(false);
+                if (window.innerWidth < 1024) setSidebarOpen(false);
                 setPricingOpen(true);
               }}
-              className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-sm font-medium transition-all active:scale-[0.98] cursor-pointer ${
+              className={`flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2 text-sm font-medium transition-all active:scale-[0.98] cursor-pointer ${
                 dark
                   ? "border-white/10 bg-white/[0.05] text-white hover:border-white/20 hover:bg-white/[0.08]"
                   : "border-neutral-200 bg-neutral-100 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
               }`}
             >
-              <Crown size={17} className="text-amber-400" />
+              <Crown size={16} className="text-amber-400" />
               <div className="flex-1 text-left">
-                <div className="leading-tight text-[13px] font-semibold">
+                <div className="leading-tight text-[12px] font-semibold">
                   {isPaidUser ? "Manage plan" : "Upgrade plan"}
                 </div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="text-[10px] text-neutral-400">
                   {isPaidUser ? `Current: ${user.plan}` : "Unlock RockGPT 4o"}
                 </div>
               </div>
-              <ChevronRight size={14} className="text-neutral-500" />
+              <ChevronRight size={13} className="text-neutral-500" />
             </button>
 
-            {/* Theme Switcher in Sidebar */}
+            {/* Theme Switcher */}
             <div
-              className={`flex items-center justify-between rounded-xl border p-1.5 transition ${
+              className={`flex items-center justify-between rounded-xl border p-1 transition ${
                 dark ? "border-white/10 bg-white/[0.03]" : "border-neutral-200 bg-neutral-100"
               }`}
             >
-              <div className="flex items-center gap-2 pl-2">
-                {dark ? <Moon size={15} className="text-white/80" /> : <Sun size={15} className="text-neutral-800" />}
-                <span className={`text-xs font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>Theme</span>
+              <div className="flex items-center gap-1.5 pl-2">
+                {dark ? <Moon size={14} className="text-white/80" /> : <Sun size={14} className="text-neutral-800" />}
+                <span className={`text-[11px] font-semibold ${dark ? "text-white" : "text-neutral-900"}`}>Theme</span>
               </div>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setTheme("light")}
                   aria-label="Switch to light theme"
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold transition cursor-pointer ${
                     !dark
                       ? "bg-white text-neutral-900 shadow-sm"
                       : "text-neutral-400 hover:text-white"
                   }`}
                 >
-                  <Sun size={12} /> Light
+                  <Sun size={11} /> Light
                 </button>
                 <button
                   type="button"
                   onClick={() => setTheme("dark")}
                   aria-label="Switch to dark theme"
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  className={`flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-semibold transition cursor-pointer ${
                     dark
                       ? "bg-white text-black shadow-sm font-semibold"
                       : "text-neutral-500 hover:text-neutral-900"
                   }`}
                 >
-                  <Moon size={12} /> Dark
+                  <Moon size={11} /> Dark
                 </button>
               </div>
             </div>
 
-            {/* Profile trigger or Log In / Sign Up buttons */}
+            {/* Profile or Login */}
             {!user ? (
-              <div className="space-y-2">
+              <div className="space-y-1.5 pt-0.5">
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => openAuth("login")}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-semibold transition active:scale-95 cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-1.5 text-xs font-semibold transition active:scale-95 cursor-pointer ${
                       dark
                         ? "border-white/15 bg-white/[0.04] text-white hover:bg-white/10"
                         : "border-neutral-300 bg-neutral-100 text-neutral-900 hover:bg-neutral-200"
@@ -4836,27 +5795,16 @@ export default function RockGPT() {
                   </button>
                   <button
                     onClick={() => openAuth("signup")}
-                    className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2 text-xs font-bold text-black shadow-sm hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-1.5 text-xs font-bold text-black shadow-sm hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
                   >
                     Sign up
                   </button>
                 </div>
-                <button
-                  onClick={() => openAuth("login")}
-                  className={`flex w-full items-center justify-center gap-2 rounded-xl border py-2 text-xs font-medium transition active:scale-95 cursor-pointer ${
-                    dark
-                      ? "border-white/10 bg-white/[0.02] text-neutral-300 hover:bg-white/[0.06] hover:text-white"
-                      : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 hover:text-black"
-                  }`}
-                >
-                  <GoogleIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span>Continue with Google</span>
-                </button>
               </div>
             ) : (
               <button
                 onClick={() => setProfileMenuOpen((v) => !v)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
+                className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-sm transition cursor-pointer ${
                   dark ? "hover:bg-white/[0.06]" : "hover:bg-black/[0.05]"
                 }`}
               >
@@ -4877,7 +5825,7 @@ export default function RockGPT() {
               </button>
             )}
 
-            {/* User Profile Popover */}
+            {/* Popover */}
             <UserProfileMenu
               user={user}
               dark={dark}
@@ -5083,6 +6031,34 @@ export default function RockGPT() {
 
             {/* Quick Theme Toggle Button */}
             <button
+              type="button"
+              onClick={() => notify("RockGPT Flash is up to date • Version 2.1.0")}
+              title="Notifications"
+              aria-label="Notifications"
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer ${
+                dark
+                  ? "border-white/10 bg-white/[0.06] text-white/80 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                  : "border-black/10 bg-black/[0.05] text-neutral-700 hover:border-black/20 hover:bg-black/[0.09]"
+              }`}
+            >
+              <Bell size={15} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setToolsPanelOpen(true)}
+              title="Open AI Tools Panel"
+              aria-label="Open AI Tools Panel"
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer xl:hidden ${
+                dark
+                  ? "border-white/10 bg-white/[0.06] text-white/80 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
+                  : "border-black/10 bg-black/[0.05] text-neutral-700 hover:border-black/20 hover:bg-black/[0.09]"
+              }`}
+            >
+              <Sliders size={15} />
+            </button>
+
+            <button
               onClick={() => setTheme(dark ? "light" : "dark")}
               title={`Switch to ${dark ? "light" : "dark"} mode`}
               aria-label={`Switch to ${dark ? "light" : "dark"} mode`}
@@ -5206,106 +6182,127 @@ export default function RockGPT() {
         {/* Chat Message Window */}
         <section className="thin flex-1 overflow-y-auto">
           {messages.length === 0 && !typing ? (
-            <div className="mx-auto flex h-full max-w-[760px] flex-col justify-center px-4 py-6 sm:px-6 chat-enter-main">
-              {/* Refined Greeting Header */}
-              <div className="mb-5 sm:mb-7 text-left select-none">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <RockMark size={28} dark={dark} animated />
-                  <span className="text-xs font-semibold tracking-normal text-neutral-400">
-                    RockGPT Intelligence
-                  </span>
+            <div className="mx-auto flex h-full max-w-[820px] flex-col justify-center px-4 py-6 sm:px-6 chat-enter-main">
+              {/* Hero Badge */}
+              <div className="flex justify-center mb-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1 text-xs font-semibold text-neutral-300 shadow-sm backdrop-blur-sm">
+                  <Zap size={13} className="text-amber-400 fill-amber-400 animate-pulse" />
+                  <span>Powered by Advanced AI</span>
                 </div>
-                <h1 className={`text-2xl sm:text-3xl font-semibold tracking-tight ${dark ? "text-white" : "text-neutral-900"}`}>
-                  What’s on your mind today?
+              </div>
+
+              {/* Headline */}
+              <div className="text-center mb-6 select-none">
+                <h1 className="text-3xl sm:text-4xl md:text-[40px] font-bold tracking-tight text-white mb-2 leading-tight">
+                  Hello, I'm <span className="bg-gradient-to-r from-amber-300 via-amber-100 to-white bg-clip-text text-transparent">RockGPT Flash</span>
                 </h1>
-                <p className="text-xs sm:text-sm text-neutral-400 mt-1 leading-relaxed">
-                  Ask anything, debug code, draft content, or explore complex ideas.
+                <p className="text-xs sm:text-sm text-neutral-400 font-medium tracking-wide">
+                  Think • Create • Solve • Explore
                 </p>
               </div>
 
-              {/* Starter Prompt Chips */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pb-2">
-                {[
-                  {
-                    title: "Help me debug this code",
-                    prompt: "Help me review and debug this code:\n\n",
-                    desc: "Find bugs, optimize performance, or fix errors",
-                    icon: Code2,
-                  },
-                  {
-                    title: "Explain a complex topic simply",
-                    prompt: "Explain this complex topic simply with an intuitive analogy:\n\n",
-                    desc: "Clear explanations and analogies for tricky ideas",
-                    icon: Lightbulb,
-                  },
-                  {
-                    title: "Draft a professional email",
-                    prompt: "Help me draft a clear, professional email regarding:\n\n",
-                    desc: "Polite follow-ups, proposals, and outreach",
-                    icon: PenLine,
-                  },
-                  {
-                    title: "Analyze or summarize document",
-                    prompt: "Analyze this text and summarize key takeaways:\n\n",
-                    desc: "Extract key insights, action items, or bullet points",
-                    icon: FileText,
-                  },
-                  {
-                    title: "Brainstorm architecture ideas",
-                    prompt: "Brainstorm software architecture options and trade-offs for:\n\n",
-                    desc: "System design patterns, scalability, and stack choices",
-                    icon: Layers,
-                  },
-                  {
-                    title: "Compare frameworks & tradeoffs",
-                    prompt: "Compare the pros, cons, and performance trade-offs of:\n\n",
-                    desc: "Side-by-side evaluation with clear criteria",
-                    icon: Compass,
-                  },
-                ].map((chip, idx) => {
-                  const ChipIcon = chip.icon;
+              {/* 6 Action Capability Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-6">
+                {CAPABILITY_CARDS.map((card, idx) => {
+                  const CardIcon = card.icon;
                   return (
                     <button
-                      key={chip.title}
+                      key={card.id}
                       type="button"
-                      onClick={() => {
-                        setInput(chip.prompt);
-                        if (inputRef.current) {
-                          inputRef.current.focus();
-                          inputRef.current.style.height = "auto";
-                          inputRef.current.style.height = Math.min(140, Math.max(26, inputRef.current.scrollHeight)) + "px";
-                        }
-                      }}
-                      className={`btn-interactive group flex items-start gap-3 rounded-2xl border p-3 sm:p-3.5 text-left transition-all select-none cursor-pointer ${
+                      onClick={() => handleCapabilityCardClick(card.id)}
+                      className={`group flex flex-col justify-between rounded-2xl border p-3 sm:p-3.5 text-left transition-all duration-200 select-none cursor-pointer active:scale-[0.98] ${
                         dark
-                          ? "border-white/10 bg-white/[0.03] text-white/90 hover:border-white/20 hover:bg-white/[0.07] active:scale-[0.98]"
-                          : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.98] shadow-xs"
+                          ? "border-white/10 bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.06] shadow-sm"
+                          : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50 shadow-xs"
                       }`}
                       style={{ animationDelay: `${idx * 40}ms` }}
                     >
-                      <div
-                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border transition-colors ${
-                          dark
-                            ? "border-white/10 bg-white/[0.05] text-neutral-300 group-hover:text-white group-hover:border-white/20"
-                            : "border-neutral-200 bg-neutral-100 text-neutral-700 group-hover:text-neutral-900 group-hover:border-neutral-300"
-                        }`}
-                      >
-                        <ChipIcon size={16} strokeWidth={2} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-semibold tracking-tight group-hover:underline">
-                          {chip.title}
+                      <div className="flex items-center justify-between mb-2">
+                        <div
+                          className={`grid h-8 w-8 place-items-center rounded-xl border transition-colors ${
+                            dark
+                              ? "border-white/10 bg-white/[0.04] text-neutral-300 group-hover:text-white group-hover:border-white/20"
+                              : "border-neutral-200 bg-neutral-100 text-neutral-700 group-hover:text-neutral-900"
+                          }`}
+                        >
+                          <CardIcon size={16} strokeWidth={2} />
                         </div>
-                        <div className="text-[11px] text-neutral-400 mt-0.5 line-clamp-1 leading-normal">
-                          {chip.desc}
+                        <ArrowRight size={13} className="text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div>
+                        <div className="text-xs sm:text-[13px] font-bold tracking-tight text-white group-hover:underline">
+                          {card.title}
+                        </div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 line-clamp-1 leading-snug">
+                          {card.desc}
                         </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
-            </div>
-          ) : (
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto thin pb-2 mb-4 select-none">
+                {[
+                  { id: "trending", label: "Trending", icon: TrendingUp },
+                  { id: "study", label: "Study Help", icon: GraduationCap },
+                  { id: "code", label: "Code", icon: Terminal },
+                  { id: "images", label: "Image Ideas", icon: Palette },
+                  { id: "travel", label: "Travel Plan", icon: Plane },
+                  { id: "more", label: "More", icon: Sparkles },
+                ].map((cat) => {
+                  const CatIcon = cat.icon;
+                  const isSelected = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`flex items-center gap-1.5 shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-white text-black shadow-md scale-105"
+                          : dark
+                          ? "border border-white/10 bg-white/[0.03] text-neutral-400 hover:border-white/20 hover:text-white"
+                          : "border border-neutral-200 bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                      }`}
+                    >
+                      <CatIcon size={13} />
+                      <span>{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 6 Dynamic Prompt Suggestion Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pb-2">
+                {(CATEGORY_PROMPTS[selectedCategory] || CATEGORY_PROMPTS.trending).map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => applyPromptToInput(item.prompt)}
+                    className={`group flex flex-col justify-between rounded-2xl border p-3 sm:p-3.5 text-left transition-all duration-200 select-none cursor-pointer active:scale-[0.98] ${
+                      dark
+                        ? "border-white/10 bg-white/[0.025] hover:border-white/25 hover:bg-white/[0.06] shadow-sm"
+                        : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50 shadow-xs"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-300">
+                        {item.category}
+                      </span>
+                      <ArrowRight size={13} className="text-neutral-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                    <div className="text-xs sm:text-[13px] font-semibold text-white leading-snug group-hover:underline">
+                      {item.title}
+                    </div>
+                    <div className="text-[11px] text-neutral-400 mt-1 line-clamp-2 leading-relaxed">
+                      {item.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>) : (
             <div className="mx-auto max-w-[780px] px-3 py-6 sm:px-6 sm:py-8">
               {messages.map((m, i) => (
                 <div key={m.id} className={`${m.role === "user" ? "user-msg-enter" : "assistant-msg-enter"} mb-6 sm:mb-7`}>
@@ -5563,74 +6560,30 @@ export default function RockGPT() {
               </div>
             )}
 
-            {/* The Capsule Pill */}
-            <div
-              className={`rock-input-capsule relative flex items-center gap-2.5 rounded-full border px-3.5 py-2 min-h-[52px] sm:min-h-[54px] shadow-2xl transition-all duration-200 ${
-                dark
-                  ? "border-white/12 bg-[#141416] shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-white/25 focus-within:ring-2 focus-within:ring-white/5"
-                  : "border-black/12 bg-white shadow-[0_6px_24px_rgba(0,0,0,0.08)] focus-within:border-black/25 focus-within:ring-2 focus-within:ring-black/5"
-              }`}
-            >
-              {/* Attachment '+' button */}
-              <input ref={fileRef} type="file" accept="image/*,.txt,.md" className="hidden" onChange={handleFileSelect} />
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setAttachMenuOpen((v) => !v)}
-                  title="Attach photo or file"
-                  aria-label="Attach photo or file"
-                  aria-expanded={attachMenuOpen}
-                  className={`btn-interactive grid h-9 w-9 shrink-0 place-items-center rounded-full transition cursor-pointer ${
-                    dark ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"
-                  }`}
-                >
-                  <Plus size={20} strokeWidth={2.2} />
-                </button>
-
-                {attachMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
-                    <div
-                      className={`absolute bottom-12 left-0 z-40 w-60 rounded-2xl border p-1.5 shadow-2xl pop ${
-                        dark ? "border-white/15 bg-[#181818]" : "border-neutral-200 bg-white"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          fileRef.current?.click();
-                          setAttachMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition cursor-pointer ${
-                          dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
-                        }`}
-                      >
-                        <Paperclip size={16} /> <span className="flex-1">Add photo or file</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          notify("Web search is coming soon");
-                          setAttachMenuOpen(false);
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition cursor-pointer ${
-                          dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
-                        }`}
-                      >
-                        <Globe size={16} /> <span className="flex-1">Web search</span>
-                        <span
-                          className={`rounded-full border px-1.5 py-0.5 text-[9px] ${
-                            dark ? "border-white/10 text-white/40" : "border-neutral-200 text-neutral-500"
-                          }`}
-                        >
-                          Soon
-                        </span>
-                      </button>
-                    </div>
-                  </>
+            {/* Mode Badges */}
+            {(webSearchActive || deepThinkActive) && (
+              <div className="flex items-center gap-2 px-3 pb-1.5">
+                {webSearchActive && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/15 border border-cyan-400/30 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+                    <Globe size={11} /> Real-Time Search Active
+                  </span>
+                )}
+                {deepThinkActive && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 border border-amber-400/30 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                    <Brain size={11} /> Deep Reasoning Active
+                  </span>
                 )}
               </div>
+            )}
 
+            {/* The Capsule Pill */}
+            <div
+              className={`rock-input-capsule relative flex flex-col gap-1.5 rounded-[24px] sm:rounded-[28px] border px-3.5 py-2.5 shadow-2xl transition-all duration-200 ${
+                dark
+                  ? "border-white/12 bg-[#141417] shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-white/25"
+                  : "border-black/12 bg-white shadow-[0_6px_24px_rgba(0,0,0,0.08)] focus-within:border-black/25"
+              }`}
+            >
               {/* Text Input */}
               <textarea
                 ref={inputRef}
@@ -5647,68 +6600,177 @@ export default function RockGPT() {
                   }
                 }}
                 rows={1}
-                placeholder={`Ask ${selectedModel}...`}
-                aria-label={`Ask ${selectedModel}`}
-                className={`min-w-0 flex-1 resize-none bg-transparent py-1 text-[15px] sm:text-base leading-6 outline-none ${
+                placeholder="Ask anything..."
+                aria-label="Ask anything"
+                className={`min-w-0 w-full resize-none bg-transparent px-1 py-1 text-sm sm:text-base leading-6 outline-none ${
                   dark ? "text-white placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
                 style={{ minHeight: "26px", maxHeight: "140px", caretColor: dark ? "#ffffff" : "#000000" }}
               />
 
-              {/* Right actions inside capsule */}
-              <div className="flex items-center gap-1 shrink-0">
-                {typing ? (
+              {/* Action Toolbar Row */}
+              <div className="flex items-center justify-between pt-1">
+                {/* Left tools inside capsule */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Attachment Menu */}
+                  <input ref={fileRef} type="file" accept="image/*,.txt,.md" className="hidden" onChange={handleFileSelect} />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setAttachMenuOpen((v) => !v)}
+                      title="Attach photo or file"
+                      aria-label="Attach photo or file"
+                      aria-expanded={attachMenuOpen}
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition cursor-pointer ${
+                        dark ? "text-neutral-400 hover:bg-white/10 hover:text-white" : "text-neutral-600 hover:bg-black/5 hover:text-black"
+                      }`}
+                    >
+                      <Plus size={18} strokeWidth={2.2} />
+                    </button>
+
+                    {attachMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setAttachMenuOpen(false)} />
+                        <div
+                          className={`absolute bottom-11 left-0 z-40 w-60 rounded-2xl border p-1.5 shadow-2xl pop ${
+                            dark ? "border-white/15 bg-[#181818]" : "border-neutral-200 bg-white"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              fileRef.current?.click();
+                              setAttachMenuOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium transition cursor-pointer ${
+                              dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
+                            }`}
+                          >
+                            <Paperclip size={15} /> <span className="flex-1">Add photo or file</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageGenModalOpen(true);
+                              setAttachMenuOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium transition cursor-pointer ${
+                              dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
+                            }`}
+                          >
+                            <Image size={15} /> <span className="flex-1">Generate AI Image</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCodeRunnerOpen(true);
+                              setAttachMenuOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium transition cursor-pointer ${
+                              dark ? "text-white/80 hover:bg-white/[.06] hover:text-white" : "text-neutral-700 hover:bg-neutral-100"
+                            }`}
+                          >
+                            <Play size={15} /> <span className="flex-1">Run Code Sandbox</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Search toggle pill */}
                   <button
                     type="button"
-                    onClick={stopGeneration}
-                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition hover:scale-105 active:scale-[0.92] cursor-pointer ${
-                      dark ? "bg-white text-black" : "bg-neutral-900 text-white"
+                    onClick={() => {
+                      setWebSearchActive((v) => !v);
+                      notify(webSearchActive ? "Web Search turned off" : "Web Search active for next prompt");
+                    }}
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border transition cursor-pointer ${
+                      webSearchActive
+                        ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-300"
+                        : dark
+                        ? "border-white/10 bg-white/[0.04] text-neutral-400 hover:text-white hover:border-white/20"
+                        : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:text-black"
                     }`}
-                    title="Stop generating"
-                    aria-label="Stop generating response"
                   >
-                    <Square size={13} fill="currentColor" />
+                    <Globe size={12} />
+                    <span>Search</span>
                   </button>
-                ) : input.trim() || attachment ? (
+
+                  {/* Deep Think toggle pill */}
                   <button
                     type="button"
-                    onClick={sendMessage}
-                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition active:scale-[0.92] shadow-md cursor-pointer ${
-                      dark
-                        ? "bg-white text-black hover:bg-neutral-200"
-                        : "bg-neutral-900 text-white hover:bg-black"
+                    onClick={() => {
+                      setDeepThinkActive((v) => !v);
+                      notify(deepThinkActive ? "Deep Think turned off" : "Deep Think reasoning active");
+                    }}
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border transition cursor-pointer ${
+                      deepThinkActive
+                        ? "border-amber-400/40 bg-amber-400/15 text-amber-300"
+                        : dark
+                        ? "border-white/10 bg-white/[0.04] text-neutral-400 hover:text-white hover:border-white/20"
+                        : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:text-black"
                     }`}
-                    title="Send message (Enter)"
-                    aria-label="Send message"
                   >
-                    <ArrowUp size={18} strokeWidth={2.4} />
+                    <Brain size={12} />
+                    <span>Deep Think</span>
                   </button>
-                ) : (
+                </div>
+
+                {/* Right controls: Mic and Send/Stop */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
                     onClick={toggleRecording}
                     title={recording ? "Stop listening" : "Voice input"}
                     aria-label={recording ? "Stop listening" : "Voice input"}
-                    className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition shadow-sm active:scale-[0.92] cursor-pointer ${
+                    className={`btn-interactive grid h-8 w-8 place-items-center rounded-full transition shadow-sm active:scale-[0.92] cursor-pointer ${
                       recording
                         ? "bg-red-500 text-white shadow-[0_0_18px_rgba(239,68,68,0.5)] animate-pulse"
                         : dark
-                        ? "text-white/80 hover:bg-white/10 hover:text-white"
+                        ? "text-neutral-400 hover:bg-white/10 hover:text-white"
                         : "text-neutral-600 hover:bg-black/5 hover:text-black"
                     }`}
                   >
                     {recording ? (
                       <span className="flex items-center gap-0.5 h-3.5">
-                        <span className="w-[2.5px] h-2 rounded-full bg-white animate-pulse" style={{ animationDuration: "0.8s" }} />
-                        <span className="w-[2.5px] h-3.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "1.2s" }} />
-                        <span className="w-[2.5px] h-2.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "0.9s" }} />
-                        <span className="w-[2.5px] h-1.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "1.4s" }} />
+                        <span className="w-[2px] h-2 rounded-full bg-white animate-pulse" style={{ animationDuration: "0.8s" }} />
+                        <span className="w-[2px] h-3.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "1.2s" }} />
+                        <span className="w-[2px] h-2 rounded-full bg-white animate-pulse" style={{ animationDuration: "0.9s" }} />
                       </span>
                     ) : (
-                      <Mic size={19} />
+                      <Mic size={17} />
                     )}
                   </button>
-                )}
+
+                  {typing ? (
+                    <button
+                      type="button"
+                      onClick={stopGeneration}
+                      className={`btn-interactive grid h-8 w-8 place-items-center rounded-full transition hover:scale-105 active:scale-[0.92] cursor-pointer ${
+                        dark ? "bg-white text-black" : "bg-neutral-900 text-white"
+                      }`}
+                      title="Stop generating"
+                      aria-label="Stop generating response"
+                    >
+                      <Square size={12} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={sendMessage}
+                      className={`btn-interactive grid h-8 w-8 place-items-center rounded-full transition active:scale-[0.92] shadow-md cursor-pointer ${
+                        input.trim() || attachment
+                          ? "bg-white text-black hover:bg-neutral-200"
+                          : "bg-white/20 text-white/40 cursor-not-allowed"
+                      }`}
+                      title="Send message (Enter)"
+                      aria-label="Send message"
+                      disabled={!input.trim() && !attachment}
+                    >
+                      <ArrowUp size={16} strokeWidth={2.4} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -5721,6 +6783,84 @@ export default function RockGPT() {
           </div>
         </div>
       </main>
+
+      {/* Desktop Right Column: Tools & Widgets Panel */}
+      <aside
+        className="hidden xl:flex w-[285px] shrink-0 flex-col h-full overflow-y-auto thin border-l p-4 select-none"
+        style={{ background: panel, borderColor: border }}
+      >
+        <ToolsPanelContent
+          isDrawer={false}
+          border={border}
+          dark={dark}
+          recording={recording}
+          webSearchActive={webSearchActive}
+          onCloseDrawer={() => setToolsPanelOpen(false)}
+          onOpenImageGen={() => setImageGenModalOpen(true)}
+          onTriggerFile={() => { if (fileRef.current) fileRef.current.click(); }}
+          onToggleRecording={toggleRecording}
+          onToggleSpeech={() => {
+            const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+            if (lastAssistant) {
+              toggleSpeech(lastAssistant.id, lastAssistant.content);
+            } else {
+              toggleSpeech("sample", "RockGPT text to speech engine is active and ready.");
+            }
+          }}
+          onToggleWebSearch={() => {
+            setWebSearchActive((v) => !v);
+            notify(webSearchActive ? "Web search disabled" : "Web search enabled");
+          }}
+          onOpenCodeRunner={() => setCodeRunnerOpen(true)}
+          onOpenYoutube={() => setYoutubeModalOpen(true)}
+          onSelectPdfNotes={() => applyPromptToInput("Please extract structured notes, key takeaways, and action items from this PDF:\n\n")}
+          onOpenUpgrade={() => setPricingOpen(true)}
+          notify={notify}
+        />
+      </aside>
+
+      {/* Mobile Right Tools Drawer */}
+      {toolsPanelOpen && (
+        <div className="fixed inset-0 z-50 xl:hidden">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm fade"
+            onClick={() => setToolsPanelOpen(false)}
+          />
+          <aside
+            className="fixed right-0 top-0 z-50 h-full w-[85vw] max-w-[320px] overflow-y-auto thin p-4 shadow-2xl transition-transform duration-300"
+            style={{ background: panel, borderLeft: `1px solid ${border}` }}
+          >
+            <ToolsPanelContent
+              isDrawer={true}
+              border={border}
+              dark={dark}
+              recording={recording}
+              webSearchActive={webSearchActive}
+              onCloseDrawer={() => setToolsPanelOpen(false)}
+              onOpenImageGen={() => setImageGenModalOpen(true)}
+              onTriggerFile={() => { if (fileRef.current) fileRef.current.click(); }}
+              onToggleRecording={toggleRecording}
+              onToggleSpeech={() => {
+                const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+                if (lastAssistant) {
+                  toggleSpeech(lastAssistant.id, lastAssistant.content);
+                } else {
+                  toggleSpeech("sample", "RockGPT text to speech engine is active and ready.");
+                }
+              }}
+              onToggleWebSearch={() => {
+                setWebSearchActive((v) => !v);
+                notify(webSearchActive ? "Web search disabled" : "Web search enabled");
+              }}
+              onOpenCodeRunner={() => setCodeRunnerOpen(true)}
+              onOpenYoutube={() => setYoutubeModalOpen(true)}
+              onSelectPdfNotes={() => applyPromptToInput("Please extract structured notes, key takeaways, and action items from this PDF:\n\n")}
+              onOpenUpgrade={() => setPricingOpen(true)}
+              notify={notify}
+            />
+          </aside>
+        </div>
+      )}
 
       {/* Upgrade Plan Modal */}
       <UpgradePlanModal
@@ -6078,6 +7218,42 @@ export default function RockGPT() {
           </div>
         </div>
       )}
+
+      {/* Interactive Code Sandbox Modal */}
+      <CodeRunnerModal
+        isOpen={codeRunnerOpen}
+        onClose={() => setCodeRunnerOpen(false)}
+        dark={dark}
+        onInsertToChat={(code) => {
+          setInput((prev) => (prev ? prev + "\n```javascript\n" + code + "\n```" : "```javascript\n" + code + "\n```"));
+          setCodeRunnerOpen(false);
+          if (inputRef.current) inputRef.current.focus();
+        }}
+      />
+
+      {/* Advanced AI Image Generator Modal */}
+      <ImageGenModal
+        isOpen={imageGenModalOpen}
+        onClose={() => setImageGenModalOpen(false)}
+        dark={dark}
+        onSendPrompt={(p) => {
+          setInput(p);
+          setImageGenModalOpen(false);
+          sendMessage();
+        }}
+      />
+
+      {/* YouTube Video Summarizer Modal */}
+      <YouTubeModal
+        isOpen={youtubeModalOpen}
+        onClose={() => setYoutubeModalOpen(false)}
+        dark={dark}
+        onSubmit={(prompt) => {
+          setInput(prompt);
+          setYoutubeModalOpen(false);
+          sendMessage();
+        }}
+      />
 
       {/* Toast Notice */}
       {notice && (
