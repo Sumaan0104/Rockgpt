@@ -1,15 +1,15 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo, isValidElement } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import {
   ArrowUp, Check, ChevronDown, Copy, Download, Edit3, Menu, Mic,
-  Plus, Search, Settings, User, X, Zap, Brain, Paperclip,
+  Plus, Search, Settings, User, X, Zap, Paperclip,
   Moon, Sun, RefreshCcw, Square, ThumbsDown, ThumbsUp, Trash2,
   Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
-  Lock, Volume2, VolumeX, Pin, Share2, Compass, Code2, BookOpen, PenTool,
-  Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, UserCheck, CreditCard,
+  Lock, Volume2, VolumeX, Pin, Code2,
+  Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, CreditCard,
   SquarePen, PenLine, Eye, EyeOff
 } from "lucide-react";
 import GoogleSignInButton from "./components/GoogleSignInButton.jsx";
@@ -37,13 +37,17 @@ const safeStorage = {
       } else {
         sessionStorage.setItem(key, val);
       }
-    } catch {}
+    } catch {
+      /* ignore storage quota / access errors */
+    }
   },
   remove: (key) => {
     try {
       localStorage.removeItem(key);
       sessionStorage.removeItem(key);
-    } catch {}
+    } catch {
+      /* ignore storage errors */
+    }
   },
   sessionGet: (key) => {
     try {
@@ -55,7 +59,9 @@ const safeStorage = {
   sessionSet: (key, val) => {
     try {
       sessionStorage.setItem(key, val);
-    } catch {}
+    } catch {
+      /* ignore storage errors */
+    }
   },
 };
 
@@ -121,44 +127,8 @@ const PLANS = [
   },
 ];
 
-const CATEGORIES = [
-  { id: "all", label: "All", icon: Compass },
-  { id: "code", label: "Coding", icon: Code2 },
-  { id: "write", label: "Writing", icon: PenTool },
-  { id: "learn", label: "Learn", icon: BookOpen },
-];
-
-const PROMPT_SUGGESTIONS = {
-  all: [
-    { title: "React State Management", desc: "Compare Zustand, Redux Toolkit, and Context API", prompt: "Explain the differences between Zustand, Redux Toolkit, and React Context API with code examples and best use-cases." },
-    { title: "Quantum Computing", desc: "Explain the fundamentals simply", prompt: "Explain quantum computing and qubits to a high school student with intuitive analogies." },
-    { title: "Professional Cold Email", desc: "Write a high-converting outreach email", prompt: "Draft a concise, compelling cold outreach email to a tech recruiter highlighting full-stack engineering skills." },
-    { title: "Debug Performance", desc: "Analyze slow website rendering", prompt: "What are the top 5 frontend performance optimization strategies for high Lighthouse scores?" },
-  ],
-  code: [
-    { title: "Write a Custom Hook", desc: "Create a debounce hook in React", prompt: "Write a complete production-grade useDebounce hook in React TypeScript with clean comments." },
-    { title: "REST vs GraphQL", desc: "Key architectural differences", prompt: "Create a pros and cons comparison table between REST and GraphQL with example queries." },
-  ],
-  write: [
-    { title: "LinkedIn Thought Leadership", desc: "Post about AI in software engineering", prompt: "Write an engaging LinkedIn post about how AI agents are transforming pair programming in 2026." },
-    { title: "Product Launch Announcement", desc: "Engaging copy for product release", prompt: "Write an exciting launch announcement email for a new AI workspace product." },
-  ],
-  learn: [
-    { title: "Explain Docker Containers", desc: "From virtual machines to containers", prompt: "Explain Docker containers, images, and layers step-by-step for a beginner." },
-    { title: "Financial Concepts", desc: "Compound interest & portfolio allocation", prompt: "Explain compound interest and the 50/30/20 budget rule clearly." },
-  ],
-};
-
 function uid(prefix = "id") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function formatTime(d) {
-  try {
-    return new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
 }
 
 function CodeBlock({ lang, code, dark }) {
@@ -282,12 +252,12 @@ function MessageContent({ content, dark }) {
         const code = (Array.isArray(rawCode) ? rawCode.join("") : String(rawCode || "")).replace(/\n$/, "");
         return <CodeBlock lang={lang} code={code} dark={dark} />;
       },
-      code({ className, children, ...props }) {
+      code({ className = "", children, ...props }) {
         return (
           <code
             className={`rounded-md px-1.5 py-0.5 text-[13px] font-mono ${
               dark ? "bg-white/[.08] text-white/90" : "bg-neutral-200/70 text-neutral-900"
-            }`}
+            } ${className}`.trim()}
             {...props}
           >
             {children}
@@ -442,9 +412,8 @@ function MessageContent({ content, dark }) {
    Aesthetic: Minimal, Monochrome, Futuristic AI Robot with Glowing Visor & Headphones
    States: idle | thinking | generating | voice | completed
    ========================================================================= */
-function RockLogo({ size = 32, dark = true, state = "idle", animated = false, markOnly = false, className = "" }) {
+function RockLogo({ size = 32, state = "idle", animated = false, markOnly = false, className = "" }) {
   const [imgErr, setImgErr] = useState(false);
-  const uid = useMemo(() => `rl-${size}-${Math.random().toString(36).slice(2, 6)}`, [size]);
 
   const isThinking = state === "thinking";
   const isGenerating = state === "generating";
@@ -537,9 +506,9 @@ function RockLogo({ size = 32, dark = true, state = "idle", animated = false, ma
   );
 }
 
-function RockMark({ small = false, size, dark = true, state = "idle", animated = false, className = "" }) {
+function RockMark({ small = false, size, state = "idle", animated = false, className = "" }) {
   const s = size || (small ? 26 : 34);
-  return <RockLogo size={s} dark={dark} state={state} animated={animated} markOnly={true} className={className} />;
+  return <RockLogo size={s} state={state} animated={animated} markOnly={true} className={className} />;
 }
 
 function GoogleIcon({ className = "w-4 h-4" }) {
@@ -575,7 +544,10 @@ function GoogleIcon({ className = "w-4 h-4" }) {
 function IntroScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
   const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     // Accessibility: instantly skip if user prefers reduced motion
@@ -929,8 +901,12 @@ function LogoutConfirmModal({ isOpen, onClose, onConfirm, dark, userEmail }) {
 /* =========================================================================
    AUTHENTICATION & SECURE 6-DIGIT OTP VERIFICATION MODAL
    ========================================================================= */
-function AuthModal({
-  isOpen,
+function AuthModal(props) {
+  if (!props.isOpen) return null;
+  return <AuthModalContent key={props.initialMode || "auth"} {...props} />;
+}
+
+function AuthModalContent({
   onClose,
   dark,
   notify,
@@ -957,7 +933,6 @@ function AuthModal({
   // Email OTP state
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [otpTimer, setOtpTimer] = useState(45);
-  const [resendActive, setResendActive] = useState(false);
   const [otpShake, setOtpShake] = useState(false);
   const otpInputsRef = useRef([]);
 
@@ -969,6 +944,8 @@ function AuthModal({
   // Brute-force lockout state
   const [isLocked, setIsLocked] = useState(false);
   const [lockoutMinutes, setLockoutMinutes] = useState(15);
+
+  const resendActive = otpTimer === 0;
 
   const saveGoogleAccountToStorage = (acc) => {
     try {
@@ -988,33 +965,10 @@ function AuthModal({
         ...list,
       ].slice(0, 6);
       safeStorage.set("rockgpt_google_accounts", JSON.stringify(updated));
-    } catch {}
-  };
-
-  // Reset credentials and step whenever the modal is opened
-  useEffect(() => {
-    if (isOpen) {
-      setStep("credentials");
-      setAuthMode(initialMode || "login");
-      setError("");
-      setName("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setShowPassword(false);
-      setShowConfirmPassword(false);
-      setRememberMe(true);
-      setAgreeTerms(false);
-      setOtpDigits(["", "", "", "", "", ""]);
-      setTotpDigits(["", "", "", "", "", ""]);
-      setTempToken("");
-      setIsLocked(false);
-      setLockoutMinutes(15);
-      setLoading(false);
-      setResendActive(false);
-      setOtpTimer(45);
+    } catch {
+      /* ignore storage error */
     }
-  }, [isOpen, initialMode]);
+  };
 
   const switchAuthMode = (newMode) => {
     setAuthMode(newMode);
@@ -1028,19 +982,15 @@ function AuthModal({
     setTotpDigits(["", "", "", "", "", ""]);
   };
 
-  // Pre-warm backend when modal opens to eliminate cold-start delay
+  // Pre-warm backend when modal mounts to eliminate cold-start delay
   useEffect(() => {
-    if (isOpen) {
-      fetch(`${BACKEND_URL}/`).catch(() => {});
-    }
-  }, [isOpen]);
+    fetch(`${BACKEND_URL}/`).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let interval = null;
     if (step === "otp" && otpTimer > 0) {
-      interval = setInterval(() => setOtpTimer((t) => t - 1), 1000);
-    } else if (otpTimer === 0) {
-      setResendActive(true);
+      interval = setInterval(() => setOtpTimer((t) => Math.max(0, t - 1)), 1000);
     }
     return () => clearInterval(interval);
   }, [step, otpTimer]);
@@ -1106,7 +1056,7 @@ function AuthModal({
   // Password strength validation & entropy score
   const passwordChecks = {
     length: password.length >= 8,
-    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password),
+    special: /[!@#$%^&*()_+\-[\]{};':"\\|,.<>/?`~]/.test(password),
     uppercase: /[A-Z]/.test(password),
     number: /[0-9]/.test(password),
   };
@@ -1118,7 +1068,7 @@ function AuthModal({
     if (password.length >= 8) score += 1;
     if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
     if (/\d/.test(password)) score += 1;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) score += 1;
+    if (/[!@#$%^&*()_+\-[\]{};':"\\|,.<>/?`~]/.test(password)) score += 1;
     if (password.length >= 12 && score === 4) score = 5;
 
     switch (score) {
@@ -1136,61 +1086,6 @@ function AuthModal({
         return { score: 0, label: "Too Short", color: "bg-neutral-600", text: "text-neutral-500", percent: 10 };
     }
   }, [password]);
-
-  // Google Sign-In handler
-  const handleGoogleSignIn = async (credentialOrPayload) => {
-    setError("");
-    setLoading(true);
-    setLoadingText("Authenticating with Google...");
-
-    try {
-      const body = typeof credentialOrPayload === "string"
-        ? { credential: credentialOrPayload }
-        : credentialOrPayload;
-
-      const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(data?.error || "Google authentication failed.");
-        setOtpShake(true);
-        setTimeout(() => setOtpShake(false), 500);
-        return;
-      }
-
-      if (data?.require2FA) {
-        setTempToken(data.tempToken);
-        setStep("totp-2fa");
-        setTotpDigits(["", "", "", "", "", ""]);
-        notify("🛡️ Google Authenticator 2FA active. Please enter your 6-digit code.");
-        setTimeout(() => totpInputsRef.current[0]?.focus(), 150);
-        return;
-      }
-
-      safeStorage.set("rockgpt-token", data.token, rememberMe);
-      safeStorage.set("rockgpt-user", JSON.stringify(data.user), rememberMe);
-      if (data?.user) {
-        saveGoogleAccountToStorage({
-          email: data.user.email,
-          name: data.user.name,
-          avatar: data.user.avatar,
-        });
-      }
-      onSuccess(data.user, data.token);
-      notify(`Welcome to RockGPT, ${data.user.name}!`);
-      onClose();
-    } catch (err) {
-      console.error("Google Auth error:", err);
-      setError("Unable to connect to authentication server.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGoogleSuccess = (userData, token) => {
     safeStorage.set("rockgpt-token", token, rememberMe);
@@ -1370,7 +1265,7 @@ function AuthModal({
     // Enforce strong password on signup
     const effectiveChecks = {
       length: effectivePassword.length >= 8,
-      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(effectivePassword),
+      special: /[!@#$%^&*()_+\-[\]{};':"\\|,.<>/?`~]/.test(effectivePassword),
       uppercase: /[A-Z]/.test(effectivePassword),
       number: /[0-9]/.test(effectivePassword),
     };
@@ -1407,7 +1302,6 @@ function AuthModal({
 
     try {
       let res;
-      let lastErr;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
@@ -1416,10 +1310,8 @@ function AuthModal({
             body: JSON.stringify({ name: effectiveName, email: effectiveEmail, password: effectivePassword, mode: authMode }),
             signal: controller.signal,
           });
-          lastErr = null;
           break;
         } catch (fetchErr) {
-          lastErr = fetchErr;
           if (attempt === 1 && fetchErr.name !== "AbortError") {
             setLoadingText("Waking up server (Render free tier takes ~30s)...");
             await new Promise((r) => setTimeout(r, 2000));
@@ -1446,7 +1338,6 @@ function AuthModal({
       }
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
-      setResendActive(false);
       notify("🔐 Verification code sent to your email.");
 
       setTimeout(() => {
@@ -1499,7 +1390,6 @@ function AuthModal({
 
       setOtpDigits(["", "", "", "", "", ""]);
       setOtpTimer(45);
-      setResendActive(false);
       notify("New verification code sent to your email.");
 
       setTimeout(() => {
@@ -1538,7 +1428,7 @@ function AuthModal({
     if (authMode === "forgot") {
       const pwdChecks = {
         length: effectivePassword.length >= 8,
-        special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(effectivePassword),
+        special: /[!@#$%^&*()_+\-[\]{};':"\\|,.<>/?`~]/.test(effectivePassword),
         uppercase: /[A-Z]/.test(effectivePassword),
         number: /[0-9]/.test(effectivePassword),
       };
@@ -1655,8 +1545,6 @@ function AuthModal({
       setLoading(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div
@@ -2328,7 +2216,12 @@ function AuthModal({
 /* =========================================================================
    SECURITY & TWO-FACTOR AUTHENTICATION (2FA) MODAL
    ========================================================================= */
-function SecurityModal({ isOpen, onClose, user, setUser, dark, notify }) {
+function SecurityModal(props) {
+  if (!props.isOpen) return null;
+  return <SecurityModalContent {...props} />;
+}
+
+function SecurityModalContent({ onClose, user, setUser, dark, notify }) {
   const [setupData, setSetupData] = useState(null);
   const [setupStep, setSetupStep] = useState("overview"); // "overview" | "setup" | "disable"
   const [verifyCode, setVerifyCode] = useState("");
@@ -2338,18 +2231,7 @@ function SecurityModal({ isOpen, onClose, user, setUser, dark, notify }) {
   const [logs, setLogs] = useState([]);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setSetupStep("overview");
-      setVerifyCode("");
-      setDisableCode("");
-      setError("");
-      setSetupData(null);
-      fetchSecurityLogs();
-    }
-  }, [isOpen]);
-
-  const fetchSecurityLogs = async () => {
+  const fetchSecurityLogs = useCallback(async () => {
     try {
       const token = localStorage.getItem("rockgpt-token");
       if (!token) return;
@@ -2363,7 +2245,19 @@ function SecurityModal({ isOpen, onClose, user, setUser, dark, notify }) {
     } catch (e) {
       console.warn("Failed to fetch security logs:", e);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      if (isMounted) {
+        await fetchSecurityLogs();
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchSecurityLogs]);
 
   const handleStartSetup = async () => {
     setLoading(true);
@@ -2381,7 +2275,7 @@ function SecurityModal({ isOpen, onClose, user, setUser, dark, notify }) {
       }
       setSetupData(data);
       setSetupStep("setup");
-    } catch (err) {
+    } catch {
       setError("Server connection error during 2FA setup.");
     } finally {
       setLoading(false);
@@ -2419,7 +2313,7 @@ function SecurityModal({ isOpen, onClose, user, setUser, dark, notify }) {
       notify("🛡️ Google Authenticator 2FA is now active!");
       setSetupStep("overview");
       fetchSecurityLogs();
-    } catch (err) {
+    } catch {
       setError("Connection error activating 2FA.");
     } finally {
       setLoading(false);
@@ -2457,14 +2351,12 @@ function SecurityModal({ isOpen, onClose, user, setUser, dark, notify }) {
       notify("Two-Factor Authentication disabled.");
       setSetupStep("overview");
       fetchSecurityLogs();
-    } catch (err) {
+    } catch {
       setError("Connection error disabling 2FA.");
     } finally {
       setLoading(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[75] grid place-items-center bg-black/70 p-4 fade backdrop-blur-md" onClick={onClose}>
@@ -3604,7 +3496,9 @@ export default function RockGPT() {
           if (target) return target.id;
         }
       }
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     return safeStorage.get("rockgpt-active-id") || null;
   });
 
@@ -3632,6 +3526,7 @@ export default function RockGPT() {
     return [];
   });
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -3641,7 +3536,6 @@ export default function RockGPT() {
   const [search, setSearch] = useState("");
   const [typing, setTyping] = useState(false);
   const [streaming, setStreaming] = useState("");
-  const [thinkingLabel, setThinkingLabel] = useState("RockGPT is thinking");
   const [copied, setCopied] = useState(null);
   const [editing, setEditing] = useState(null);
   const [editText, setEditText] = useState("");
@@ -3650,10 +3544,8 @@ export default function RockGPT() {
   const [notice, setNotice] = useState(null);
   const [attachment, setAttachment] = useState(null);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
-  const [webSearchOn, setWebSearchOn] = useState(false);
   const [fastMode, setFastMode] = useState(false);
   const [speakingId, setSpeakingId] = useState(null);
-  const [activeCategory, setActiveCategory] = useState("all");
 
   // Profile Popover State
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -3750,53 +3642,61 @@ export default function RockGPT() {
     recognitionRef.current = recognition;
   }, []);
 
-  useEffect(() => {
-    if (authToken) {
-      setGateOpen(false);
-      setGateLocked(false);
-      if (gateTimerRef.current) clearTimeout(gateTimerRef.current);
-      return;
-    }
-    gateTimerRef.current = setTimeout(() => {
-      setGateLocked(true);
-      setGateOpen(true);
-    }, 3.5 * 60 * 1000);
-    return () => {
-      if (gateTimerRef.current) clearTimeout(gateTimerRef.current);
-    };
-  }, [authToken]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-        e.preventDefault();
-        setSidebarOpen((v) => !v);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        newChat();
-      }
-      if (e.key === "Escape") {
-        setSettingsOpen(false);
-        setSecurityOpen(false);
-        setSidebarOpen(false);
-        setPricingOpen(false);
-        setPayingPlan(null);
-        setModelDropdownOpen(false);
-        setAuthModalOpen(false);
-        setProfileMenuOpen(false);
-        setHeaderProfileOpen(false);
-        setLogoutConfirmOpen(false);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   const notify = (text) => {
     setNotice(text);
     setTimeout(() => setNotice(null), 2800);
   };
+
+  // EXPLICIT LOGOUT FUNCTION (ABSOLUTE ISOLATION & PURGE)
+  const logout = useCallback(() => {
+    setLogoutConfirmOpen(false);
+    abortRef.current?.abort();
+
+    // Clear authentication & shared session storage keys
+    safeStorage.remove("rockgpt-token");
+    safeStorage.remove("rockgpt-user");
+    safeStorage.remove("rockgpt-active-id");
+    safeStorage.remove("rockgpt-conversations");
+
+    setAuthToken(null);
+    setUser(null);
+    setAuthModalOpen(false);
+    setGateOpen(false);
+    setProfileMenuOpen(false);
+    setHeaderProfileOpen(false);
+    setSettingsOpen(false);
+
+    // Complete purge of in-memory chat state
+    setActiveId(null);
+    setMessages([]);
+    setInput("");
+    setStreaming("");
+    setTyping(false);
+    setAttachment(null);
+    setSelectedModel("RockGPT Flash");
+
+    // Load clean guest conversations
+    try {
+      const guestSaved = safeStorage.get("rockgpt-conversations_guest");
+      setConversations(guestSaved ? JSON.parse(guestSaved) : []);
+    } catch {
+      setConversations([]);
+    }
+
+    notify("Logged out successfully");
+  }, []);
+
+  const newChat = useCallback(() => {
+    setActiveId(null);
+    safeStorage.remove("rockgpt-active-id");
+    setMessages([]);
+    setInput("");
+    setStreaming("");
+    setTyping(false);
+    setAttachment(null);
+    setSidebarOpen(false);
+    inputRef.current?.focus();
+  }, []);
 
   // FETCH PERSISTENT CONVERSATIONS FROM BACKEND (ACCOUNT-WISE ISOLATION)
   const fetchConversations = useCallback(async (token) => {
@@ -3837,32 +3737,67 @@ export default function RockGPT() {
     } catch (err) {
       console.warn("Failed to fetch conversations from server:", err);
     }
-  }, []);
+  }, [logout]);
+
+  useEffect(() => {
+    if (authToken) {
+      if (gateTimerRef.current) clearTimeout(gateTimerRef.current);
+      return;
+    }
+    gateTimerRef.current = setTimeout(() => {
+      setGateLocked(true);
+      setGateOpen(true);
+    }, 3.5 * 60 * 1000);
+    return () => {
+      if (gateTimerRef.current) clearTimeout(gateTimerRef.current);
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        newChat();
+      }
+      if (e.key === "Escape") {
+        setSettingsOpen(false);
+        setSecurityOpen(false);
+        setSidebarOpen(false);
+        setPricingOpen(false);
+        setPayingPlan(null);
+        setModelDropdownOpen(false);
+        setAuthModalOpen(false);
+        setProfileMenuOpen(false);
+        setHeaderProfileOpen(false);
+        setLogoutConfirmOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [newChat]);
 
   useEffect(() => {
     if (!authToken) return;
+    let isMounted = true;
+
     fetch(`${BACKEND_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${authToken}` },
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.status === 401) {
-            safeStorage.remove("rockgpt-token");
-            safeStorage.remove("rockgpt-user");
-            safeStorage.remove("rockgpt-active-id");
-            safeStorage.remove("rockgpt-conversations");
-            setAuthToken(null);
-            setUser(null);
-            setConversations([]);
-            setMessages([]);
-            setActiveId(null);
+          if (res.status === 401 && isMounted) {
+            logout();
           }
           return null;
         }
         return res.json();
       })
       .then((data) => {
-        if (data?.user) {
+        if (data?.user && isMounted) {
           setUser(data.user);
           safeStorage.set("rockgpt-user", JSON.stringify(data.user));
         }
@@ -3871,8 +3806,15 @@ export default function RockGPT() {
         // Retain cached session during network delay or cold start
       });
 
-    fetchConversations(authToken);
-  }, [authToken, fetchConversations]);
+    const initConversations = async () => {
+      await fetchConversations(authToken);
+    };
+    initConversations();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authToken, fetchConversations, logout]);
 
   const toggleSpeech = (msgId, text) => {
     if (!("speechSynthesis" in window)) {
@@ -3937,57 +3879,6 @@ export default function RockGPT() {
     localStorage.setItem("rockgpt-model", "RockGPT 4o");
   };
 
-  // EXPLICIT LOGOUT FUNCTION (ABSOLUTE ISOLATION & PURGE)
-  const logout = () => {
-    setLogoutConfirmOpen(false);
-    abortRef.current?.abort();
-
-    // Clear authentication & shared session storage keys
-    safeStorage.remove("rockgpt-token");
-    safeStorage.remove("rockgpt-user");
-    safeStorage.remove("rockgpt-active-id");
-    safeStorage.remove("rockgpt-conversations");
-
-    setAuthToken(null);
-    setUser(null);
-    setAuthModalOpen(false);
-    setGateOpen(false);
-    setProfileMenuOpen(false);
-    setHeaderProfileOpen(false);
-    setSettingsOpen(false);
-
-    // Complete purge of in-memory chat state
-    setActiveId(null);
-    setMessages([]);
-    setInput("");
-    setStreaming("");
-    setTyping(false);
-    setAttachment(null);
-    setSelectedModel("RockGPT Flash");
-
-    // Load clean guest conversations
-    try {
-      const guestSaved = safeStorage.get("rockgpt-conversations_guest");
-      setConversations(guestSaved ? JSON.parse(guestSaved) : []);
-    } catch {
-      setConversations([]);
-    }
-
-    notify("Logged out successfully");
-  };
-
-  const newChat = useCallback(() => {
-    setActiveId(null);
-    safeStorage.remove("rockgpt-active-id");
-    setMessages([]);
-    setInput("");
-    setStreaming("");
-    setTyping(false);
-    setAttachment(null);
-    setSidebarOpen(false);
-    inputRef.current?.focus();
-  }, []);
-
   const selectConversation = (id) => {
     const c = conversations.find((x) => x && x.id === id);
     if (!c) return;
@@ -4002,28 +3893,6 @@ export default function RockGPT() {
         : []
     );
     setSidebarOpen(false);
-  };
-
-  const createConversationIfNeeded = (firstMessage) => {
-    let id = activeId;
-    if (!id) {
-      id = uid("chat");
-      const c = {
-        id,
-        title: (typeof firstMessage.content === "string" ? firstMessage.content : "Image message").slice(0, 50) || "New chat",
-        pinned: false,
-        messages: [firstMessage],
-        updatedAt: new Date(),
-      };
-      setConversations((prev) => [c, ...prev]);
-      setActiveId(id);
-      safeStorage.set("rockgpt-active-id", id);
-    } else {
-      setConversations((prev) =>
-        prev.map((c) => (c && c.id === id ? { ...c, messages: [...c.messages, firstMessage], updatedAt: new Date() } : c))
-      );
-    }
-    return id;
   };
 
   const streamFromBackend = async (history, convId) => {
@@ -4113,7 +3982,7 @@ export default function RockGPT() {
     }
   };
 
-  const sendMessage = useCallback(async () => {
+  const sendMessage = async () => {
     const text = input.trim();
     if ((!text && !attachment) || typing) return;
 
@@ -4225,7 +4094,7 @@ export default function RockGPT() {
 
     const history = updatedMessages.map((m) => ({ role: m.role, content: m.content }));
     streamFromBackend(history, convId);
-  }, [input, typing, activeId, messages, attachment, selectedModel, fastMode, authToken]);
+  };
 
   const stopGeneration = () => {
     abortRef.current?.abort();
@@ -4761,11 +4630,13 @@ export default function RockGPT() {
                   <span className="min-w-0 flex-1 truncate text-[13px]">{c.title}</span>
                 )}
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     togglePinChat(c.id);
                   }}
                   title={c.pinned ? "Unpin chat" : "Pin chat"}
+                  aria-label={c.pinned ? "Unpin chat" : "Pin chat"}
                   className={`hidden shrink-0 rounded-md p-1 group-hover:block ${
                     dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
                   }`}
@@ -4773,11 +4644,14 @@ export default function RockGPT() {
                   <Pin size={12} className={c.pinned ? "text-amber-500" : ""} />
                 </button>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditing(c.id);
                     setEditText(c.title);
                   }}
+                  title="Rename chat"
+                  aria-label="Rename chat"
                   className={`hidden shrink-0 rounded-md p-1 group-hover:block ${
                     dark ? "hover:bg-white/[.08]" : "hover:bg-black/[.08]"
                   }`}
@@ -4785,10 +4659,13 @@ export default function RockGPT() {
                   <Edit3 size={12} />
                 </button>
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    deleteChat(c.id);
+                    setDeleteConfirmId(c.id);
                   }}
+                  title="Delete chat"
+                  aria-label="Delete chat"
                   className="hidden shrink-0 rounded-md p-1 text-red-500 group-hover:block hover:bg-red-500/10"
                 >
                   <Trash2 size={12} />
@@ -5574,6 +5451,7 @@ export default function RockGPT() {
                       }`}
                     >
                       <button
+                        type="button"
                         onClick={() => {
                           fileRef.current?.click();
                           setAttachMenuOpen(false);
@@ -5585,8 +5463,8 @@ export default function RockGPT() {
                         <Paperclip size={16} /> <span className="flex-1">Add photo or file</span>
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
-                          setWebSearchOn((v) => !v);
                           notify("Web search is coming soon");
                           setAttachMenuOpen(false);
                         }}
@@ -5633,35 +5511,21 @@ export default function RockGPT() {
 
               {/* Right actions inside capsule */}
               <div className="flex items-center gap-1 shrink-0">
-                {/* Microphone button */}
-                <button
-                  type="button"
-                  onClick={toggleRecording}
-                  title="Voice input"
-                  className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition ${
-                    recording
-                      ? "bg-white text-black shadow-[0_0_18px_rgba(255,255,255,0.45)] animate-pulse"
-                      : dark
-                      ? "text-white/70 hover:bg-white/10 hover:text-white"
-                      : "text-neutral-600 hover:bg-black/5 hover:text-black"
-                  }`}
-                >
-                  <Mic size={19} />
-                </button>
-
-                {/* Morphing Voice Orb / Send Button */}
                 {typing ? (
                   <button
+                    type="button"
                     onClick={stopGeneration}
                     className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition hover:scale-105 active:scale-[0.92] ${
                       dark ? "bg-white text-black" : "bg-neutral-900 text-white"
                     }`}
                     title="Stop generating"
+                    aria-label="Stop generating response"
                   >
                     <Square size={13} fill="currentColor" />
                   </button>
                 ) : input.trim() || attachment ? (
                   <button
+                    type="button"
                     onClick={sendMessage}
                     className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition active:scale-[0.92] shadow-md ${
                       dark
@@ -5669,6 +5533,7 @@ export default function RockGPT() {
                         : "bg-neutral-900 text-white hover:bg-black"
                     }`}
                     title="Send message"
+                    aria-label="Send message"
                   >
                     <ArrowUp size={18} strokeWidth={2.4} />
                   </button>
@@ -5676,19 +5541,26 @@ export default function RockGPT() {
                   <button
                     type="button"
                     onClick={toggleRecording}
-                    title="Voice mode"
+                    title={recording ? "Stop listening" : "Voice input"}
+                    aria-label={recording ? "Stop listening" : "Voice input"}
                     className={`btn-interactive grid h-9 w-9 place-items-center rounded-full transition shadow-sm active:scale-[0.92] ${
                       recording
-                        ? "bg-white text-black shadow-[0_0_18px_rgba(255,255,255,0.45)] animate-pulse"
-                        : "bg-white text-black hover:bg-neutral-200"
+                        ? "bg-red-500 text-white shadow-[0_0_18px_rgba(239,68,68,0.5)] animate-pulse"
+                        : dark
+                        ? "text-white/80 hover:bg-white/10 hover:text-white"
+                        : "text-neutral-600 hover:bg-black/5 hover:text-black"
                     }`}
                   >
-                    <span className="flex items-center gap-0.5 h-3.5">
-                      <span className="w-[2.5px] h-2 rounded-full bg-black animate-pulse" style={{ animationDuration: "0.8s" }} />
-                      <span className="w-[2.5px] h-3.5 rounded-full bg-black animate-pulse" style={{ animationDuration: "1.2s" }} />
-                      <span className="w-[2.5px] h-2.5 rounded-full bg-black animate-pulse" style={{ animationDuration: "0.9s" }} />
-                      <span className="w-[2.5px] h-1.5 rounded-full bg-black animate-pulse" style={{ animationDuration: "1.4s" }} />
-                    </span>
+                    {recording ? (
+                      <span className="flex items-center gap-0.5 h-3.5">
+                        <span className="w-[2.5px] h-2 rounded-full bg-white animate-pulse" style={{ animationDuration: "0.8s" }} />
+                        <span className="w-[2.5px] h-3.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "1.2s" }} />
+                        <span className="w-[2.5px] h-2.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "0.9s" }} />
+                        <span className="w-[2.5px] h-1.5 rounded-full bg-white animate-pulse" style={{ animationDuration: "1.4s" }} />
+                      </span>
+                    ) : (
+                      <Mic size={19} />
+                    )}
                   </button>
                 )}
               </div>
@@ -5762,6 +5634,56 @@ export default function RockGPT() {
         dark={dark}
         userEmail={user?.email}
       />
+
+      {/* Delete Chat Confirmation Modal */}
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 fade backdrop-blur-sm select-none"
+          onClick={() => setDeleteConfirmId(null)}
+        >
+          <div
+            className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl transition-all ${
+              dark ? "border-white/15 bg-[#141414] text-white" : "border-neutral-200 bg-white text-neutral-900"
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3.5 mb-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base">Delete chat?</h3>
+                <p className="text-xs text-neutral-400">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className={`text-sm mb-6 leading-relaxed ${dark ? "text-neutral-300" : "text-neutral-600"}`}>
+              Are you sure you want to delete this conversation? All messages in this thread will be permanently deleted.
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  dark ? "bg-white/10 hover:bg-white/15 text-white" : "bg-neutral-100 hover:bg-neutral-200 text-neutral-800"
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteChat(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                  notify("Chat deleted");
+                }}
+                className="rounded-xl bg-red-600 hover:bg-red-500 active:scale-95 px-4 py-2 text-sm font-medium text-white transition shadow-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Settings Modal (WITH CLEAR LOGOUT BUTTON) */}
       {settingsOpen && (

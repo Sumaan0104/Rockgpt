@@ -5,7 +5,7 @@ import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './ErrorBoundary.jsx'
 
-import { isGoogleConfigured, rawGoogleClientId } from './components/GoogleSignInButton.jsx'
+import { isGoogleConfigured, rawGoogleClientId } from './config/googleAuth.js'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
