@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import {
-  ArrowUp, Check, ChevronDown, Copy, Download, Edit3, Menu, Mic,
+  ArrowUp, Check, Copy, Download, Edit3, Menu, Mic,
   Plus, Search, Settings, User, X, Zap,
   Moon, Sun, RefreshCcw, Square, ThumbsDown, ThumbsUp, Trash2,
   Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
@@ -3488,13 +3488,7 @@ function UpiCheckoutModal({
    MAIN ROCKGPT APP
    ========================================================================= */
 export default function RockGPT() {
-  const [showIntro, setShowIntro] = useState(() => {
-    try {
-      return !safeStorage.sessionGet("rockgpt-intro-seen");
-    } catch {
-      return true;
-    }
-  });
+  const [showIntro, setShowIntro] = useState(false);
   const [conversations, setConversations] = useState(() => {
     try {
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
@@ -3606,26 +3600,10 @@ export default function RockGPT() {
      user.plan?.toLowerCase() === "pro")
   );
 
-  const [selectedModel, setSelectedModel] = useState(() => {
-    try {
-      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
-      const isPaid = Boolean(
-        savedUser &&
-        (savedUser.plan === "Plus" ||
-         savedUser.plan === "Pro" ||
-         savedUser.plan?.toLowerCase() === "plus" ||
-         savedUser.plan?.toLowerCase() === "pro")
-      );
-      const savedModel = safeStorage.get("rockgpt-model");
-      if (savedModel === "RockGPT 4o" && isPaid) return "RockGPT 4o";
-      return "RockGPT Flash";
-    } catch {
-      return "RockGPT Flash";
-    }
-  });
+  const [selectedModel, setSelectedModel] = useState("RockGPT");
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
-  const [gateOpen, setGateOpen] = useState(() => !safeStorage.get("rockgpt-token"));
+  const [gateOpen, setGateOpen] = useState(false);
   const [gateLocked, setGateLocked] = useState(false);
   const gateTimerRef = useRef(null);
 
@@ -3898,19 +3876,6 @@ export default function RockGPT() {
     utterance.onerror = () => setSpeakingId(null);
     setSpeakingId(msgId);
     window.speechSynthesis.speak(utterance);
-  };
-
-  const handleModelSelect = (modelName) => {
-    if (modelName === "RockGPT 4o" && !isPaidUser) {
-      setModelDropdownOpen(false);
-      setPricingOpen(true);
-      notify("🔒 RockGPT 4o requires a Plus or Pro subscription. Upgrade to unlock!");
-      return;
-    }
-    setSelectedModel(modelName);
-    localStorage.setItem("rockgpt-model", modelName);
-    setModelDropdownOpen(false);
-    notify(`Switched to ${modelName}`);
   };
 
   const handleAuthSuccess = (loggedUser, token) => {
@@ -4703,10 +4668,6 @@ export default function RockGPT() {
         }
       `}</style>
 
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm fade" onClick={() => setSidebarOpen(false)} />
-      )}
-
       {/* Sidebar Mobile Backdrop */}
       {sidebarOpen && (
         <div
@@ -5024,136 +4985,10 @@ export default function RockGPT() {
             </button>
           </div>
 
-          {/* Center: Futuristic Frosted Model Selector Pill */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setModelDropdownOpen((v) => !v)}
-              aria-label="Select AI model"
-              aria-expanded={modelDropdownOpen}
-              className={`group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs sm:text-[13px] font-semibold tracking-tight transition-all select-none cursor-pointer active:scale-95 shadow-sm backdrop-blur-md ${
-                dark
-                  ? "border-white/15 bg-white/[0.07] text-white hover:border-white/30 hover:bg-white/[0.12]"
-                  : "border-neutral-200 bg-neutral-100/90 text-neutral-900 hover:border-neutral-300 hover:bg-neutral-200"
-              }`}
-            >
-              {selectedModel === "RockGPT Flash" ? (
-                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-white/10 text-white">
-                  <Zap size={11} className="fill-current" />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-4 w-4 rounded-full bg-white/15 text-white">
-                  <Sparkles size={11} className="fill-current" />
-                </div>
-              )}
-              <span className="font-semibold text-sm">{selectedModel}</span>
-              <span
-                className={`hidden xs:inline-block rounded-full px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider ${
-                  dark
-                    ? "bg-white/10 text-neutral-300 border border-white/20"
-                    : "bg-black/5 text-neutral-700 border border-black/10"
-                }`}
-              >
-                {selectedModel === "RockGPT Flash" ? "Flash" : "4o Omni"}
-              </span>
-              <ChevronDown
-                size={13}
-                className={`transition-transform duration-200 ${
-                  modelDropdownOpen ? "rotate-180 text-white" : dark ? "text-neutral-400 group-hover:text-white" : "text-neutral-500 group-hover:text-black"
-                }`}
-              />
-            </button>
-
-            {modelDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
-                <div
-                  className={`absolute left-1/2 -translate-x-1/2 top-11 z-50 w-72 max-w-[90vw] rounded-2xl border p-2 shadow-2xl pop backdrop-blur-xl ${
-                    dark ? "border-white/15 bg-[#141416]/95" : "border-neutral-200 bg-white/95"
-                  }`}
-                >
-                  {/* RockGPT 4o option */}
-                  <button
-                    type="button"
-                    onClick={() => handleModelSelect("RockGPT 4o")}
-                    className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
-                      selectedModel === "RockGPT 4o"
-                        ? dark
-                          ? "bg-white/10 border border-white/25"
-                          : "bg-neutral-100 border border-neutral-300"
-                        : dark
-                        ? "hover:bg-white/5 border border-transparent"
-                        : "hover:bg-neutral-50 border border-transparent"
-                    }`}
-                  >
-                    <Sparkles size={16} className={`mt-0.5 shrink-0 ${dark ? "text-white" : "text-neutral-800"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
-                          RockGPT 4o
-                        </span>
-                        {isPaidUser ? (
-                          selectedModel === "RockGPT 4o" ? (
-                            <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold text-white">
-                              <Check size={10} /> Active
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-neutral-300">
-                              Smartest 120B
-                            </span>
-                          )
-                        ) : (
-                          <span className="flex items-center gap-1 rounded-full bg-neutral-500/20 px-2 py-0.5 text-[9px] font-bold text-neutral-400">
-                            <Lock size={9} /> Plus/Pro
-                          </span>
-                        )}
-                      </div>
-                      <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
-                        {isPaidUser
-                          ? "Deep reasoning, complex logic, and advanced coding"
-                          : "Locked • Requires Plus or Pro subscription"}
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* RockGPT Flash option */}
-                  <button
-                    type="button"
-                    onClick={() => handleModelSelect("RockGPT Flash")}
-                    className={`mt-1 flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition select-none touch-manipulation cursor-pointer ${
-                      selectedModel === "RockGPT Flash"
-                        ? dark
-                          ? "bg-white/10 border border-white/25"
-                          : "bg-neutral-100 border border-neutral-300"
-                        : dark
-                        ? "hover:bg-white/5 border border-transparent"
-                        : "hover:bg-neutral-50 border border-transparent"
-                    }`}
-                  >
-                    <Zap size={16} className="mt-0.5 shrink-0 text-white fill-white/20" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-bold ${dark ? "text-white" : "text-neutral-900"}`}>
-                          RockGPT Flash
-                        </span>
-                        {selectedModel === "RockGPT Flash" ? (
-                          <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold text-white">
-                            <Check size={10} /> Active
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-neutral-300">
-                            Free 20B
-                          </span>
-                        )}
-                      </div>
-                      <div className={`mt-0.5 text-[10px] leading-tight ${dark ? "text-white/60" : "text-neutral-500"}`}>
-                        Lightning fast responses for daily questions and brainstorming
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
+          {/* Center: Brand Header */}
+          <div className="flex items-center gap-2">
+            <RockMark size={24} dark={dark} />
+            <span className="text-base font-bold tracking-tight">RockGPT</span>
           </div>
 
           {/* Right: Upgrade, Theme Toggle, Export, Profile */}
