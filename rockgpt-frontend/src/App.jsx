@@ -3,14 +3,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import {
-  ArrowUp, Check, Copy, Download, Edit3, Menu, Mic,
+  ArrowUp, Check, Copy, Download, Edit3, Mic,
   Plus, Search, Settings, User, X, Zap,
   Moon, Sun, RefreshCcw, Square, ThumbsDown, ThumbsUp, Trash2,
   Sparkles, Globe, Gauge, Loader2, Crown, ExternalLink, ShieldCheck,
   Smartphone, QrCode, ArrowRight, CheckCircle2, AlertCircle, ChevronRight,
   Lock, Volume2, VolumeX, Pin, Code2,
   Shield, KeyRound, Mail, ArrowLeft, LogOut, MoreHorizontal, CreditCard,
-  SquarePen, Eye, EyeOff, MessageSquare, Lightbulb, FileText
+  SquarePen, Eye, EyeOff, MessageSquare, Lightbulb, FileText,
+  PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 import GoogleSignInButton from "./components/GoogleSignInButton.jsx";
 
@@ -3726,6 +3727,10 @@ export default function RockGPT() {
         e.preventDefault();
         newChat();
       }
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "b" || (e.shiftKey && e.key.toLowerCase() === "s"))) {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
     };
     window.addEventListener("keydown", handleGlobalShortcuts);
     return () => window.removeEventListener("keydown", handleGlobalShortcuts);
@@ -4678,8 +4683,8 @@ export default function RockGPT() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 lg:z-30 h-full w-[260px] shrink-0 overflow-hidden transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:-translate-x-full lg:w-0"
+        className={`fixed lg:static inset-y-0 left-0 z-50 lg:z-30 h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
+          sidebarOpen ? "w-[260px] translate-x-0 opacity-100" : "w-0 -translate-x-full lg:translate-x-0 opacity-0 pointer-events-none"
         }`}
         style={{ background: panel, borderRight: sidebarOpen ? `1px solid ${border}` : "none" }}
       >
@@ -4697,31 +4702,17 @@ export default function RockGPT() {
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={() => {
-                  newChat();
-                  if (window.innerWidth < 1024) setSidebarOpen(false);
-                }}
-                title="New chat (Ctrl+N)"
-                aria-label="New chat"
-                className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition cursor-pointer ${
-                  dark
-                    ? "border-white/10 text-white/80 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                    : "border-neutral-300 text-neutral-700 hover:bg-black/[0.05]"
-                }`}
-              >
-                <Plus size={16} strokeWidth={2.2} />
-              </button>
-              <button
+                type="button"
                 onClick={() => setSidebarOpen(false)}
-                title="Close sidebar"
-                aria-label="Close sidebar"
-                className={`lg:hidden grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition cursor-pointer ${
+                title="Hide sidebar (Ctrl+B)"
+                aria-label="Hide sidebar"
+                className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition cursor-pointer active:scale-95 ${
                   dark
-                    ? "border-white/10 text-neutral-400 hover:text-white"
-                    : "border-neutral-300 text-neutral-600 hover:text-black"
+                    ? "border-white/10 text-neutral-400 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                    : "border-neutral-300 text-neutral-600 hover:bg-black/[0.05] hover:text-black"
                 }`}
               >
-                <X size={15} />
+                <PanelLeftClose size={17} />
               </button>
             </div>
           </div>
@@ -4960,15 +4951,15 @@ export default function RockGPT() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setSidebarOpen((v) => !v)}
-              title="Open sidebar"
-              aria-label="Open sidebar"
+              title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
+              aria-label={sidebarOpen ? "Hide sidebar" : "Open sidebar"}
               className={`grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
                 dark
                   ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
                   : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
               }`}
             >
-              <Menu size={18} strokeWidth={2.2} />
+              {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
             </button>
 
             <button
