@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /api/
 
 Sitemap: https://rockgpt-ten.vercel.app/sitemap.xml

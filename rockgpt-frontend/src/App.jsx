@@ -3722,6 +3722,15 @@ export default function RockGPT() {
   }, [theme]);
 
   useEffect(() => {
+    const currentConv = conversations.find((c) => c && c.id === activeId);
+    if (currentConv && currentConv.title) {
+      document.title = `${currentConv.title} - ROCKGPT AI Assistant`;
+    } else {
+      document.title = "ROCKGPT - AI Assistant";
+    }
+  }, [activeId, conversations]);
+
+  useEffect(() => {
     const handleGlobalShortcuts = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
