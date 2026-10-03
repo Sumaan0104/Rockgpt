@@ -430,11 +430,20 @@ function RockLogo({ size = 32, state = "idle", animated = false, markOnly = fals
 
   const imgSrc = markOnly ? "/rockgpt-mark.png" : "/rockgpt-logo.png";
 
+  const [clicked, setClicked] = useState(false);
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    setClicked(true);
+    setTimeout(() => setClicked(false), 500);
+  };
+
   return (
     <div
-      className={`relative inline-flex items-center justify-center shrink-0 select-none overflow-visible ${
-        animated ? "transition-transform duration-150 hover:scale-[1.015]" : ""
-      } ${isCompleted ? "rock-logo-completed" : ""} ${className}`}
+      onClick={handleClick}
+      className={`relative inline-flex items-center justify-center shrink-0 select-none overflow-visible cursor-pointer transition-all duration-300 ease-out hover:scale-105 active:scale-95 ${
+        animated ? "animate-pulse" : ""
+      } ${clicked ? "scale-125 -translate-y-1" : ""} ${isCompleted ? "rock-logo-completed" : ""} ${className}`}
       style={{ width: size, height: size }}
     >
       {/* Generating: Soft rotating monochrome silver/white energy ring */}
@@ -3505,46 +3514,8 @@ export default function RockGPT() {
     }
   });
 
-  const [activeId, setActiveId] = useState(() => {
-    try {
-      const isSessionActive = safeStorage.sessionGet("rockgpt-in-session");
-      if (!isSessionActive) {
-        // Fresh tab launch -> always start on a clean New Chat page!
-        safeStorage.sessionSet("rockgpt-in-session", "true");
-        return null;
-      }
-      return safeStorage.get("rockgpt-active-id") || null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [messages, setMessages] = useState(() => {
-    try {
-      const isSessionActive = safeStorage.sessionGet("rockgpt-in-session");
-      if (!isSessionActive) {
-        return [];
-      }
-      const savedActiveId = safeStorage.get("rockgpt-active-id");
-      if (!savedActiveId) return [];
-      const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
-      const key = getStorageKey(savedUser);
-      const savedConvs = safeStorage.get(key);
-      if (savedConvs) {
-        const parsed = JSON.parse(savedConvs);
-        const cur = parsed.find((c) => c && c.id === savedActiveId);
-        if (cur && Array.isArray(cur.messages)) {
-          return cur.messages.map((m) => ({
-            ...m,
-            createdAt: m && m.createdAt ? new Date(m.createdAt) : new Date(),
-          }));
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  });
+  const [activeId, setActiveId] = useState(null);
+  const [messages, setMessages] = useState([]);
 
   const [showAllRecentChats, setShowAllRecentChats] = useState(false);
 

@@ -1460,18 +1460,28 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
     },
   };
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:streamGenerateContent?alt=sse&key=${ACTIVE_GEMINI_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }
-  );
+  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  let response = null;
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Gemini status ${response.status}: ${errText.slice(0, 200)}`);
+  for (const modelName of modelsToTry) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${ACTIVE_GEMINI_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (resp.ok) {
+        response = resp;
+        break;
+      }
+    } catch {}
+  }
+
+  if (!response) {
+    return false;
   }
 
   const reader = response.body.getReader();
@@ -1633,7 +1643,7 @@ ${canonicalAsmaUlHusna}
 Exhaustive Completeness & High-Precision Responses:
 Whenever the user asks for enumerations, lists, complete sets (such as the 99 Names of Allah / Asma' ul-Husna, rankings, directories, tables, historical timelines, or itemized collections), you must ALWAYS provide the COMPLETE, FULL list from start to finish without skipping or stopping halfway. Never cut off, summarize, or truncate lists prematurely. Use clean Markdown formatting.${fast ? " Be swift and concise in narrative explanations while keeping lists and data sets 100% complete." : ""}`;
 
-    // 1. Try Gemini 3.6 Flash first (Flagship Google Engine)
+    // 1. Try Gemini streaming first (Flagship Fast Engine)
     let handledByGemini = false;
     if (ACTIVE_GEMINI_KEY) {
       try {
@@ -1649,22 +1659,30 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
       if (hasImg) {
         res.write(`data: ${JSON.stringify({ token: "I received your image, but the visual analysis service is temporarily busy. Please try again in a moment." })}\n\n`);
       } else {
-        const model = "openai/gpt-oss-120b";
-        const stream = await groq.chat.completions.create({
-          model,
-          max_tokens: fast ? 4096 : 8192,
-          temperature: 0.5,
-          frequency_penalty: 0.25,
-          presence_penalty: 0.1,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...messages,
-          ],
-          stream: true,
-        });
-        for await (const chunk of stream) {
-          const t = chunk.choices[0]?.delta?.content || "";
-          if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+        const groqModels = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+        let stream = null;
+        for (const model of groqModels) {
+          try {
+            stream = await groq.chat.completions.create({
+              model,
+              max_tokens: fast ? 4096 : 8192,
+              temperature: 0.5,
+              messages: [
+                { role: "system", content: systemPrompt },
+                ...messages,
+              ],
+              stream: true,
+            });
+            if (stream) break;
+          } catch (e) {
+            console.warn(`Groq model ${model} failed:`, e.message);
+          }
+        }
+        if (stream) {
+          for await (const chunk of stream) {
+            const t = chunk.choices[0]?.delta?.content || "";
+            if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+          }
         }
       }
     }
