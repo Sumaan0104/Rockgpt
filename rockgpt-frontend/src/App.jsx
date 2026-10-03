@@ -14,6 +14,8 @@ import {
   PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 import GoogleSignInButton from "./components/GoogleSignInButton.jsx";
+import rockMarkImg from "./assets/rockgpt-mark.png";
+import rockLogoImg from "./assets/rockgpt-logo.png";
 
 const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL ||
@@ -416,8 +418,8 @@ function MessageContent({ content, dark }) {
 }
 
 /* =========================================================================
-   ROCKGPT OFFICIAL MASTER LOGO: FUTURISTIC AI CHATBOT / ROBOT (BLACK & WHITE)
-   Aesthetic: Minimal, Monochrome, Futuristic AI Robot with Glowing Visor & Headphones
+   ROCKGPT OFFICIAL MASTER LOGO: GEOMETRIC INTERLOCKING HEXAGON MARK
+   Aesthetic: Minimal, Monochrome, High-Tech Geometric Hexagon
    States: idle | thinking | generating | voice | completed
    ========================================================================= */
 function RockLogo({ size = 32, state = "idle", animated = false, markOnly = false, className = "" }) {
@@ -428,7 +430,7 @@ function RockLogo({ size = 32, state = "idle", animated = false, markOnly = fals
   const isVoice = state === "voice";
   const isCompleted = state === "completed";
 
-  const imgSrc = markOnly ? "/rockgpt-mark.png" : "/rockgpt-logo.png";
+  const imgSrc = markOnly ? rockMarkImg : rockLogoImg;
 
   const [clicked, setClicked] = useState(false);
 
@@ -506,17 +508,21 @@ function RockLogo({ size = 32, state = "idle", animated = false, markOnly = fals
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className="relative z-10 shrink-0 select-none"
-          style={{ overflow: "visible" }}
         >
-          <rect width="100" height="100" rx="26" fill="#070709" />
-          <circle cx="50" cy="50" r="36" fill="#141416" stroke="rgba(255,255,255,0.2)" strokeWidth="3" />
-          <rect x="18" y="40" width="8" height="20" rx="4" fill="#ffffff" />
-          <rect x="74" y="40" width="8" height="20" rx="4" fill="#ffffff" />
-          <rect x="30" y="38" width="40" height="24" rx="10" fill="#000000" stroke="#ffffff" strokeWidth="2.5" />
-          <path d="M38 50 Q43 44 48 50" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-          <path d="M52 50 Q57 44 62 50" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-          <line x1="64" y1="28" x2="64" y2="18" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
-          <circle cx="64" cy="16" r="3.5" fill="#ffffff" />
+          <rect width="100" height="100" rx="24" fill="#070709" />
+          <path
+            d="M50 14L82 32V68L50 86L18 68V32L50 14Z"
+            stroke="white"
+            strokeWidth="7"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M34 42L50 51L66 42M50 51V74"
+            stroke="white"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       )}
     </div>
@@ -552,11 +558,12 @@ function GoogleIcon({ className = "w-4 h-4" }) {
 }
 
 /* =========================================================================
-   CINEMATIC INTRO ANIMATION (0.8–1.5s FAST SEQUENCE)
-   Step 1 (0–300ms): Dark backdrop calm, logo emerges with smooth fade + scale
-   Step 2 (300–650ms): Soft glowing ring expands gracefully around the logo
-   Step 3 (600–900ms): RockGPT brand name appears smoothly
-   Step 4 (900–1250ms): Interface fades & dissolves seamlessly into the main app
+   CINEMATIC INTRO ANIMATION (SMOOTH 3.8s PREMIUM SEQUENCE)
+   Phase 1 (0–1200ms): Dark stage, ambient aura, logo emerges with smooth spring-scale
+   Phase 2 (1000–2400ms): Quantum glowing halo expands outwards from the geometric mark
+   Phase 3 (2000–3200ms): RockGPT title & high-tech subtitle slide up with elegant tracking
+   Phase 4 (3200–3800ms): Pristine brand showcase hold
+   Phase 5 (3800–4400ms): Butter-smooth dissolution transition into main chat interface
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
@@ -574,20 +581,20 @@ function IntroScreen({ onDone }) {
       return;
     }
 
-    // Step 4: 1750ms begins smooth dissolve into the main UI
+    // Phase 5: At 3800ms begin smooth dissolve into the main application
     const exitTimer = setTimeout(() => {
       setExiting(true);
-    }, 1750);
+    }, 3800);
 
-    // 2200ms: Unmount overlay cleanly after smooth fade
+    // 4400ms: Unmount overlay cleanly after 600ms smooth fade
     const doneTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 2200);
+    }, 4400);
 
-    // Safety fallback: guaranteed exit after 2500ms
+    // Safety fallback: guaranteed unmount
     const safetyTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 2500);
+    }, 5000);
 
     return () => {
       clearTimeout(exitTimer);
@@ -596,106 +603,207 @@ function IntroScreen({ onDone }) {
     };
   }, []);
 
-  const handleSkip = () => {
+  const handleSkip = (e) => {
+    e?.stopPropagation?.();
     setExiting(true);
     setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 120);
+    }, 280);
   };
 
   return (
     <div
       onClick={handleSkip}
       className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070709] text-white select-none overflow-hidden cursor-pointer ${
-        exiting ? "opacity-0 scale-[1.02] pointer-events-none" : "opacity-100 scale-100"
+        exiting ? "opacity-0 scale-[1.03] pointer-events-none" : "opacity-100 scale-100"
       }`}
       style={{
-        transition: "opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), transform 500ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: "opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), transform 600ms cubic-bezier(0.16, 1, 0.3, 1)",
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
       <style>{`
-        /* Step 1 & 2: Logo Appearance & Ring Expansion */
+        /* Phase 1: Logo Appearance & Spring Scale */
         @keyframes introLogoStep {
-          0% { opacity: 0; transform: scale(0.9); filter: blur(8px); }
-          30% { opacity: 1; transform: scale(1); filter: blur(0px); }
-          65% { opacity: 1; transform: scale(1.02); filter: drop-shadow(0 0 24px rgba(255,255,255,0.45)); }
-          100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 14px rgba(255,255,255,0.25)); }
+          0% {
+            opacity: 0;
+            transform: scale(0.76);
+            filter: blur(10px) drop-shadow(0 0 0px rgba(255,255,255,0));
+          }
+          32% {
+            opacity: 1;
+            transform: scale(1.05);
+            filter: blur(0px) drop-shadow(0 0 32px rgba(255,255,255,0.55));
+          }
+          50% {
+            transform: scale(0.98);
+            filter: drop-shadow(0 0 22px rgba(255,255,255,0.4));
+          }
+          70% {
+            transform: scale(1.01);
+            filter: drop-shadow(0 0 26px rgba(255,255,255,0.48));
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1);
+            filter: drop-shadow(0 0 18px rgba(255,255,255,0.32));
+          }
         }
 
-        /* Step 2: Soft Ring Animation around Logo */
-        @keyframes introRingGlow {
-          0% { opacity: 0; transform: scale(0.8); border-color: rgba(255,255,255,0.1); }
-          45% { opacity: 0.85; transform: scale(1.15); border-color: rgba(255,255,255,0.45); box-shadow: 0 0 30px rgba(255,255,255,0.3); }
-          100% { opacity: 0.35; transform: scale(1.22); border-color: rgba(255,255,255,0.18); box-shadow: 0 0 18px rgba(255,255,255,0.12); }
+        /* Phase 2: Quantum Glowing Halo expanding outward */
+        @keyframes introHaloPulse {
+          0%, 15% {
+            opacity: 0;
+            transform: scale(0.7);
+            border-color: rgba(255,255,255,0.1);
+          }
+          40% {
+            opacity: 0.9;
+            transform: scale(1.25);
+            border-color: rgba(255,255,255,0.5);
+            box-shadow: 0 0 36px rgba(255,255,255,0.35), inset 0 0 16px rgba(255,255,255,0.18);
+          }
+          70% {
+            opacity: 0.45;
+            transform: scale(1.42);
+            border-color: rgba(255,255,255,0.22);
+            box-shadow: 0 0 22px rgba(255,255,255,0.12);
+          }
+          100% {
+            opacity: 0.22;
+            transform: scale(1.48);
+            border-color: rgba(255,255,255,0.1);
+          }
         }
 
-        /* Step 3: Brand Text Reveal */
+        /* Phase 2b: Secondary Outer Pulse */
+        @keyframes introOuterHalo {
+          0%, 25% {
+            opacity: 0;
+            transform: scale(0.8);
+          }
+          52% {
+            opacity: 0.45;
+            transform: scale(1.58);
+            border-color: rgba(255,255,255,0.3);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(1.9);
+          }
+        }
+
+        /* Phase 3: Brand Text Slide & Fade */
         @keyframes introBrandStep {
-          0%, 30% { opacity: 0; transform: translateY(12px); filter: blur(5px); }
-          60% { opacity: 1; transform: translateY(0); filter: blur(0px); }
-          100% { opacity: 1; transform: translateY(0); }
+          0%, 35% {
+            opacity: 0;
+            transform: translateY(18px);
+            filter: blur(6px);
+          }
+          62% {
+            opacity: 1;
+            transform: translateY(0);
+            filter: blur(0px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+            filter: blur(0px);
+          }
+        }
+
+        /* Phase 3b: Subtitle Tagline Reveal */
+        @keyframes introTaglineStep {
+          0%, 48% {
+            opacity: 0;
+            transform: translateY(12px);
+            letter-spacing: 0.18em;
+          }
+          74% {
+            opacity: 1;
+            transform: translateY(0);
+            letter-spacing: 0.32em;
+          }
+          100% {
+            opacity: 0.9;
+            transform: translateY(0);
+            letter-spacing: 0.32em;
+          }
         }
 
         /* Ambient subtle backdrop glow */
         @keyframes introBackdropGlow {
-          0% { opacity: 0; transform: scale(0.85); }
-          50% { opacity: 0.75; transform: scale(1.08); }
-          100% { opacity: 0.45; transform: scale(1); }
+          0% { opacity: 0; transform: scale(0.8); }
+          40% { opacity: 0.75; transform: scale(1.12); }
+          75% { opacity: 0.5; transform: scale(0.98); }
+          100% { opacity: 0.6; transform: scale(1.05); }
         }
       `}</style>
 
-      {/* Ambient Backdrop Glow */}
+      {/* Ambient Backdrop Radial Glow */}
       <div
-        className="absolute h-[320px] w-[320px] sm:h-[400px] sm:w-[400px] rounded-full pointer-events-none"
+        className="absolute h-[340px] w-[340px] sm:h-[460px] sm:w-[460px] rounded-full pointer-events-none"
         style={{
-          background: "radial-gradient(circle, rgba(255,255,255,0.16) 0%, rgba(180,180,180,0.06) 50%, transparent 70%)",
-          filter: "blur(44px)",
-          animation: "introBackdropGlow 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          background: "radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(180,180,180,0.06) 50%, transparent 72%)",
+          filter: "blur(48px)",
+          animation: "introBackdropGlow 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       />
 
-      {/* Logo with Animated Soft Ring */}
-      <div className="relative mb-5 sm:mb-6 grid place-items-center">
-        {/* Soft Glowing Ring (Step 2) */}
+      {/* Logo with Animated Quantum Halo */}
+      <div className="relative mb-6 sm:mb-7 grid place-items-center">
+        {/* Outer Halo */}
         <div
-          className="absolute w-[114px] h-[114px] sm:w-[128px] sm:h-[128px] rounded-full border pointer-events-none"
+          className="absolute w-[124px] h-[124px] sm:w-[148px] sm:h-[148px] rounded-full border pointer-events-none"
           style={{
-            animation: "introRingGlow 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introOuterHalo 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         />
 
-        {/* Step 1: Logo */}
+        {/* Inner Quantum Halo */}
         <div
-          className="relative z-10 w-[88px] h-[88px] sm:w-[98px] sm:h-[98px] aspect-square"
+          className="absolute w-[118px] h-[118px] sm:w-[138px] sm:h-[138px] rounded-full border pointer-events-none"
           style={{
-            animation: "introLogoStep 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introHaloPulse 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          }}
+        />
+
+        {/* Geometric Hexagon Logo Mark */}
+        <div
+          className="relative z-10 w-[96px] h-[96px] sm:w-[112px] sm:h-[112px] aspect-square"
+          style={{
+            animation: "introLogoStep 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         >
           <img
-            src="/rockgpt-mark.png"
+            src={rockMarkImg}
             alt="RockGPT"
-            width={98}
-            height={98}
+            width={112}
+            height={112}
             className="w-full h-full object-contain select-none pointer-events-none"
             loading="eager"
           />
         </div>
       </div>
 
-      {/* Step 3: Brand Reveal */}
-      <div
-        className="text-center px-4 overflow-hidden py-1"
-        style={{
-          animation: "introBrandStep 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-        }}
-      >
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-[0.24em] text-white uppercase drop-shadow-[0_0_16px_rgba(255,255,255,0.25)]">
+      {/* Brand Reveal */}
+      <div className="text-center px-4 overflow-hidden py-1">
+        <h1
+          className="text-2xl sm:text-3xl font-extrabold tracking-[0.26em] text-white uppercase drop-shadow-[0_0_18px_rgba(255,255,255,0.3)]"
+          style={{
+            animation: "introBrandStep 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          }}
+        >
           RockGPT
         </h1>
-        <div className="mt-1.5 text-[10px] sm:text-xs font-mono tracking-[0.28em] text-neutral-400 uppercase">
-          Next-Gen Intelligence
+        <div
+          className="mt-2 text-[10px] sm:text-xs font-mono text-neutral-400 uppercase"
+          style={{
+            animation: "introTaglineStep 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          }}
+        >
+          Next-Gen AI Intelligence
         </div>
       </div>
 
@@ -3498,7 +3606,7 @@ function UpiCheckoutModal({
    MAIN ROCKGPT APP
    ========================================================================= */
 export default function RockGPT() {
-  const [showIntro, setShowIntro] = useState(false);
+  const [showIntro, setShowIntro] = useState(() => !safeStorage.sessionGet("rockgpt-intro-v3-seen"));
   const [conversations, setConversations] = useState(() => {
     try {
       const savedUser = JSON.parse(safeStorage.get("rockgpt-user") || "null");
@@ -4373,7 +4481,7 @@ export default function RockGPT() {
       {showIntro && (
         <IntroScreen
           onDone={() => {
-            safeStorage.sessionSet("rockgpt-intro-seen", "true");
+            safeStorage.sessionSet("rockgpt-intro-v3-seen", "true");
             setShowIntro(false);
           }}
         />
@@ -5719,7 +5827,7 @@ export default function RockGPT() {
                 <button
                   onClick={() => {
                     setSettingsOpen(false);
-                    safeStorage.remove("rockgpt-intro-seen");
+                    safeStorage.remove("rockgpt-intro-v3-seen");
                     setShowIntro(true);
                   }}
                   className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-amber-500 hover:bg-amber-500/10 transition"
