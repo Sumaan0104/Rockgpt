@@ -1439,7 +1439,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
           const url = p.image_url?.url || "";
           const match = url.match(/^data:([^;]+);base64,(.+)$/);
           if (match) {
-            parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+            parts.push({ inline_data: { mime_type: match[1], data: match[2] } });
           }
         }
       }
@@ -1460,7 +1460,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
     },
   };
 
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const modelsToTry = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   let response = null;
 
   for (const modelName of modelsToTry) {
@@ -1503,13 +1503,31 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
       if (!dataStr || dataStr === "[DONE]") continue;
       try {
         const parsed = JSON.parse(dataStr);
-        const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        if (text) {
-          tokensStreamed++;
-          res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
+        const parts = parsed.candidates?.[0]?.content?.parts || [];
+        for (const pt of parts) {
+          if (pt.text) {
+            tokensStreamed++;
+            res.write(`data: ${JSON.stringify({ token: pt.text })}\n\n`);
+          }
         }
       } catch {}
     }
+  }
+
+  if (buffer.trim().startsWith("data:")) {
+    try {
+      const dataStr = buffer.trim().slice(5).trim();
+      if (dataStr && dataStr !== "[DONE]") {
+        const parsed = JSON.parse(dataStr);
+        const parts = parsed.candidates?.[0]?.content?.parts || [];
+        for (const pt of parts) {
+          if (pt.text) {
+            tokensStreamed++;
+            res.write(`data: ${JSON.stringify({ token: pt.text })}\n\n`);
+          }
+        }
+      }
+    } catch {}
   }
 
   return tokensStreamed > 0;
@@ -1654,12 +1672,14 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
     }
 
     // 2. Fallback to Groq if Gemini wasn't available or had an error
+    let groqTokensStreamed = 0;
     if (!handledByGemini) {
       const hasImg = messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === "image_url"));
       if (hasImg) {
+        groqTokensStreamed++;
         res.write(`data: ${JSON.stringify({ token: "I received your image, but the visual analysis service is temporarily busy. Please try again in a moment." })}\n\n`);
       } else {
-        const groqModels = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+        const groqModels = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"];
         let stream = null;
         for (const model of groqModels) {
           try {
@@ -1669,7 +1689,22 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
               temperature: 0.5,
               messages: [
                 { role: "system", content: systemPrompt },
-                ...messages,
+                ...messages.map((m) => {
+                  let text = "";
+                  if (typeof m.content === "string") text = m.content;
+                  else if (Array.isArray(m.content)) {
+                    text = m.content
+                      .filter((p) => p.type === "text" && p.text)
+                      .map((p) => p.text)
+                      .join("\n");
+                  } else {
+                    text = String(m.content || "");
+                  }
+                  return {
+                    role: m.role === "assistant" ? "assistant" : "user",
+                    content: text || "Hello",
+                  };
+                }),
               ],
               stream: true,
             });
@@ -1681,9 +1716,17 @@ Whenever the user asks for enumerations, lists, complete sets (such as the 99 Na
         if (stream) {
           for await (const chunk of stream) {
             const t = chunk.choices[0]?.delta?.content || "";
-            if (t) res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+            if (t) {
+              groqTokensStreamed++;
+              res.write(`data: ${JSON.stringify({ token: t })}\n\n`);
+            }
           }
         }
+      }
+
+      // Failsafe: if both Gemini and Groq yielded 0 tokens, never leave user with blank screen
+      if (!handledByGemini && groqTokensStreamed === 0) {
+        res.write(`data: ${JSON.stringify({ token: "I'm temporarily experiencing high traffic across my neural pipelines. Please tap 'Regenerate' or try asking again in a moment." })}\n\n`);
       }
     }
 

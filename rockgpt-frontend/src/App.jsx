@@ -4054,12 +4054,13 @@ export default function RockGPT() {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n\n");
+        const lines = buffer.split("\n");
         buffer = lines.pop() || "";
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
           try {
-            const raw = line.slice(6).trim();
+            const raw = trimmed.replace(/^data:\s*/, "");
             if (!raw || raw === "[DONE]") continue;
             const parsed = JSON.parse(raw);
             if (parsed.token) {
@@ -4075,32 +4076,52 @@ export default function RockGPT() {
           }
         }
       }
+
+      if (buffer.trim().startsWith("data:")) {
+        try {
+          const raw = buffer.trim().replace(/^data:\s*/, "");
+          if (raw && raw !== "[DONE]") {
+            const parsed = JSON.parse(raw);
+            if (parsed.token) {
+              fullText += parsed.token;
+              setStreaming(fullText);
+            }
+            if (parsed.error) {
+              fullText = parsed.error;
+              setStreaming(fullText);
+            }
+          }
+        } catch {
+          /* ignore partial chunk */
+        }
+      }
     } catch (err) {
       if (err.name !== "AbortError") {
         console.error("Stream error:", err);
-        fullText = "Failed to reach RockGPT backend. Please try again.";
+        fullText = "Failed to reach RockGPT backend. Please verify your connection and tap 'Regenerate'.";
         setStreaming(fullText);
       }
     } finally {
       setStreaming("");
       setTyping(false);
       abortRef.current = null;
-      if (fullText.trim()) {
-        const m = { id: uid("msg"), role: "assistant", content: fullText, createdAt: new Date(), liked: null };
-        setMessages((prev) => [...prev, m]);
-        setConversations((prev) =>
-          prev.map((c) => (c && c.id === convId ? { ...c, messages: [...c.messages, m], updatedAt: new Date() } : c))
-        );
-        if (authToken && convId) {
-          fetch(`${BACKEND_URL}/api/conversations/${convId}/messages`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${authToken}`,
-            },
-            body: JSON.stringify({ role: "assistant", content: fullText }),
-          }).catch((err) => console.warn("Failed to persist assistant message to server:", err));
-        }
+      if (!fullText.trim()) {
+        fullText = "I didn't receive a response from the AI network. Please tap 'Regenerate' or try asking again.";
+      }
+      const m = { id: uid("msg"), role: "assistant", content: fullText, createdAt: new Date(), liked: null };
+      setMessages((prev) => [...prev, m]);
+      setConversations((prev) =>
+        prev.map((c) => (c && c.id === convId ? { ...c, messages: [...c.messages, m], updatedAt: new Date() } : c))
+      );
+      if (authToken && convId) {
+        fetch(`${BACKEND_URL}/api/conversations/${convId}/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({ role: "assistant", content: fullText }),
+        }).catch((err) => console.warn("Failed to persist assistant message to server:", err));
       }
     }
   };
