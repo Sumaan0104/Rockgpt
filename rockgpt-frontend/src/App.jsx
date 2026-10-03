@@ -558,12 +558,14 @@ function GoogleIcon({ className = "w-4 h-4" }) {
 }
 
 /* =========================================================================
-   CINEMATIC INTRO ANIMATION (SMOOTH 3.8s PREMIUM SEQUENCE)
-   Phase 1 (0–1200ms): Dark stage, ambient aura, logo emerges with smooth spring-scale
-   Phase 2 (1000–2400ms): Quantum glowing halo expands outwards from the geometric mark
-   Phase 3 (2000–3200ms): RockGPT title & high-tech subtitle slide up with elegant tracking
-   Phase 4 (3200–3800ms): Pristine brand showcase hold
-   Phase 5 (3800–4400ms): Butter-smooth dissolution transition into main chat interface
+   CINEMATIC INTRO ANIMATION (PREMIUM 3.6s SEQUENCE + 600ms SMOOTH DISSOLVE)
+   Stage 1 (0–400ms): Ambient backdrop & radial glow emerge
+   Stage 2 (400–1200ms): RockGPT logo mark rises with smooth scale + soft glowing aura
+   Stage 3 (1000–2000ms): Luminous halo expands outward from the mark
+   Stage 4 (1200–2200ms): ROCKGPT wordmark reveals with metallic light sweep
+   Stage 5 (1600–2400ms): Subtitle tagline slides in with elegant letter tracking
+   Stage 6 (2400–3600ms): Brand Showcase HOLD (1.2s clear, stable, recognizable view)
+   Stage 7 (3600–4200ms): Cinematic dissolution exit into main chat interface
    ========================================================================= */
 function IntroScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
@@ -581,20 +583,24 @@ function IntroScreen({ onDone }) {
       return;
     }
 
-    // Phase 5: At 3800ms begin smooth dissolve into the main application
+    // Preload logo image to guarantee zero render delay
+    const img = new Image();
+    img.src = rockMarkImg;
+
+    // Stage 7: At 3600ms begin smooth dissolve into the main application
     const exitTimer = setTimeout(() => {
       setExiting(true);
-    }, 3800);
+    }, 3600);
 
-    // 4400ms: Unmount overlay cleanly after 600ms smooth fade
+    // 4200ms: Unmount overlay cleanly after 600ms smooth fade
     const doneTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 4400);
+    }, 4200);
 
     // Safety fallback: guaranteed unmount
     const safetyTimer = setTimeout(() => {
       if (onDoneRef.current) onDoneRef.current();
-    }, 5000);
+    }, 4800);
 
     return () => {
       clearTimeout(exitTimer);
@@ -614,7 +620,7 @@ function IntroScreen({ onDone }) {
   return (
     <div
       onClick={handleSkip}
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#070709] text-white select-none overflow-hidden cursor-pointer ${
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#060608] text-white select-none overflow-hidden cursor-pointer ${
         exiting ? "opacity-0 scale-[1.03] pointer-events-none" : "opacity-100 scale-100"
       }`}
       style={{
@@ -624,69 +630,82 @@ function IntroScreen({ onDone }) {
       }}
     >
       <style>{`
-        /* Phase 1: Logo Appearance & Spring Scale */
+        /* Stage 1: Ambient backdrop glow */
+        @keyframes introBackdropGlow {
+          0% { opacity: 0; transform: scale(0.85); }
+          30% { opacity: 0.85; transform: scale(1.15); }
+          70% { opacity: 0.6; transform: scale(1.0); }
+          100% { opacity: 0.65; transform: scale(1.05); }
+        }
+
+        /* Stage 2: Logo Appearance & Gentle Spring Scale */
         @keyframes introLogoStep {
           0% {
             opacity: 0;
-            transform: scale(0.76);
-            filter: blur(10px) drop-shadow(0 0 0px rgba(255,255,255,0));
+            transform: scale(0.82);
+            filter: blur(8px) drop-shadow(0 0 0px rgba(255,255,255,0));
+          }
+          18% {
+            opacity: 0.45;
+            transform: scale(0.92);
+            filter: blur(2px) drop-shadow(0 0 16px rgba(255,255,255,0.3));
           }
           32% {
             opacity: 1;
-            transform: scale(1.05);
-            filter: blur(0px) drop-shadow(0 0 32px rgba(255,255,255,0.55));
+            transform: scale(1.04);
+            filter: blur(0px) drop-shadow(0 0 30px rgba(255,255,255,0.55));
           }
-          50% {
-            transform: scale(0.98);
-            filter: drop-shadow(0 0 22px rgba(255,255,255,0.4));
+          45% {
+            transform: scale(0.99);
+            filter: drop-shadow(0 0 20px rgba(255,255,255,0.4));
           }
-          70% {
-            transform: scale(1.01);
-            filter: drop-shadow(0 0 26px rgba(255,255,255,0.48));
+          58% {
+            transform: scale(1.00);
+            filter: drop-shadow(0 0 24px rgba(255,255,255,0.45));
           }
           100% {
             opacity: 1;
-            transform: scale(1);
-            filter: drop-shadow(0 0 18px rgba(255,255,255,0.32));
+            transform: scale(1.00);
+            filter: drop-shadow(0 0 20px rgba(255,255,255,0.35));
           }
         }
 
-        /* Phase 2: Quantum Glowing Halo expanding outward */
+        /* Stage 3: Luminous Halo expanding outward */
         @keyframes introHaloPulse {
-          0%, 15% {
+          0%, 20% {
             opacity: 0;
-            transform: scale(0.7);
-            border-color: rgba(255,255,255,0.1);
+            transform: scale(0.72);
+            border-color: rgba(255,255,255,0.08);
           }
-          40% {
-            opacity: 0.9;
-            transform: scale(1.25);
-            border-color: rgba(255,255,255,0.5);
-            box-shadow: 0 0 36px rgba(255,255,255,0.35), inset 0 0 16px rgba(255,255,255,0.18);
+          42% {
+            opacity: 0.85;
+            transform: scale(1.22);
+            border-color: rgba(255,255,255,0.48);
+            box-shadow: 0 0 32px rgba(255,255,255,0.32), inset 0 0 16px rgba(255,255,255,0.16);
           }
-          70% {
+          68% {
             opacity: 0.45;
-            transform: scale(1.42);
+            transform: scale(1.38);
             border-color: rgba(255,255,255,0.22);
-            box-shadow: 0 0 22px rgba(255,255,255,0.12);
+            box-shadow: 0 0 20px rgba(255,255,255,0.12);
           }
           100% {
             opacity: 0.22;
-            transform: scale(1.48);
-            border-color: rgba(255,255,255,0.1);
+            transform: scale(1.44);
+            border-color: rgba(255,255,255,0.12);
           }
         }
 
-        /* Phase 2b: Secondary Outer Pulse */
+        /* Stage 3b: Outer Pulse */
         @keyframes introOuterHalo {
-          0%, 25% {
+          0%, 28% {
             opacity: 0;
             transform: scale(0.8);
           }
           52% {
             opacity: 0.45;
             transform: scale(1.58);
-            border-color: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.28);
           }
           100% {
             opacity: 0;
@@ -694,14 +713,14 @@ function IntroScreen({ onDone }) {
           }
         }
 
-        /* Phase 3: Brand Text Slide & Fade */
+        /* Stage 4: Brand Text Slide & Fade */
         @keyframes introBrandStep {
-          0%, 35% {
+          0%, 28% {
             opacity: 0;
-            transform: translateY(18px);
+            transform: translateY(16px);
             filter: blur(6px);
           }
-          62% {
+          48% {
             opacity: 1;
             transform: translateY(0);
             filter: blur(0px);
@@ -713,31 +732,36 @@ function IntroScreen({ onDone }) {
           }
         }
 
-        /* Phase 3b: Subtitle Tagline Reveal */
-        @keyframes introTaglineStep {
-          0%, 48% {
-            opacity: 0;
-            transform: translateY(12px);
-            letter-spacing: 0.18em;
+        /* Stage 4b: Metallic light sweep across letters */
+        @keyframes introWordmarkSweep {
+          0%, 40% {
+            background-position: -200% 0;
           }
-          74% {
-            opacity: 1;
-            transform: translateY(0);
-            letter-spacing: 0.32em;
+          75% {
+            background-position: 200% 0;
           }
           100% {
+            background-position: 200% 0;
+          }
+        }
+
+        /* Stage 5: Subtitle Tagline Reveal */
+        @keyframes introTaglineStep {
+          0%, 46% {
+            opacity: 0;
+            transform: translateY(10px);
+            letter-spacing: 0.16em;
+          }
+          68% {
             opacity: 0.9;
             transform: translateY(0);
-            letter-spacing: 0.32em;
+            letter-spacing: 0.30em;
           }
-        }
-
-        /* Ambient subtle backdrop glow */
-        @keyframes introBackdropGlow {
-          0% { opacity: 0; transform: scale(0.8); }
-          40% { opacity: 0.75; transform: scale(1.12); }
-          75% { opacity: 0.5; transform: scale(0.98); }
-          100% { opacity: 0.6; transform: scale(1.05); }
+          100% {
+            opacity: 0.85;
+            transform: translateY(0);
+            letter-spacing: 0.30em;
+          }
         }
       `}</style>
 
@@ -747,7 +771,7 @@ function IntroScreen({ onDone }) {
         style={{
           background: "radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(180,180,180,0.06) 50%, transparent 72%)",
           filter: "blur(48px)",
-          animation: "introBackdropGlow 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          animation: "introBackdropGlow 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       />
 
@@ -757,7 +781,7 @@ function IntroScreen({ onDone }) {
         <div
           className="absolute w-[124px] h-[124px] sm:w-[148px] sm:h-[148px] rounded-full border pointer-events-none"
           style={{
-            animation: "introOuterHalo 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introOuterHalo 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         />
 
@@ -765,15 +789,15 @@ function IntroScreen({ onDone }) {
         <div
           className="absolute w-[118px] h-[118px] sm:w-[138px] sm:h-[138px] rounded-full border pointer-events-none"
           style={{
-            animation: "introHaloPulse 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introHaloPulse 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         />
 
-        {/* Geometric Hexagon Logo Mark */}
+        {/* Geometric Logo Mark */}
         <div
           className="relative z-10 w-[96px] h-[96px] sm:w-[112px] sm:h-[112px] aspect-square"
           style={{
-            animation: "introLogoStep 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introLogoStep 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         >
           <img
@@ -783,6 +807,7 @@ function IntroScreen({ onDone }) {
             height={112}
             className="w-full h-full object-contain select-none pointer-events-none"
             loading="eager"
+            decoding="async"
           />
         </div>
       </div>
@@ -790,9 +815,13 @@ function IntroScreen({ onDone }) {
       {/* Brand Reveal */}
       <div className="text-center px-4 overflow-hidden py-1">
         <h1
-          className="text-2xl sm:text-3xl font-extrabold tracking-[0.26em] text-white uppercase drop-shadow-[0_0_18px_rgba(255,255,255,0.3)]"
+          className="text-2xl sm:text-3xl font-extrabold tracking-[0.26em] uppercase drop-shadow-[0_0_20px_rgba(255,255,255,0.35)] select-none inline-block"
           style={{
-            animation: "introBrandStep 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introBrandStep 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards, introWordmarkSweep 3.6s ease-in-out forwards",
+            background: "linear-gradient(110deg, #d4d4d8 0%, #ffffff 42%, #ffffff 58%, #a1a1aa 100%)",
+            backgroundSize: "220% 100%",
+            WebkitBackgroundClip: "text",
+            color: "transparent",
           }}
         >
           RockGPT
@@ -800,14 +829,14 @@ function IntroScreen({ onDone }) {
         <div
           className="mt-2 text-[10px] sm:text-xs font-mono text-neutral-400 uppercase"
           style={{
-            animation: "introTaglineStep 3.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+            animation: "introTaglineStep 3.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
           }}
         >
           Next-Gen AI Intelligence
         </div>
       </div>
 
-      <div className="absolute bottom-6 sm:bottom-8 text-[11px] text-neutral-500 font-mono tracking-wider hover:text-white transition select-none">
+      <div className="absolute bottom-6 sm:bottom-8 text-[11px] text-neutral-500 font-mono tracking-wider hover:text-white transition select-none cursor-pointer">
         Tap anywhere to skip ➔
       </div>
     </div>
@@ -4777,8 +4806,11 @@ export default function RockGPT() {
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @media (max-width: 640px) {
-          .chat-bubble { max-width: 90% !important; }
+        @media (max-width: 768px) {
+          input, textarea, select {
+            font-size: 16px !important;
+          }
+          .chat-bubble { max-width: 88% !important; }
         }
       `}</style>
 
@@ -4793,11 +4825,16 @@ export default function RockGPT() {
       {/* Sidebar */}
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 lg:z-30 h-full shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
-          sidebarOpen ? "w-[260px] translate-x-0 opacity-100" : "w-0 -translate-x-full lg:translate-x-0 opacity-0 pointer-events-none"
+          sidebarOpen ? "w-[270px] max-w-[85vw] translate-x-0 opacity-100" : "w-0 -translate-x-full lg:translate-x-0 opacity-0 pointer-events-none"
         }`}
-        style={{ background: panel, borderRight: sidebarOpen ? `1px solid ${border}` : "none" }}
+        style={{
+          background: panel,
+          borderRight: sidebarOpen ? `1px solid ${border}` : "none",
+          paddingTop: "env(safe-area-inset-top, 0px)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}
       >
-        <div className="flex h-full w-[260px] flex-col">
+        <div className="flex h-full w-[270px] max-w-[85vw] flex-col">
           {/* Top Brand Header */}
           <div className="flex items-center justify-between p-3.5 pb-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -5051,84 +5088,72 @@ export default function RockGPT() {
       <main className="flex min-w-0 flex-1 flex-col">
         {/* Top Header — Seamless Frosted Header Flowing Directly into Canvas */}
         <header
-          className="chat-enter-header flex h-[58px] shrink-0 items-center justify-between px-3 sm:px-5 relative z-30 select-none"
+          className="chat-enter-header flex shrink-0 items-center justify-between px-3 sm:px-5 relative z-30 select-none"
           style={{
             background: "transparent",
+            paddingTop: "max(0.35rem, env(safe-area-inset-top, 0px))",
+            minHeight: "calc(54px + env(safe-area-inset-top, 0px))",
           }}
         >
           {/* Left: Menu & New Chat button */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={() => setSidebarOpen((v) => !v)}
               title={sidebarOpen ? "Hide sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
               aria-label={sidebarOpen ? "Hide sidebar" : "Open sidebar"}
-              className={`grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
+              className={`grid h-8 w-8 sm:h-9 sm:w-9 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
                 dark
                   ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
                   : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
               }`}
             >
-              {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
+              {sidebarOpen ? <PanelLeftClose size={17} strokeWidth={2} /> : <PanelLeftOpen size={17} strokeWidth={2} />}
             </button>
 
             <button
               onClick={newChat}
               title="New chat (Ctrl+N)"
               aria-label="New chat"
-              className={`grid h-9 w-9 sm:h-10 sm:w-10 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
+              className={`grid h-8 w-8 sm:h-9 sm:w-9 shrink-0 place-items-center rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
                 dark
                   ? "border-white/10 bg-white/[0.06] text-white/90 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
                   : "border-black/10 bg-black/[0.05] text-neutral-800 hover:border-black/20 hover:bg-black/[0.09]"
               }`}
             >
-              <SquarePen size={17} strokeWidth={2.2} />
+              <SquarePen size={16} strokeWidth={2.2} />
             </button>
           </div>
 
           {/* Center: Brand Header */}
-          <div className="flex items-center gap-2">
-            <RockMark size={24} dark={dark} />
-            <span className="text-base font-bold tracking-tight">RockGPT</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <RockMark size={22} dark={dark} />
+            <span className="text-sm sm:text-base font-bold tracking-tight truncate">RockGPT</span>
           </div>
 
-          {/* Right: Upgrade, Theme Toggle, Export, Profile */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Right: Upgrade, Export, Profile */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {!isPaidUser && (
               <button
                 onClick={() => setPricingOpen(true)}
                 title="Upgrade plan"
                 aria-label="Upgrade plan"
-                className={`flex items-center gap-1.5 rounded-full border px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer ${
+                className={`flex items-center gap-1.5 rounded-full border px-2 sm:px-3 py-1.5 text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer ${
                   dark
                     ? "border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"
                     : "border-amber-500/30 bg-amber-50 text-amber-800 hover:bg-amber-100"
                 }`}
               >
-                <Crown size={13} className="text-amber-400" />
-                <span className="hidden xs:inline">Upgrade plan</span>
+                <Crown size={13} className="text-amber-400 shrink-0" />
+                <span className="hidden sm:inline">Upgrade</span>
               </button>
             )}
-
-            {/* Quick Theme Toggle Button */}
-            <button
-              onClick={() => setTheme(dark ? "light" : "dark")}
-              title={`Switch to ${dark ? "light" : "dark"} mode`}
-              aria-label={`Switch to ${dark ? "light" : "dark"} mode`}
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer ${
-                dark
-                  ? "border-white/10 bg-white/[0.06] text-white/80 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
-                  : "border-black/10 bg-black/[0.05] text-neutral-700 hover:border-black/20 hover:bg-black/[0.09]"
-              }`}
-            >
-              {dark ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
 
             {activeId && (
               <button
                 onClick={exportChat}
                 title="Export chat"
                 aria-label="Export chat"
-                className={`hidden sm:grid h-9 w-9 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer ${
+                className={`hidden md:grid h-9 w-9 place-items-center rounded-full border transition active:scale-95 shadow-sm cursor-pointer ${
                   dark
                     ? "border-white/10 bg-white/[0.06] text-white/80 hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
                     : "border-black/10 bg-black/[0.05] text-neutral-700 hover:border-black/20 hover:bg-black/[0.09]"
@@ -5158,7 +5183,7 @@ export default function RockGPT() {
                 <div className="flex items-center gap-1 sm:gap-1.5">
                   <button
                     onClick={() => openAuth("login")}
-                    className={`rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                    className={`rounded-xl px-2 sm:px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
                       dark ? "text-neutral-300 hover:text-white hover:bg-white/[0.06]" : "text-neutral-600 hover:text-neutral-900 hover:bg-black/[0.04]"
                     }`}
                   >
@@ -5166,7 +5191,7 @@ export default function RockGPT() {
                   </button>
                   <button
                     onClick={() => openAuth("signup")}
-                    className="flex items-center rounded-xl bg-white text-neutral-900 px-2.5 sm:px-3 py-1.5 text-xs font-bold shadow-sm hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
+                    className="hidden xs:flex items-center rounded-xl bg-white text-neutral-900 px-2.5 sm:px-3 py-1.5 text-xs font-bold shadow-sm hover:bg-neutral-200 active:scale-95 transition cursor-pointer"
                   >
                     <span>Sign up</span>
                   </button>
@@ -5234,25 +5259,25 @@ export default function RockGPT() {
         {/* Chat Message Window */}
         <section className="thin flex-1 overflow-y-auto">
           {messages.length === 0 && !typing ? (
-            <div className="mx-auto flex h-full max-w-[760px] flex-col justify-center px-4 py-8 sm:px-6 chat-enter-main">
+            <div className="mx-auto flex min-h-full max-w-[760px] flex-col justify-center px-3.5 py-4 sm:px-6 sm:py-8 chat-enter-main">
               {/* Centered Brand Greeting */}
-              <div className="mb-6 text-center select-none">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <RockMark size={32} dark={dark} animated />
+              <div className="mb-4 sm:mb-6 text-center select-none">
+                <div className="flex items-center justify-center gap-2 mb-2 sm:mb-3">
+                  <RockMark size={28} dark={dark} animated />
                   <span className="text-xs font-semibold tracking-normal text-neutral-400">
                     RockGPT Intelligence
                   </span>
                 </div>
-                <h1 className={`text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight ${dark ? "text-white" : "text-neutral-900"}`}>
+                <h1 className={`text-xl xs:text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight ${dark ? "text-white" : "text-neutral-900"}`}>
                   What's on your mind today?
                 </h1>
-                <p className="text-xs sm:text-sm text-neutral-400 mt-1.5 leading-relaxed max-w-md mx-auto">
+                <p className="text-xs sm:text-sm text-neutral-400 mt-1 sm:mt-1.5 leading-relaxed max-w-md mx-auto">
                   Ask anything, debug code, draft content, or explore complex ideas with speed and precision.
                 </p>
               </div>
 
               {/* 4 Clean Actionable Prompt Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 pb-2">
                 {[
                   {
                     title: "Help me debug this code",
@@ -5285,7 +5310,7 @@ export default function RockGPT() {
                       key={chip.title}
                       type="button"
                       onClick={() => applyPromptToInput(chip.prompt)}
-                      className={`group flex items-start gap-3.5 rounded-2xl border p-3.5 text-left transition-all select-none cursor-pointer active:scale-[0.98] ${
+                      className={`group flex items-start gap-2.5 sm:gap-3.5 rounded-xl sm:rounded-2xl border p-2.5 sm:p-3.5 text-left transition-all select-none cursor-pointer active:scale-[0.98] ${
                         dark
                           ? "border-white/10 bg-white/[0.03] text-white/90 hover:border-white/20 hover:bg-white/[0.07]"
                           : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 shadow-xs"
@@ -5544,22 +5569,22 @@ export default function RockGPT() {
 
         {/* Input Bar — Floating Capsule Pill Matching Reference Image */}
         <div
-          className="chat-enter-composer shrink-0 px-3.5 pt-2 pb-5 sm:px-5 sm:pb-6"
+          className="chat-enter-composer shrink-0 px-2.5 pt-1 sm:px-5 sm:pt-2"
           style={{
-            paddingBottom: "max(1.35rem, calc(env(safe-area-inset-bottom, 0px) + 0.9rem))",
+            paddingBottom: "max(0.65rem, env(safe-area-inset-bottom, 0px))",
           }}
         >
-          <div className="mx-auto max-w-[760px] pb-1 sm:pb-0">
+          <div className="mx-auto max-w-[760px] pb-0.5 sm:pb-0">
             {attachment && (
               <div
-                className={`mb-2.5 flex items-center gap-2 rounded-2xl border p-2 ${
+                className={`mb-2 flex items-center gap-2 rounded-2xl border p-2 ${
                   dark ? "border-white/15 bg-white/[0.05]" : "border-neutral-200 bg-neutral-100"
                 }`}
               >
                 {attachment.kind === "image" ? (
-                  <img src={attachment.dataUrl} alt={attachment.name} className="h-12 w-12 rounded-xl object-cover" />
+                  <img src={attachment.dataUrl} alt={attachment.name} className="h-11 w-11 rounded-xl object-cover" />
                 ) : (
-                  <div className="grid h-12 w-12 place-items-center rounded-xl border text-lg" style={{ borderColor: border }}>
+                  <div className="grid h-11 w-11 place-items-center rounded-xl border text-lg" style={{ borderColor: border }}>
                     📄
                   </div>
                 )}
@@ -5572,7 +5597,7 @@ export default function RockGPT() {
 
             {/* The Capsule Pill */}
             <div
-              className={`rock-input-capsule relative flex items-center gap-2 rounded-full border px-3.5 py-2 min-h-[52px] shadow-2xl transition-all duration-200 ${
+              className={`rock-input-capsule relative flex items-center gap-1.5 sm:gap-2 rounded-full border px-2.5 sm:px-4 py-1 sm:py-2 min-h-[46px] sm:min-h-[52px] shadow-2xl transition-all duration-200 ${
                 dark
                   ? "border-white/12 bg-[#141416] shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-white/25 focus-within:ring-2 focus-within:ring-white/5"
                   : "border-black/12 bg-white shadow-[0_6px_24px_rgba(0,0,0,0.08)] focus-within:border-black/25 focus-within:ring-2 focus-within:ring-black/5"
@@ -5599,7 +5624,7 @@ export default function RockGPT() {
                 onChange={(e) => {
                   setInput(e.target.value);
                   e.target.style.height = "auto";
-                  e.target.style.height = Math.min(140, Math.max(26, e.target.scrollHeight)) + "px";
+                  e.target.style.height = Math.min(130, Math.max(26, e.target.scrollHeight)) + "px";
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -5610,14 +5635,14 @@ export default function RockGPT() {
                 rows={1}
                 placeholder={`Ask ${selectedModel}...`}
                 aria-label={`Ask ${selectedModel}`}
-                className={`min-w-0 flex-1 resize-none bg-transparent py-1 text-[15px] sm:text-base leading-6 outline-none ${
+                className={`min-w-0 flex-1 resize-none bg-transparent py-1 text-base leading-6 outline-none ${
                   dark ? "text-white placeholder:text-neutral-500" : "text-neutral-900 placeholder:text-neutral-400"
                 }`}
-                style={{ minHeight: "26px", maxHeight: "140px", caretColor: dark ? "#ffffff" : "#000000" }}
+                style={{ minHeight: "26px", maxHeight: "130px", caretColor: dark ? "#ffffff" : "#000000" }}
               />
 
               {/* Right actions inside capsule */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={toggleRecording}
@@ -5673,7 +5698,7 @@ export default function RockGPT() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-2 py-2 text-[11px] select-none" style={{ color: muted }}>
+            <div className="flex items-center justify-between px-2 pt-1 pb-0.5 text-[10px] sm:text-[11px] select-none" style={{ color: muted }}>
               <span className="truncate">RockGPT can make mistakes. Verify important information.</span>
               <span className="hidden sm:inline-block shrink-0 opacity-70">
                 Enter ↵ to send · Shift + Enter for new line
@@ -6043,11 +6068,14 @@ export default function RockGPT() {
       {/* Toast Notice */}
       {notice && (
         <div
-          className={`fixed bottom-20 left-1/2 z-[95] -translate-x-1/2 rounded-full border px-4 py-2 text-xs font-medium shadow-2xl backdrop-blur-md fade ${
+          className={`fixed left-1/2 z-[95] -translate-x-1/2 rounded-full border px-4 py-2 text-xs font-medium shadow-2xl backdrop-blur-md fade select-none ${
             dark
               ? "border-white/20 bg-black/90 text-white"
               : "border-neutral-300 bg-neutral-900/90 text-white"
           }`}
+          style={{
+            bottom: "max(4.5rem, calc(env(safe-area-inset-bottom, 0px) + 4rem))",
+          }}
         >
           {notice}
         </div>
