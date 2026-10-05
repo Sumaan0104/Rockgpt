@@ -15,10 +15,27 @@
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f);overflow:hidden;overscroll-behavior:none}
 button{font-family:inherit;color:inherit}
 #app{position:fixed;top:0;left:0;right:0;height:var(--vh,100dvh);display:flex;overflow:hidden}
-svg.logo{display:block;fill:none;stroke:currentColor;stroke-width:72;stroke-linejoin:miter;stroke-linecap:butt}
-.draw path{stroke-dasharray:1;stroke-dashoffset:1;animation:dr 1.5s var(--out) forwards}
-.draw path+path{animation-delay:.25s}
-@keyframes dr{to{stroke-dashoffset:0}}
+svg.logo{display:block;aspect-ratio:1/1}
+svg.logo path{fill:currentColor;stroke:currentColor;stroke-width:0;transition:fill .5s var(--out),stroke-width .5s var(--out)}
+.draw path{
+  fill: transparent;
+  stroke: currentColor;
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: logoDraw 1.6s var(--out) forwards, logoFill .8s 1.2s var(--out) forwards;
+}
+@keyframes logoDraw{
+  0%{stroke-dashoffset:1;opacity:0}
+  15%{opacity:1}
+  100%{stroke-dashoffset:0;opacity:1}
+}
+@keyframes logoFill{
+  0%{fill:transparent;stroke-width:14}
+  100%{fill:currentColor;stroke-width:0}
+}
 
 #side{position:relative;flex:none;width:var(--sw);background:var(--panel);border-right:1px solid var(--line);transition:width .45s var(--out),transform .45s var(--out);overflow:hidden;z-index:30}
 #app.drag #side{transition:none}
@@ -98,10 +115,37 @@ header h1{font-size:17px;font-weight:600;letter-spacing:.14em;margin-right:auto}
 .fc{display:flex;align-items:center;gap:8px;background:var(--hi);border:1px solid var(--line);border-radius:12px;padding:8px 11px;font-size:13px;max-width:210px}
 .fc span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .body{min-width:0;font-size:15.5px;line-height:1.7;word-wrap:break-word;color:var(--text);width:100%}
-.body p{margin-bottom:.75em}.body p:last-child{margin-bottom:0}.body ul{padding-left:1.25em;margin-bottom:.75em}
-.body code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em;background:var(--hi);padding:2px 6px;border-radius:6px}
-.body pre{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;overflow-x:auto;margin:.7em 0;font-size:13px;line-height:1.55}
-.body pre code{background:none;padding:0}
+.body h1{font-size:1.4em;font-weight:700;margin:1.1em 0 .4em;color:var(--text);line-height:1.3}
+.body h2{font-size:1.24em;font-weight:600;margin:1em 0 .35em;color:var(--text);line-height:1.35}
+.body h3{font-size:1.1em;font-weight:600;margin:.85em 0 .3em;color:var(--text);line-height:1.4}
+.body p{margin-bottom:.75em;line-height:1.65}
+.body p:last-child{margin-bottom:0}
+.body ul,.body ol{padding-left:1.35em;margin:.6em 0 .8em}
+.body li{margin-bottom:.35em;line-height:1.6}
+.body hr{border:0;border-top:1px solid var(--line);margin:1.2em 0}
+.body blockquote{border-left:3px solid var(--muted);padding-left:12px;margin:.8em 0;color:var(--sub);font-style:italic}
+.body a{color:color-mix(in srgb,var(--text) 85%,#3b82f6);text-decoration:underline;text-underline-offset:2px}
+.body a:hover{opacity:.85}
+
+/* Code Blocks & Inline Code */
+.body .inline-code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.88em;background:var(--hi2);color:var(--text);padding:2px 6px;border-radius:6px;border:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.code-block{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:.9em 0;overflow:hidden;box-shadow:0 2px 8px #0000001a}
+.code-head{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--hi);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);user-select:none}
+.code-lang{font-weight:600;text-transform:lowercase;letter-spacing:.05em}
+.code-copy{display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.2s}
+.code-copy:hover{background:var(--hi2);color:var(--text)}
+.code-copy.copied{color:#22c55e}
+.code-copy svg{width:13px;height:13px;stroke:currentColor}
+.code-block pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;line-height:1.6;color:var(--text)}
+.code-block pre code{background:none;padding:0;border:0;font-family:inherit}
+
+/* Tables */
+.table-wrap{overflow-x:auto;margin:1em 0;border:1px solid var(--line);border-radius:12px}
+.body table{width:100%;border-collapse:collapse;font-size:13.5px;text-align:left}
+.body th{background:var(--hi);padding:10px 14px;font-weight:600;color:var(--text);border-bottom:1px solid var(--line)}
+.body td{padding:9px 14px;border-bottom:1px solid var(--line);color:var(--sub)}
+.body tr:last-child td{border-bottom:0}
+.body tr:hover td{background:color-mix(in srgb,var(--hi) 40%,transparent)}
 
 /* ===== AI reply: logo mark + thinking dots ===== */
 .ai-msg{gap:12px;align-items:flex-start}
@@ -109,10 +153,9 @@ header h1{font-size:17px;font-weight:600;letter-spacing:.14em;margin-right:auto}
 .ai-mark::before{content:"";position:absolute;inset:-4px;border-radius:15px;border:1.5px solid var(--text);opacity:0;pointer-events:none}
 .ai-mark.live{border-color:color-mix(in srgb,var(--text) 45%,var(--line));background:var(--hi);animation:aiPulse 1.8s ease-in-out infinite}
 .ai-mark.live::before{animation:aiRing 1.8s ease-out infinite}
-.ai-mark svg.logo{width:22px;height:auto}
-.ai-mark.live svg.logo path{stroke-dasharray:1;animation:trace 1.6s ease-in-out infinite}
-.ai-mark.live svg.logo path+path{animation-delay:.2s}
-@keyframes trace{0%{stroke-dashoffset:1}65%,100%{stroke-dashoffset:0}}
+.ai-mark svg.logo{width:22px;height:22px}
+.ai-mark.live svg.logo path{animation:trace 1.6s ease-in-out infinite}
+@keyframes trace{0%,100%{opacity:.45;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}}
 .ai-mark.done{animation:settle .6s var(--spring)}
 @keyframes aiPulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--text) 9%,transparent)}}
 @keyframes aiRing{0%{transform:scale(.9);opacity:.5}80%,100%{transform:scale(1.35);opacity:0}}
@@ -401,11 +444,9 @@ const GG='<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d
 $("clip").innerHTML=sv("plus",22);$("mic").innerHTML=sv("mic",20);
 $("tl").innerHTML=sv("moon",17)+"Theme";$("tLight").innerHTML=sv("sun",15)+"Light";$("tDark").innerHTML=sv("moon",15)+"Dark";
 
-/* ===== Logo: two strokes ===== */
-const logo=(c="")=>`<svg class="logo ${c}" viewBox="380 320 840 720" aria-hidden="true">
-<path pathLength="1" d="M740 978H626L453 678L626 377H700L755 470L630 688L710 828L890 528"/>
-<path pathLength="1" d="M860 378H974L1147 678L974 979H900L845 886L970 668L890 528"/>
-</svg>`;
+/* ===== Logo: official vector shape ===== */
+const LOGO_D="M155 82H222L255 138L186 257L186 261L210 301L293 159H312L314 161L366 251L366 255L359 268L298 372L311 396H336L340 392L418 255L339 118L337 116H289L270 82H357L458 256L358 429H290L260 377L259 372L315 276L327 251L305 212L302 211L221 352H200L146 259L215 140L202 116H176L95 257L175 395H223L243 429H155L56 258L59 248Z";
+const logo=(c="")=>`<svg class="logo ${c}" viewBox="0 0 512 512" aria-hidden="true"><path pathLength="1" d="${LOGO_D}"/></svg>`;
 $("iLogo").innerHTML=logo("draw");$("sLogo").innerHTML=logo()+"ROCKGPT";$("eLogo").innerHTML=logo("draw");$("mLogo").innerHTML=logo();
 "ROCKGPT".split("").forEach((c,i)=>{const s=document.createElement("span");s.textContent=c;s.style.animationDelay=(1.2+i*.07)+"s";$("word").appendChild(s)});
 const intro=$("intro"),endIntro=()=>intro.classList.add("done");setTimeout(endIntro,3100);intro.onclick=endIntro;setTimeout(()=>intro.remove(),4200);
@@ -430,13 +471,89 @@ rs.addEventListener("pointerdown",e=>{app.classList.add("drag");rs.setPointerCap
 rs.addEventListener("pointermove",e=>{if(app.classList.contains("drag"))document.documentElement.style.setProperty("--sw",Math.min(420,Math.max(240,e.clientX))+"px")});
 rs.addEventListener("pointerup",()=>app.classList.remove("drag"));
 
-/* ===== Markdown ===== */
+/* ===== Markdown Parser & Code Copy ===== */
 const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const inl=s=>esc(s).replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>").replace(/\n/g,"<br>");
-const md=t=>t.split("```").map((p,i)=>{
-if(i%2){const n=p.indexOf("\n");return `<pre><code>${esc(n>-1?p.slice(n+1):"")}</code></pre>`}
-return p.split(/\n{2,}/).filter(b=>b.trim()).map(b=>{const L=b.trim().split("\n");
-return L.every(l=>/^[-*] /.test(l))?"<ul>"+L.map(l=>`<li>${inl(l.slice(2))}</li>`).join("")+"</ul>":`<p>${inl(b.trim())}</p>`}).join("")}).join("");
+function copyCode(btn){
+  const block=btn.closest(".code-block");
+  const code=block?block.querySelector("pre code"):null;
+  if(!code)return;
+  const text=code.innerText||code.textContent||"";
+  navigator.clipboard.writeText(text).then(()=>{
+    const span=btn.querySelector("span");
+    const orig=span?span.textContent:"Copy code";
+    btn.classList.add("copied");
+    if(span)span.textContent="Copied!";
+    setTimeout(()=>{btn.classList.remove("copied");if(span)span.textContent=orig},2000);
+  }).catch(()=>{});
+}
+function md(t){
+  if(!t)return"";
+  const parts=[];
+  const reCode=/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)(?:```|$)/g;
+  let lastIdx=0,match;
+  while((match=reCode.exec(t))!==null){
+    if(match.index>lastIdx){parts.push({type:"text",content:t.slice(lastIdx,match.index)})}
+    parts.push({type:"code",lang:(match[1]||"code").toLowerCase(),code:match[2]});
+    lastIdx=reCode.lastIndex;
+    if(lastIdx>=t.length)break;
+  }
+  if(lastIdx<t.length){parts.push({type:"text",content:t.slice(lastIdx)})}
+
+  const inline=s=>s
+    .replace(/`([^`]+)`/g,'<code class="inline-code">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+    .replace(/~~([^~]+)~~/g,'<del>$1</del>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  const formatText=block=>{
+    const lines=block.split("\n");
+    let html="",inList=false,listType="ul",inTable=false,tableHtml="";
+    const closeList=()=>{if(inList){html+=`</${listType}>`;inList=false}};
+    const closeTable=()=>{if(inTable){html+=tableHtml+"</tbody></table></div>";inTable=false;tableHtml=""}};
+
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i],trimmed=line.trim();
+      if(/^(\*{3,}|-{3,}|_{3,})$/.test(trimmed)){closeList();closeTable();html+="<hr>";continue}
+      const hMatch=trimmed.match(/^(#{1,6})\s+(.*)$/);
+      if(hMatch){closeList();closeTable();html+=`<h${hMatch[1].length}>${inline(esc(hMatch[2]))}</h${hMatch[1].length}>`;continue}
+      if(trimmed.startsWith("> ")){closeList();closeTable();html+=`<blockquote>${inline(esc(trimmed.slice(2)))}</blockquote>`;continue}
+      if(trimmed.startsWith("|")&&trimmed.endsWith("|")){
+        closeList();
+        const cells=trimmed.slice(1,-1).split("|").map(c=>c.trim());
+        if(!inTable){
+          if(i+1<lines.length&&/^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(lines[i+1].trim())){
+            inTable=true;
+            tableHtml='<div class="table-wrap"><table><thead><tr>';
+            cells.forEach(c=>{tableHtml+=`<th>${inline(esc(c))}</th>`});
+            tableHtml+='</tr></thead><tbody>';
+            i++;continue;
+          }
+        }else{
+          tableHtml+='<tr>';
+          cells.forEach(c=>{tableHtml+=`<td>${inline(esc(c))}</td>`});
+          tableHtml+='</tr>';continue;
+        }
+      }else{closeTable()}
+      const ulMatch=line.match(/^(\s*)[-*]\s+(.*)$/);
+      if(ulMatch){closeTable();if(!inList||listType!=="ul"){closeList();inList=true;listType="ul";html+="<ul>"}html+=`<li>${inline(esc(ulMatch[2]))}</li>`;continue}
+      const olMatch=line.match(/^(\s*)\d+\.\s+(.*)$/);
+      if(olMatch){closeTable();if(!inList||listType!=="ol"){closeList();inList=true;listType="ol";html+="<ol>"}html+=`<li>${inline(esc(olMatch[2]))}</li>`;continue}
+      closeList();
+      if(!trimmed)continue;
+      html+=`<p>${inline(esc(line))}</p>`;
+    }
+    closeList();closeTable();return html;
+  };
+
+  let out="";
+  for(const p of parts){
+    if(p.type==="code"){
+      out+=`<div class="code-block"><div class="code-head"><span class="code-lang">${esc(p.lang||"code")}</span><button class="code-copy" onclick="copyCode(this)" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy code</span></button></div><pre><code>${esc(p.code)}</code></pre></div>`;
+    }else{out+=formatText(p.content)}
+  }
+  return out;
+}
 
 /* ===== State (chats stored per account) ===== */
 const UK="rockgpt_user";
