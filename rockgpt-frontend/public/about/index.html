@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About RockGPT – Next-Gen AI Assistant</title>
+    <meta name="description" content="Learn about the mission, engineering principles, and vision behind RockGPT (Rock GPT) – building accessible, privacy-respecting AI for thinkers and builders." />
+    <meta name="keywords" content="About RockGPT, About Rock GPT, RockGPT mission, RockGPT creator, Suman Mansuri, AI assistant platform" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://rockgpt-ten.vercel.app/about" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=3" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://rockgpt-ten.vercel.app/about" />
+    <meta property="og:title" content="About RockGPT – Next-Gen AI Assistant" />
+    <meta property="og:description" content="Learn about the mission and engineering values behind RockGPT (Rock GPT)." />
+    <meta property="og:image" content="https://rockgpt-ten.vercel.app/rockgpt-logo.png" />
+    <meta property="og:site_name" content="RockGPT" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="About RockGPT – Next-Gen AI Assistant" />
+    <meta name="twitter:description" content="Learn about the mission and engineering values behind RockGPT (Rock GPT)." />
+    <meta name="twitter:image" content="https://rockgpt-ten.vercel.app/rockgpt-logo.png" />
+
+    <!-- Schema.org AboutPage Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "AboutPage",
+      "name": "About RockGPT",
+      "url": "https://rockgpt-ten.vercel.app/about",
+      "description": "Information about the RockGPT (Rock GPT) project, development team, and technological philosophy.",
+      "mainEntity": {
+        "@type": "Organization",
+        "name": "RockGPT",
+        "alternateName": ["Rock GPT"],
+        "url": "https://rockgpt-ten.vercel.app/",
+        "founder": {
+          "@type": "Person",
+          "name": "Suman Mansuri"
+        }
+      }
+    }
+    </script>
+
+    <style>
+      :root {
+        --bg: #060608;
+        --card: #121216;
+        --border: rgba(255, 255, 255, 0.1);
+        --text: #f4f4f5;
+        --muted: #a1a1aa;
+        --accent: #38bdf8;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.7;
+        padding-bottom: 60px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        background: rgba(6, 6, 8, 0.85);
+        backdrop-filter: blur(12px);
+        position: sticky;
+        top: 0;
+        z-index: 50;
+      }
+      .nav-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 700;
+        font-size: 18px;
+      }
+      .brand img { width: 28px; height: 28px; object-fit: contain; }
+      .nav-links { display: flex; gap: 20px; align-items: center; font-size: 14px; }
+      .nav-links a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+      .nav-links a:hover, .nav-links a.active { color: #fff; }
+      .cta-btn {
+        background: #fff;
+        color: #000;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 9999px;
+        text-decoration: none;
+        transition: transform 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .cta-btn:hover { background: #e4e4e7; transform: translateY(-1px); }
+      .container { max-width: 860px; margin: 0 auto; padding: 48px 20px 20px; }
+      .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        background: rgba(56, 189, 248, 0.1);
+        color: var(--accent);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 16px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      h1 { font-size: 38px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; line-height: 1.2; }
+      h2 { font-size: 22px; font-weight: 700; margin-top: 36px; margin-bottom: 12px; color: #fff; }
+      p { color: var(--muted); margin-bottom: 18px; font-size: 16px; }
+      .values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin: 28px 0; }
+      .val-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+      }
+      .val-card h3 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+      .val-card p { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-bottom: 0; }
+      .cta-card {
+        margin-top: 50px;
+        text-align: center;
+        padding: 40px 24px;
+        background: linear-gradient(180deg, #121216 0%, #0c0c0e 100%);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        margin-top: 60px;
+        padding: 40px 20px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .footer-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+      }
+      .footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+      .footer-links a { color: var(--muted); text-decoration: none; }
+      .footer-links a:hover { color: #fff; text-decoration: underline; }
+      @media (max-width: 640px) {
+        h1 { font-size: 28px; }
+        .nav-links { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="nav-container">
+        <a href="/" class="brand">
+          <img src="/rockgpt-mark.png?v=3" alt="RockGPT Logo" width="28" height="28" />
+          <span>RockGPT</span>
+        </a>
+        <nav class="nav-links">
+          <a href="/features">Features</a>
+          <a href="/rock-gpt">What is Rock GPT?</a>
+          <a href="/how-it-works">How It Works</a>
+          <a href="/faq">FAQ</a>
+          <a href="/about" class="active">About</a>
+        </nav>
+        <a href="/" class="cta-btn">Open App ➔</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero">
+        <span class="badge">Mission & Team</span>
+        <h1>About RockGPT – Next-Gen AI Assistant</h1>
+        <p>
+          RockGPT (Rock GPT) was founded on a simple principle: artificial intelligence should be immediate, distraction-free, and profoundly respectful of user privacy.
+        </p>
+      </section>
+
+      <h2>Our Core Mission</h2>
+      <p>
+        The generative AI landscape has moved rapidly toward complex paywalls, invasive user tracking, and heavy advertising clutter. Our mission with RockGPT is to return focus to what truly matters: clear thinking, rapid problem solving, and instant answers.
+      </p>
+
+      <h2>Engineering Principles</h2>
+      <div class="values-grid">
+        <div class="val-card">
+          <h3>1. Extreme Latency Reduction</h3>
+          <p>Every millisecond matters. We optimize token streaming pipelines so output arrives before your train of thought is interrupted.</p>
+        </div>
+        <div class="val-card">
+          <h3>2. Absolute User Privacy</h3>
+          <p>We do not broker user chat data. Your work belongs to you, with optional two-factor authentication for hardened security.</p>
+        </div>
+        <div class="val-card">
+          <h3>3. Zero Interface Friction</h3>
+          <p>No unnecessary popups, banners, or decorative bloat. An intuitive floating capsule composer that puts communication front and center.</p>
+        </div>
+        <div class="val-card">
+          <h3>4. Multimodal Versatility</h3>
+          <p>From complex TypeScript debugging to architectural diagram inspection, RockGPT bridges text and vision seamlessly.</p>
+        </div>
+      </div>
+
+      <h2>Creator & Development</h2>
+      <p>
+        RockGPT was architected and developed by <strong>Suman Mansuri</strong> with a vision to deliver a premium, production-grade cognitive tool that developers, students, and researchers can rely on daily.
+      </p>
+
+      <h2>Explore RockGPT</h2>
+      <p>
+        Discover what RockGPT can do on our <a href="/features" style="color: #60a5fa;">Features</a> page, learn about the brand name on <a href="/rock-gpt" style="color: #60a5fa;">What is Rock GPT?</a>, or see our technical architecture on <a href="/how-it-works" style="color: #60a5fa;">How RockGPT Works</a>.
+      </p>
+
+      <div class="cta-card">
+        <h2 style="margin-top: 0; color: #fff;">Join the RockGPT Experience</h2>
+        <p>Open the free assistant workspace now.</p>
+        <a href="/" class="cta-btn" style="padding: 12px 28px; font-size: 15px;">Launch RockGPT Free ➔</a>
+      </div>
+    </main>
+
+    <footer>
+      <div class="footer-container">
+        <div>
+          © 2026 RockGPT. All rights reserved. Official AI Assistant Platform.
+        </div>
+        <nav class="footer-links">
+          <a href="/">Home</a>
+          <a href="/features">Features</a>
+          <a href="/rock-gpt">What is Rock GPT?</a>
+          <a href="/how-it-works">How It Works</a>
+          <a href="/faq">FAQ</a>
+          <a href="/about">About</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

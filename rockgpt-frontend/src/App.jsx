@@ -3832,9 +3832,9 @@ export default function RockGPT() {
   useEffect(() => {
     const currentConv = conversations.find((c) => c && c.id === activeId);
     if (currentConv && currentConv.title) {
-      document.title = `${currentConv.title} - ROCKGPT AI Assistant`;
+      document.title = `${currentConv.title} · RockGPT (Rock GPT)`;
     } else {
-      document.title = "ROCKGPT - AI Assistant";
+      document.title = "RockGPT – AI Assistant | Official Website";
     }
   }, [activeId, conversations]);
 
@@ -4125,7 +4125,11 @@ export default function RockGPT() {
         }
       }
     } catch (err) {
-      if (err.name !== "AbortError") {
+      if (err.name === "AbortError") {
+        if (!fullText.trim()) {
+          fullText = "(Generation stopped.)";
+        }
+      } else {
         console.error("Stream error:", err);
         fullText = "Failed to reach RockGPT backend. Please verify your connection and tap 'Regenerate'.";
         setStreaming(fullText);
@@ -5022,6 +5026,15 @@ export default function RockGPT() {
                   <Moon size={11} /> Dark
                 </button>
               </div>
+            </div>
+
+            {/* Quick Public Guide Links */}
+            <div className="flex items-center justify-center gap-3 px-1 py-0.5 text-[11px]" style={{ color: muted }}>
+              <a href="/features" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">Features</a>
+              <span>•</span>
+              <a href="/rock-gpt" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">What is Rock GPT?</a>
+              <span>•</span>
+              <a href="/faq" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">FAQ</a>
             </div>
 
             {/* Profile or Login CTA */}
@@ -6054,6 +6067,16 @@ export default function RockGPT() {
                   <div className="flex justify-between">
                     <span>Developer</span>
                     <span className="font-semibold" style={{ color: textColor }}>Suman Mansuri (Rock)</span>
+                  </div>
+                  <div className="pt-2 border-t space-y-1.5" style={{ borderColor: border }}>
+                    <div className="text-[11px] font-semibold text-neutral-400">Official Resources & Guides:</div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <a href="/features" target="_blank" rel="noopener noreferrer" className="hover:underline text-cyan-400">Features & Tools ↗</a>
+                      <a href="/rock-gpt" target="_blank" rel="noopener noreferrer" className="hover:underline text-cyan-400">What is Rock GPT? ↗</a>
+                      <a href="/how-it-works" target="_blank" rel="noopener noreferrer" className="hover:underline text-cyan-400">How It Works ↗</a>
+                      <a href="/faq" target="_blank" rel="noopener noreferrer" className="hover:underline text-cyan-400">RockGPT FAQ ↗</a>
+                      <a href="/about" target="_blank" rel="noopener noreferrer" className="hover:underline text-cyan-400 col-span-2">About RockGPT ↗</a>
+                    </div>
                   </div>
                   <div className="pt-2 border-t text-[11px] font-medium leading-relaxed text-center" style={{ borderColor: border, color: muted }}>
                     Engineered & Architected by Suman Mansuri (Rock)
