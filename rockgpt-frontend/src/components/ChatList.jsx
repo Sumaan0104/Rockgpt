@@ -10,6 +10,7 @@ const SUGGESTIONS = [
 
 export default function ChatList({
   messages = [],
+  currentChat = null,
   currentStreamingText = "",
   isStreaming = false,
   isWaiting = false,
@@ -41,29 +42,46 @@ export default function ChatList({
 
   return (
     <main id="sc" ref={scrollRef}>
-      {isEmpty ? (
+      {currentChat?.isLoading ? (
+        <div id="empty" style={{ opacity: 0.85 }}>
+          <div id="eLogo">
+            <Logo size={64} />
+          </div>
+          <div style={{ marginTop: "16px", color: "var(--muted)", fontSize: "14px" }}>
+            Loading conversation...
+          </div>
+        </div>
+      ) : isEmpty ? (
         <div id="empty">
           <div id="eLogo">
             <Logo draw size={96} />
           </div>
           <h2 id="hello">
-            {user
+            {currentChat && currentChat.title
+              ? currentChat.title
+              : user
               ? `Welcome back, ${user.name ? user.name.split(" ")[0] : "there"}`
               : "How can I help you today?"}
           </h2>
-          <div className="chips">
-            {SUGGESTIONS.map((s, idx) => (
-              <button
-                key={s}
-                className="chip"
-                onClick={() => onSelectSuggestion(s)}
-                type="button"
-                style={{ animationDelay: `${0.4 + idx * 0.1}s` }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+          {currentChat && currentChat.title ? (
+            <p style={{ color: "var(--muted)", fontSize: "14px", marginTop: "8px" }}>
+              No messages recorded yet. Send a message below to continue.
+            </p>
+          ) : (
+            <div className="chips">
+              {SUGGESTIONS.map((s, idx) => (
+                <button
+                  key={s}
+                  className="chip"
+                  onClick={() => onSelectSuggestion(s)}
+                  type="button"
+                  style={{ animationDelay: `${0.4 + idx * 0.1}s` }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div id="list" ref={listRef}>

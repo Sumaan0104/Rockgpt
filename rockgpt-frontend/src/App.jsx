@@ -177,27 +177,64 @@ export default function App() {
     const targetId = chat.id || chat._id;
     if (!targetId) return;
 
-    // Immediately set chat optimistically and close drawer so the UI responds instantly
-    const localInState = chats.find((c) => (c.id || c._id) === targetId);
-    if (localInState && Array.isArray(localInState.messages) && localInState.messages.length > 0) {
-      setCurrentChat(localInState);
-    } else {
-      setCurrentChat(chat);
-    }
+    // Snappily close mobile drawer
     setMobileDrawerOpen(false);
+
+    // Check if local cache in state already has messages
+    const localInState = chats.find(
+      (c) => String(c.id || c._id) === String(targetId)
+    );
+
+    const hasLocalMessages =
+      localInState &&
+      Array.isArray(localInState.messages) &&
+      localInState.messages.length > 0;
+
+    if (hasLocalMessages) {
+      setCurrentChat({
+        ...localInState,
+        id: targetId,
+        _id: targetId,
+        isLoading: false,
+      });
+      return;
+    }
+
+    // Set optimistic chat state with loading flag while fetching
+    setCurrentChat({
+      ...chat,
+      id: targetId,
+      _id: targetId,
+      messages: chat.messages || [],
+      isLoading: Boolean(token),
+    });
 
     // If authenticated, fetch full conversation with messages from DB
     if (token) {
       try {
         const fullChat = await apiGetChatById(targetId);
-        if (fullChat && Array.isArray(fullChat.messages)) {
-          setCurrentChat(fullChat);
+        if (fullChat) {
+          const loadedChat = {
+            ...fullChat,
+            id: fullChat.id || fullChat._id || targetId,
+            _id: fullChat._id || fullChat.id || targetId,
+            messages: Array.isArray(fullChat.messages) ? fullChat.messages : [],
+            isLoading: false,
+          };
+          setCurrentChat(loadedChat);
           setChats((prev) =>
-            prev.map((c) => ((c.id || c._id) === targetId ? { ...c, ...fullChat } : c))
+            prev.map((c) =>
+              String(c.id || c._id) === String(targetId)
+                ? { ...c, ...loadedChat }
+                : c
+            )
           );
+        } else {
+          setCurrentChat((prev) => (prev ? { ...prev, isLoading: false } : null));
         }
       } catch (err) {
         console.warn("apiGetChatById fetch warning:", err);
+        setCurrentChat((prev) => (prev ? { ...prev, isLoading: false } : null));
       }
     }
   };
@@ -550,6 +587,7 @@ export default function App() {
 
           <ChatList
             messages={currentChat?.messages || []}
+            currentChat={currentChat}
             currentStreamingText={currentStreamingText}
             isStreaming={isStreaming}
             isWaiting={isWaiting}

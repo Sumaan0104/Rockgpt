@@ -2,6 +2,7 @@ import express from "express";
 import OpenAI from "openai";
 import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
+import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { chatRateLimiter, dailyUsageLimit } from "../middleware/limit.js";
@@ -276,7 +277,11 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     if (req.user) {
       try {
         if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
-          targetChat = await Chat.findOne({ _id: chatId, userId: req.user._id });
+          const objId = new mongoose.Types.ObjectId(chatId);
+          targetChat = await Chat.findOne({ _id: objId, userId: req.user._id });
+          if (!targetChat) {
+            targetChat = await Conversation.findOne({ _id: objId, userId: req.user._id });
+          }
         }
         if (!targetChat && lastMessage) {
           const titleText = (typeof lastMessage.content === "string" ? lastMessage.content : "New Conversation").slice(0, 60).trim();
@@ -286,20 +291,35 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
             createdAt: new Date(),
             updatedAt: new Date(),
           });
+          // Mirror to Conversation
+          await Conversation.create({
+            _id: targetChat._id,
+            userId: req.user._id,
+            title: titleText || "New Chat",
+            model: "RockGPT Flash",
+            pinned: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }).catch(() => {});
         }
 
         if (targetChat && lastMessage && lastMessage.role === "user") {
           await Message.create({
             chatId: targetChat._id,
+            conversationId: targetChat._id,
+            userId: req.user._id,
             role: "user",
             content: typeof lastMessage.content === "string" ? lastMessage.content : "",
             attachments: (lastMessage.attachments || []).map((a) => ({
               name: a.name || "",
               type: a.type || "",
+              url: a.url || "",
             })),
           });
-          targetChat.updatedAt = new Date();
+          const now = new Date();
+          targetChat.updatedAt = now;
           await targetChat.save();
+          await Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {});
         }
 
         if (targetChat) {
@@ -396,15 +416,19 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     }
 
     // 3. Save assistant message to MongoDB if chat is tracked
-    if (targetChat && fullAssistantResponse && !isClosed) {
+    if (targetChat && fullAssistantResponse) {
       try {
         await Message.create({
           chatId: targetChat._id,
+          conversationId: targetChat._id,
+          userId: req.user ? req.user._id : undefined,
           role: "assistant",
           content: fullAssistantResponse,
         });
-        targetChat.updatedAt = new Date();
+        const now = new Date();
+        targetChat.updatedAt = now;
         await targetChat.save();
+        await Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {});
       } catch (err) {
         console.warn("Failed to persist assistant reply:", err.message);
       }

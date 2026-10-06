@@ -13,6 +13,15 @@ const chatSchema = new mongoose.Schema(
       default: "New Chat",
       trim: true,
     },
+    model: {
+      type: String,
+      default: "RockGPT Flash",
+      trim: true,
+    },
+    pinned: {
+      type: Boolean,
+      default: false,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -25,6 +34,7 @@ const chatSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    strict: false,
   }
 );
 

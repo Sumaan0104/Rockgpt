@@ -105,7 +105,9 @@ export default function Sidebar({
           {chats.map((c) => {
             const currentId = currentChat ? (currentChat.id || currentChat._id) : null;
             const itemChatId = c.id || c._id;
-            const isSelected = Boolean(currentId && itemChatId && currentId === itemChatId);
+            const isSelected = Boolean(
+              currentId && itemChatId && String(currentId) === String(itemChatId)
+            );
             return (
               <div
                 key={itemChatId}
