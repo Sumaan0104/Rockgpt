@@ -3,9 +3,9 @@ import Logo from "./Logo.jsx";
 import AiRow from "./AiRow.jsx";
 
 const SUGGESTIONS = [
-  "Explain this code",
-  "Summarise a document",
-  "Describe an image",
+  "Plan my day",
+  "Help me learn coding",
+  "Give me a study tip",
 ];
 
 export default function ChatList({
