@@ -138,6 +138,18 @@ export default function AuthModal({
     }
   };
 
+  const handleGoogleAuth = async (credentialResponse) => {
+    try {
+      setIsSubmitting(true);
+      setErrorMessage("");
+      await onGoogleSuccess(credentialResponse);
+    } catch (err) {
+      setErrorMessage(err.message || "Google authentication failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div
       id="modal"
@@ -282,8 +294,8 @@ export default function AuthModal({
               {isGoogleConfigured && onGoogleSuccess ? (
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
                   <GoogleLogin
-                    onSuccess={onGoogleSuccess}
-                    onError={() => setErrorMessage("Google Sign-In failed.")}
+                    onSuccess={handleGoogleAuth}
+                    onError={() => setErrorMessage("Google Sign-In failed or was cancelled.")}
                     theme="outline"
                     shape="pill"
                     width="100%"
@@ -293,10 +305,7 @@ export default function AuthModal({
                 <button
                   className="pbtn g"
                   type="button"
-                  onClick={() => {
-                    onSignIn("demo@rockgpt.ai", "demo1234", true);
-                    onClose();
-                  }}
+                  onClick={() => setErrorMessage("Please enter your email and password above to sign in.")}
                 >
                   <GoogleIcon /> Continue with Google
                 </button>
@@ -438,8 +447,8 @@ export default function AuthModal({
               {isGoogleConfigured && onGoogleSuccess ? (
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px" }}>
                   <GoogleLogin
-                    onSuccess={onGoogleSuccess}
-                    onError={() => setErrorMessage("Google Sign-Up failed.")}
+                    onSuccess={handleGoogleAuth}
+                    onError={() => setErrorMessage("Google Sign-Up failed or was cancelled.")}
                     theme="outline"
                     shape="pill"
                     width="100%"
@@ -449,10 +458,7 @@ export default function AuthModal({
                 <button
                   className="pbtn g"
                   type="button"
-                  onClick={() => {
-                    onSignIn("demo@rockgpt.ai", "demo1234", true);
-                    onClose();
-                  }}
+                  onClick={() => setErrorMessage("Please fill out the form above to create your account.")}
                 >
                   <GoogleIcon /> Continue with Google
                 </button>

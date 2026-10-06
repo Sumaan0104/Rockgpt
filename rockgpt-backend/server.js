@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 
-import authRoutes from "./routes/auth.js";
+import authRoutes, { setGoogleOAuthClientForTesting } from "./routes/auth.js";
 import chatsRoutes from "./routes/chats.js";
 import chatRoutes from "./routes/chat.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -180,8 +180,11 @@ app.get("/", (req, res) => {
 });
 
 // ═══ SERVER START ═══
-app.listen(PORT, () => {
-  console.log(`[ROCKGPT] Server listening on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`[ROCKGPT] Server listening on port ${PORT}`);
+  });
+}
 
+export { app, setGoogleOAuthClientForTesting };
 export default app;

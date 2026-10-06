@@ -5,6 +5,7 @@ import Header from "./components/Header.jsx";
 import ChatList from "./components/ChatList.jsx";
 import Composer from "./components/Composer.jsx";
 import AuthModal from "./components/AuthModal.jsx";
+import WelcomeModal from "./components/WelcomeModal.jsx";
 import {
   askRock,
   pingServerHealth,
@@ -55,6 +56,8 @@ export default function App() {
 
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState("in");
+  const [welcomeUser, setWelcomeUser] = useState(null);
+  const [isWelcomeNewUser, setIsWelcomeNewUser] = useState(false);
 
   // Chat State
   const [chats, setChats] = useState([]);
@@ -412,6 +415,9 @@ export default function App() {
     storage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);
     setToken(res.token);
+    setAuthModalOpen(false);
+    setIsWelcomeNewUser(false);
+    setWelcomeUser(res.user);
   };
 
   const handleSignUp = async (name, email, password) => {
@@ -424,6 +430,9 @@ export default function App() {
     localStorage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);
     setToken(res.token);
+    setAuthModalOpen(false);
+    setIsWelcomeNewUser(true);
+    setWelcomeUser(res.user);
   };
 
   const handleForgotPassword = async (email) => {
@@ -436,19 +445,26 @@ export default function App() {
     localStorage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);
     setToken(res.token);
+    setAuthModalOpen(false);
+    setIsWelcomeNewUser(false);
+    setWelcomeUser(res.user);
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const res = await apiGoogleAuth(credentialResponse.credential);
-      localStorage.setItem(USER_KEY, JSON.stringify(res.user));
-      localStorage.setItem(TOKEN_KEY, res.token);
-      setUser(res.user);
-      setToken(res.token);
-      setAuthModalOpen(false);
-    } catch (err) {
-      alert(err.message || "Google sign-in failed.");
-    }
+    const token =
+      credentialResponse?.credential ||
+      credentialResponse?.code ||
+      credentialResponse?.token ||
+      credentialResponse;
+
+    const res = await apiGoogleAuth(token);
+    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    localStorage.setItem(TOKEN_KEY, res.token);
+    setUser(res.user);
+    setToken(res.token);
+    setAuthModalOpen(false);
+    setIsWelcomeNewUser(false);
+    setWelcomeUser(res.user);
   };
 
   const handleLogout = () => {
@@ -533,6 +549,14 @@ export default function App() {
         onForgotPassword={handleForgotPassword}
         onResetPassword={handleResetPassword}
         onGoogleSuccess={handleGoogleSuccess}
+      />
+
+      {/* Welcome to RockGPT Animated Celebration Popup */}
+      <WelcomeModal
+        isOpen={Boolean(welcomeUser)}
+        user={welcomeUser}
+        isNewUser={isWelcomeNewUser}
+        onClose={() => setWelcomeUser(null)}
       />
 
       {/* Undo Toast */}

@@ -12,8 +12,8 @@ import { authMiddleware, requireAuth } from "../middleware/auth.js";
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com";
-const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || "").trim();
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID || undefined);
 
 function generateToken(user) {
   return jwt.sign(
@@ -470,53 +470,212 @@ router.post("/reset-password", authLimiter, async (req, res) => {
   }
 });
 
+// Test client hook for unit tests
+let testGoogleOAuthClient = null;
+export function setGoogleOAuthClientForTesting(client) {
+  testGoogleOAuthClient = client;
+}
+
+async function verifyGoogleTokenOrCode(tokenOrCode) {
+  if (!tokenOrCode || typeof tokenOrCode !== "string") return null;
+  const cleanInput = tokenOrCode.trim();
+
+  // 0. Support test mock client if injected
+  if (testGoogleOAuthClient) {
+    if (cleanInput.startsWith("4/") || !cleanInput.includes(".")) {
+      let tokenRes;
+      try {
+        tokenRes = await testGoogleOAuthClient.getToken(cleanInput);
+      } catch (e) {
+        throw new Error("Invalid or expired authorization code.");
+      }
+      if (tokenRes?.tokens?.id_token) {
+        const ticket = await testGoogleOAuthClient.verifyIdToken({ idToken: tokenRes.tokens.id_token, audience: "test_client_id" });
+        const p = ticket.getPayload();
+        if (p?.email && p.email_verified !== false) return { email: p.email.toLowerCase().trim(), name: p.name, googleId: p.sub, picture: p.picture };
+        throw new Error("Email not verified by Google");
+      }
+      throw new Error("Invalid or expired authorization code.");
+    } else {
+      const ticket = await testGoogleOAuthClient.verifyIdToken({ idToken: cleanInput, audience: "test_client_id" });
+      const p = ticket.getPayload();
+      if (p?.email && p.email_verified !== false) return { email: p.email.toLowerCase().trim(), name: p.name, googleId: p.sub, picture: p.picture };
+      throw new Error("Email not verified by Google");
+    }
+  }
+
+  const rawEnvId = (process.env.GOOGLE_CLIENT_ID || "").trim();
+  const knownClientIds = [rawEnvId].filter(Boolean);
+  const cleanSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
+
+  // 1. If authorization code (starts with 4/ or no dots):
+  let resolvedIdToken = cleanInput;
+  if (cleanInput.startsWith("4/") || !cleanInput.includes(".")) {
+    try {
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code: cleanInput,
+          client_id: knownClientIds[0] || GOOGLE_CLIENT_ID,
+          client_secret: cleanSecret,
+          redirect_uri: "postmessage",
+          grant_type: "authorization_code",
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.id_token) {
+        resolvedIdToken = tokenData.id_token;
+      } else if (tokenData.access_token) {
+        const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        if (userRes.ok) {
+          const u = await userRes.json();
+          if (u.email) {
+            return {
+              email: u.email.toLowerCase().trim(),
+              name: u.name || u.email.split("@")[0],
+              googleId: u.sub,
+              picture: u.picture,
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Google Auth] Code exchange error:", e.message);
+    }
+  }
+
+  // 2. Try google-auth-library verifyIdToken with known client IDs
+  for (const aud of knownClientIds) {
+    try {
+      const client = new OAuth2Client(aud);
+      const ticket = await client.verifyIdToken({
+        idToken: resolvedIdToken,
+        audience: aud,
+        maxExpiry: 7200,
+      });
+      const p = ticket.getPayload();
+      if (p && p.email) {
+        if (p.email_verified === false) {
+          throw new Error("Email not verified by Google");
+        }
+        return {
+          email: p.email.toLowerCase().trim(),
+          name: p.name || p.email.split("@")[0],
+          googleId: p.sub,
+          picture: p.picture,
+        };
+      }
+    } catch (libErr) {
+      if (libErr.message.includes("Email not verified")) throw libErr;
+    }
+  }
+
+  // 3. Fallback: Google's official REST tokeninfo endpoint
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(resolvedIdToken)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.email) {
+        if (data.email_verified === "false" || data.email_verified === false) {
+          throw new Error("Email not verified by Google");
+        }
+        return {
+          email: data.email.toLowerCase().trim(),
+          name: data.name || data.email.split("@")[0],
+          googleId: data.sub,
+          picture: data.picture,
+        };
+      }
+    }
+  } catch (tokeninfoErr) {
+    if (tokeninfoErr.message.includes("Email not verified")) throw tokeninfoErr;
+    console.warn("[Google Auth] tokeninfo API error:", tokeninfoErr.message);
+  }
+
+  // 4. Fallback: Try token as access_token against userinfo endpoint
+  try {
+    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${resolvedIdToken}` },
+    });
+    if (res.ok) {
+      const u = await res.json();
+      if (u && u.email) {
+        return {
+          email: u.email.toLowerCase().trim(),
+          name: u.name || u.email.split("@")[0],
+          googleId: u.sub,
+          picture: u.picture,
+        };
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
 // 6. Google OAuth Login
 router.post("/google", authLimiter, async (req, res) => {
   try {
-    const { idToken } = req.body;
-    if (!idToken) return res.status(400).json({ error: "Google ID token required." });
+    const tokenOrCode = req.body.idToken || req.body.credential || req.body.token || req.body.code;
+    if (!tokenOrCode) {
+      return res.status(400).json({ error: "Google credentials are required." });
+    }
 
-    let ticket;
+    let googleUser;
     try {
-      ticket = await googleClient.verifyIdToken({
-        idToken,
-        audience: GOOGLE_CLIENT_ID,
-      });
-    } catch {
-      return res.status(400).json({ error: "Invalid Google ID token." });
+      googleUser = await verifyGoogleTokenOrCode(tokenOrCode);
+    } catch (err) {
+      return res.status(400).json({ error: err.message || "Invalid or unverified Google account." });
     }
 
-    const payload = ticket.getPayload();
-    if (!payload || !payload.email) {
-      return res.status(400).json({ error: "Failed to obtain email from Google." });
+    if (!googleUser || !googleUser.email) {
+      return res.status(400).json({ error: "Google authentication failed. Please try again." });
     }
 
-    const cleanEmail = payload.email.toLowerCase().trim();
+    const cleanEmail = googleUser.email;
     let user = await User.findOne({ email: cleanEmail });
 
     if (!user) {
       user = await User.create({
-        name: payload.name || cleanEmail.split("@")[0],
+        name: googleUser.name || cleanEmail.split("@")[0],
         email: cleanEmail,
-        googleId: payload.sub,
-        plan: "free",
+        googleId: googleUser.googleId,
+        plan: "Free",
         lastLoginAt: new Date(),
       });
     } else {
-      if (!user.googleId) user.googleId = payload.sub;
+      if (!user.googleId) user.googleId = googleUser.googleId;
       user.lastLoginAt = new Date();
       await user.save();
+    }
+
+    // Enforce 2FA if enabled on account
+    if (user.twoFactorEnabled || user.is2faEnabled) {
+      const tempToken = jwt.sign(
+        { id: user._id, email: user.email, is2faPending: true },
+        JWT_SECRET,
+        { expiresIn: "10m" }
+      );
+      return res.json({
+        require2FA: true,
+        tempToken,
+        email: user.email,
+      });
     }
 
     const token = generateToken(user);
 
     res.json({
       success: true,
+      message: "Welcome to RockGPT!",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        plan: user.plan || "free",
+        plan: user.plan || "Free",
       },
       token,
     });

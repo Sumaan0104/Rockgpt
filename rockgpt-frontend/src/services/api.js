@@ -179,11 +179,16 @@ export async function apiGetMe(token) {
   return await res.json();
 }
 
-export async function apiGoogleAuth(idToken) {
+export async function apiGoogleAuth(tokenOrCred) {
+  const token =
+    typeof tokenOrCred === "object"
+      ? tokenOrCred?.credential || tokenOrCred?.code || tokenOrCred?.token || ""
+      : tokenOrCred;
+
   const res = await fetch(`${API_BASE}/auth/google`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken: token, credential: token, code: token }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Google authentication failed.");
