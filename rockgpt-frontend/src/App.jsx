@@ -258,16 +258,20 @@ export default function App() {
   const handleSendMessage = async (text, fileList = []) => {
     if ((!text && !fileList.length) || isWaiting || isStreaming) return;
 
-    const packedFiles = await packAttachments(fileList);
+    // 1. Instantly trigger optimistic AI waiting animation and show user message (0ms latency)
+    setIsWaiting(true);
+    setIsStreaming(false);
+    setCurrentStreamingText("");
+    targetTextRef.current = "";
 
     const newUserMsg = {
       role: "user",
       content: text,
       files: fileList.map((f) => ({ name: f.name, type: f.type, url: f.url })),
-      attachments: packedFiles,
+      attachments: [],
     };
 
-    // Initialize or update current chat
+    // Initialize or update current chat immediately
     let activeChat = currentChat;
     if (!activeChat) {
       const generatedTitle = (text || fileList[0]?.name || "New Chat").slice(0, 42);
@@ -288,12 +292,6 @@ export default function App() {
     activeChat = { ...activeChat, messages: updatedMessages };
     setCurrentChat(activeChat);
 
-    // Optimistic UI: show logo + wave dots in under 100ms
-    setIsWaiting(true);
-    setIsStreaming(false);
-    setCurrentStreamingText("");
-    targetTextRef.current = "";
-
     abortControllerRef.current = new AbortController();
 
     // requestAnimationFrame throttled stream renderer
@@ -308,6 +306,12 @@ export default function App() {
     };
     animFrameRef.current = requestAnimationFrame(tick);
 
+    // 2. Pack file attachments asynchronously while the animation is already running smoothly
+    if (fileList && fileList.length > 0) {
+      const packedFiles = await packAttachments(fileList);
+      newUserMsg.attachments = packedFiles;
+    }
+
     try {
       const apiPayload = updatedMessages.map((m) => ({
         role: m.role,
@@ -321,6 +325,10 @@ export default function App() {
           setIsWaiting(false);
           setIsStreaming(true);
           targetTextRef.current = fullChunk;
+          if (shownLength === 0 && fullChunk.length > 0) {
+            shownLength = Math.min(fullChunk.length, 3);
+            setCurrentStreamingText(fullChunk.slice(0, shownLength));
+          }
         },
         {
           signal: abortControllerRef.current.signal,

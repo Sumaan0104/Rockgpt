@@ -786,7 +786,6 @@ header h1 {
   align-items: center;
   gap: 6px;
   height: 28px;
-  animation: fadeIn .5s ease both;
 }
 
 .thinking i {

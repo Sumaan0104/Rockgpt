@@ -269,27 +269,30 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
 
     const lastMessage = messages[messages.length - 1];
 
-    // If valid chatId and user authenticated, save user message to DB before streaming
-    let validChat = null;
+    // If valid chatId and user authenticated, save user message to DB in background without blocking stream start
+    let chatPromise = null;
     if (chatId && req.user && mongoose.Types.ObjectId.isValid(chatId)) {
-      try {
-        validChat = await Chat.findOne({ _id: chatId, userId: req.user._id });
-        if (validChat && lastMessage && lastMessage.role === "user") {
-          await Message.create({
-            chatId: validChat._id,
-            role: "user",
-            content: lastMessage.content || "",
-            attachments: (lastMessage.attachments || []).map((a) => ({
-              name: a.name || "",
-              type: a.type || "",
-            })),
-          });
-          validChat.updatedAt = new Date();
-          await validChat.save();
-        }
-      } catch (dbErr) {
-        console.warn("DB user message save warning:", dbErr.message);
-      }
+      chatPromise = Chat.findOne({ _id: chatId, userId: req.user._id })
+        .then(async (chat) => {
+          if (chat && lastMessage && lastMessage.role === "user") {
+            await Message.create({
+              chatId: chat._id,
+              role: "user",
+              content: lastMessage.content || "",
+              attachments: (lastMessage.attachments || []).map((a) => ({
+                name: a.name || "",
+                type: a.type || "",
+              })),
+            });
+            chat.updatedAt = new Date();
+            await chat.save();
+          }
+          return chat;
+        })
+        .catch((dbErr) => {
+          console.warn("DB user message save warning:", dbErr.message);
+          return null;
+        });
     }
 
     const systemPrompt = buildSystemPrompt(fast);
@@ -378,6 +381,7 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     }
 
     // 3. Save assistant message to MongoDB if chat is tracked
+    const validChat = chatPromise ? await chatPromise : null;
     if (validChat && fullAssistantResponse && !isClosed) {
       try {
         await Message.create({
