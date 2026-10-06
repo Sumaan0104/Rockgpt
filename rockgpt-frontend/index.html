@@ -1,834 +1,129 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#000000"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
-<title>ROCKGPT - AI Assistant</title>
-<meta name="description" content="ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem("rockgpt_theme")||"dark"}catch(e){}</script>
-<style>
-:root{--bg:#000;--panel:#0e0e0e;--hi:#171717;--hi2:#303030;--line:#242424;--text:#fff;--muted:#8a8a8a;--sub:#cfcfcf;--inv:#fff;--invt:#000;--ov:#000a;--sw:272px;--f:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;--spring:cubic-bezier(.2,.9,.3,1.12);--out:cubic-bezier(.16,1,.3,1)}
-[data-theme=light]{--bg:#fff;--panel:#f6f6f6;--hi:#ebebeb;--hi2:#dcdcdc;--line:#dcdcdc;--text:#0a0a0a;--muted:#6b6b6b;--sub:#2a2a2a;--inv:#0a0a0a;--invt:#fff;--ov:#0007}
-*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
-[hidden]{display:none!important}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f);overflow:hidden;overscroll-behavior:none}
-button{font-family:inherit;color:inherit}
-#app{position:fixed;top:0;left:0;right:0;height:var(--vh,100dvh);display:flex;overflow:hidden}
-svg.logo{display:block;aspect-ratio:1/1}
-svg.logo path{fill:currentColor;stroke:currentColor;stroke-width:0;transition:fill .5s var(--out),stroke-width .5s var(--out)}
-.draw path{
-  fill: transparent;
-  stroke: currentColor;
-  stroke-width: 14;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: logoDraw 1.6s var(--out) forwards, logoFill .8s 1.2s var(--out) forwards;
-}
-@keyframes logoDraw{
-  0%{stroke-dashoffset:1;opacity:0}
-  15%{opacity:1}
-  100%{stroke-dashoffset:0;opacity:1}
-}
-@keyframes logoFill{
-  0%{fill:transparent;stroke-width:14}
-  100%{fill:currentColor;stroke-width:0}
-}
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <title>ROCKGPT - AI Assistant</title>
+  <meta name="description" content="ROCKGPT is a next-generation AI assistant for chat, code, documents and vision. Architected and engineered by Suman Mansuri.">
+  <link rel="canonical" href="https://rockgpt-ten.vercel.app/">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=3">
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=3">
+  <link rel="icon" type="image/png" href="/rockgpt-mark.png?v=3">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="keywords" content="RockGPT, Rock GPT, ROCKGPT, AI assistant, RockGPT AI, cognitive workspace, code assistant, multimodal AI, official website">
+  <meta name="author" content="Suman Mansuri">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="google-site-verification" content="u0_xTleUGQcoOBGqKW254PhIHjbj44NCDFRMSNhkMJw">
 
-#side{position:relative;flex:none;width:var(--sw);background:var(--panel);border-right:1px solid var(--line);transition:width .45s var(--out),transform .45s var(--out);overflow:hidden;z-index:30}
-#app.drag #side{transition:none}
-#app.collapsed #side{width:0;border-color:transparent}
-.sin{width:var(--sw);height:100%;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top,0px) + 12px) 10px calc(env(safe-area-inset-bottom,0px) + 12px)}
-.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px;font-weight:600;letter-spacing:.14em;font-size:15px}
-.brand svg.logo{width:26px;height:auto}
-.btn{display:flex;align-items:center;gap:8px;width:100%;background:none;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;cursor:pointer;transition:background .25s,transform .2s}
-.btn:hover{background:var(--hi)}.btn:active{transform:scale(.97)}
-#hist{flex:1;overflow-y:auto;margin:14px -4px 0;padding:0 4px}
-.hl{font-size:12px;color:var(--muted);padding:6px 8px}
-.it{display:flex;align-items:center;gap:6px;padding:10px;border-radius:10px;font-size:14px;cursor:pointer;color:var(--sub);animation:in .4s var(--out) both;transition:.2s}
-.it:hover,.it.on{background:var(--hi);color:var(--text)}
-.it span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.it b{opacity:0;font-weight:400;color:var(--muted);padding:0 4px;transition:.2s}.it:hover b{opacity:1}
-@media(hover:none){.it b{opacity:.6}}
-@keyframes in{from{opacity:0;transform:translateX(-8px)}}
-#rs{position:absolute;top:0;right:0;bottom:0;width:6px;cursor:col-resize;z-index:2;touch-action:none}
-#rs:hover,#app.drag #rs{background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--text) 20%,transparent))}
-#back{display:none}
-.sfoot{padding-top:12px;display:flex;flex-direction:column;gap:8px}
-.theme{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:14px;padding:4px 4px 4px 12px;font-size:14px;font-weight:500}
-.theme .tl{display:flex;align-items:center;gap:8px}
-.seg{display:flex;gap:2px}
-.seg button{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--muted);padding:8px 11px;border-radius:11px;font-size:13.5px;cursor:pointer;transition:background .3s,color .3s}
-.seg button.on{background:var(--inv);color:var(--invt);font-weight:600}
-.auth{display:grid;grid-template-columns:1fr 1.15fr;gap:8px}
-.auth button{height:46px;border-radius:14px;font-size:14.5px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:none;transition:transform .2s,background .2s}
-.auth button:hover{background:var(--hi)}.auth button.fill{background:var(--inv);color:var(--invt);border-color:transparent}.auth button:active{transform:scale(.96)}
-.me{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:14px}
-.av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--inv);color:var(--invt);display:grid;place-items:center;font-weight:600}
-.me div{flex:1;min-width:0;line-height:1.25;font-size:14px}.me div span,.me small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.me small{color:var(--muted);font-size:12px}
-.me button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;padding:6px}.me button:hover{color:var(--text)}
+  <!-- Open Graph / Social Media -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rockgpt-ten.vercel.app/">
+  <meta property="og:title" content="ROCKGPT - AI Assistant">
+  <meta property="og:description" content="ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.">
+  <meta property="og:image" content="https://rockgpt-ten.vercel.app/rockgpt-logo.png">
+  <meta property="og:site_name" content="RockGPT">
+  <meta property="og:locale" content="en_US">
 
-#main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
-header{display:flex;align-items:center;gap:6px;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px}
-.ib{width:40px;height:40px;flex:none;border-radius:50%;border:0;background:none;display:grid;place-items:center;cursor:pointer;transition:background .2s,transform .2s,color .2s}
-.ib:hover{background:var(--hi)}.ib:active{transform:scale(.9)}
-.ib svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-header h1{font-size:17px;font-weight:600;letter-spacing:.14em;margin-right:auto}
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://rockgpt-ten.vercel.app/">
+  <meta name="twitter:title" content="ROCKGPT - AI Assistant">
+  <meta name="twitter:description" content="ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.">
+  <meta name="twitter:image" content="https://rockgpt-ten.vercel.app/rockgpt-logo.png">
 
-/* ===== New chat button (top right) ===== */
-.new-top{position:relative;flex:none;height:40px;display:flex;align-items:center;gap:9px;padding:0 15px 0 6px;border:1px solid var(--line);border-radius:999px;background:linear-gradient(180deg,var(--hi),var(--panel));color:var(--text);cursor:pointer;overflow:hidden;font-size:13.5px;font-weight:600;letter-spacing:.02em;transition:transform .3s var(--spring),border-color .25s,box-shadow .3s}
-.new-top::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,color-mix(in srgb,var(--text) 16%,transparent) 50%,transparent 70%);transform:translateX(-120%);transition:transform .7s var(--out);pointer-events:none}
-.new-top:hover{transform:translateY(-1px);border-color:var(--muted);box-shadow:0 8px 22px #0004}
-.new-top:hover::after{transform:translateX(120%)}
-.new-top:active{transform:scale(.94)}
-.new-top.pop{animation:nt .55s var(--spring)}
-@keyframes nt{40%{transform:scale(.9)}}
-.nt-i{width:28px;height:28px;border-radius:50%;background:var(--inv);color:var(--invt);display:grid;place-items:center;transition:transform .5s var(--spring)}
-.nt-i svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round}
-.new-top:hover .nt-i{transform:rotate(180deg) scale(1.06)}
-.new-top.pop .nt-i{animation:ntspin .6s var(--out)}
-@keyframes ntspin{from{transform:rotate(-200deg) scale(.6)}}
-.nt-l{white-space:nowrap}
-@media(max-width:520px){.new-top{width:40px;padding:0;justify-content:center}.nt-l{display:none}.nt-i{width:32px;height:32px}}
+  <!-- Google Fonts Preconnect and Outfit Font Preload -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
 
-#sc{flex:1;min-height:0;overflow-y:auto;padding:6px 16px 20px;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
-#list{max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
-#empty{max-width:780px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;padding-bottom:30px}
-#empty.gone{display:none}
-#empty svg.logo{width:96px;height:auto}
-#empty h2{font-size:clamp(24px,6vw,34px);font-weight:500;animation:rise .7s .25s var(--spring) both}
-.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.chip{background:none;border:1px solid var(--line);padding:10px 15px;border-radius:999px;font-size:14px;color:var(--sub);cursor:pointer;transition:background .25s,transform .25s var(--spring);animation:rise .6s var(--spring) both}
-.chip:nth-child(1){animation-delay:.4s}.chip:nth-child(2){animation-delay:.5s}.chip:nth-child(3){animation-delay:.6s}
-.chip:hover{background:var(--hi)}.chip:active{transform:scale(.95)}
+  <!-- Prevent Theme Flash -->
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem("rockgpt_theme") || "dark";
+    } catch(e) {}
+  </script>
 
-.msg{display:flex;animation:rise .5s var(--spring) both}
-@keyframes rise{from{opacity:0;transform:translateY(12px)}}
-.msg.user{flex-direction:column;align-items:flex-end;gap:6px;animation:riseR .45s var(--spring) both}
-@keyframes riseR{from{opacity:0;transform:translate(18px,10px) scale(.95)}}
-.bub{max-width:85%;background:var(--hi);padding:11px 16px;border-radius:22px 22px 6px 22px;font-size:15.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
-.att{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:85%}
-.att img,.att video{max-width:220px;max-height:200px;border-radius:14px;border:1px solid var(--line);display:block}
-.fc{display:flex;align-items:center;gap:8px;background:var(--hi);border:1px solid var(--line);border-radius:12px;padding:8px 11px;font-size:13px;max-width:210px}
-.fc span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.body{min-width:0;font-size:15.5px;line-height:1.7;word-wrap:break-word;color:var(--text);width:100%}
-.body h1{font-size:1.4em;font-weight:700;margin:1.1em 0 .4em;color:var(--text);line-height:1.3}
-.body h2{font-size:1.24em;font-weight:600;margin:1em 0 .35em;color:var(--text);line-height:1.35}
-.body h3{font-size:1.1em;font-weight:600;margin:.85em 0 .3em;color:var(--text);line-height:1.4}
-.body p{margin-bottom:.75em;line-height:1.65}
-.body p:last-child{margin-bottom:0}
-.body ul,.body ol{padding-left:1.35em;margin:.6em 0 .8em}
-.body li{margin-bottom:.35em;line-height:1.6}
-.body hr{border:0;border-top:1px solid var(--line);margin:1.2em 0}
-.body blockquote{border-left:3px solid var(--muted);padding-left:12px;margin:.8em 0;color:var(--sub);font-style:italic}
-.body a{color:color-mix(in srgb,var(--text) 85%,#3b82f6);text-decoration:underline;text-underline-offset:2px}
-.body a:hover{opacity:.85}
-
-/* Code Blocks & Inline Code */
-.body .inline-code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.88em;background:var(--hi2);color:var(--text);padding:2px 6px;border-radius:6px;border:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
-.code-block{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:.9em 0;overflow:hidden;box-shadow:0 2px 8px #0000001a}
-.code-head{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--hi);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);user-select:none}
-.code-lang{font-weight:600;text-transform:lowercase;letter-spacing:.05em}
-.code-copy{display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.2s}
-.code-copy:hover{background:var(--hi2);color:var(--text)}
-.code-copy.copied{color:#22c55e}
-.code-copy svg{width:13px;height:13px;stroke:currentColor}
-.code-block pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;line-height:1.6;color:var(--text)}
-.code-block pre code{background:none;padding:0;border:0;font-family:inherit}
-
-/* Tables */
-.table-wrap{overflow-x:auto;margin:1em 0;border:1px solid var(--line);border-radius:12px}
-.body table{width:100%;border-collapse:collapse;font-size:13.5px;text-align:left}
-.body th{background:var(--hi);padding:10px 14px;font-weight:600;color:var(--text);border-bottom:1px solid var(--line)}
-.body td{padding:9px 14px;border-bottom:1px solid var(--line);color:var(--sub)}
-.body tr:last-child td{border-bottom:0}
-.body tr:hover td{background:color-mix(in srgb,var(--hi) 40%,transparent)}
-
-/* ===== AI reply: logo mark + thinking dots ===== */
-.ai-msg{gap:12px;align-items:flex-start}
-.ai-mark{flex:none;position:relative;width:42px;height:42px;margin-top:1px;border-radius:12px;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;transition:border-color .4s,background .4s}
-.ai-mark::before{content:"";position:absolute;inset:-4px;border-radius:15px;border:1.5px solid var(--text);opacity:0;pointer-events:none}
-.ai-mark.live{border-color:color-mix(in srgb,var(--text) 45%,var(--line));background:var(--hi);animation:aiPulse 1.8s ease-in-out infinite}
-.ai-mark.live::before{animation:aiRing 1.8s ease-out infinite}
-.ai-mark svg.logo{width:22px;height:22px}
-.ai-mark.live svg.logo path{animation:trace 1.6s ease-in-out infinite}
-@keyframes trace{0%,100%{opacity:.45;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}}
-.ai-mark.done{animation:settle .6s var(--spring)}
-@keyframes aiPulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--text) 9%,transparent)}}
-@keyframes aiRing{0%{transform:scale(.9);opacity:.5}80%,100%{transform:scale(1.35);opacity:0}}
-@keyframes settle{0%{transform:scale(1.15)}100%{transform:scale(1)}}
-.ai-content{min-width:0;flex:1}
-.ai-name{font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--muted);margin:1px 0 4px;height:18px;display:flex;align-items:center}
-.thinking{display:inline-flex;align-items:center;gap:6px;height:28px}
-.thinking i{width:8px;height:8px;border-radius:50%;background:var(--muted);animation:thinkDot 1.2s ease-in-out infinite}
-.thinking i:nth-child(2){animation-delay:.16s}.thinking i:nth-child(3){animation-delay:.32s}
-@keyframes thinkDot{0%,60%,100%{transform:translateY(0) scale(.7);opacity:.35;background:var(--muted)}30%{transform:translateY(-7px) scale(1);opacity:1;background:var(--text)}}
-.caret{display:inline-block;width:8px;height:1.05em;background:var(--text);vertical-align:-3px;margin-left:2px;border-radius:2px;animation:blink 1s steps(2) infinite}
-@keyframes blink{50%{opacity:0}}
-.body.fadein{animation:fadeIn .35s ease both}
-@keyframes fadeIn{from{opacity:0}}
-
-footer{padding:6px 14px calc(env(safe-area-inset-bottom,0px) + 10px)}
-.composer{max-width:780px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:30px;padding:6px;transition:border-color .3s,box-shadow .4s,background .3s}
-.composer:focus-within{border-color:var(--muted);box-shadow:0 0 0 4px color-mix(in srgb,var(--text) 6%,transparent)}
-.composer.over{border-color:var(--text);background:var(--hi)}
-#tray{display:flex;gap:8px;overflow-x:auto;padding:2px 4px}
-#tray:not(:empty){padding:8px 8px 10px}
-.pv{position:relative;flex:none;animation:rise .4s var(--spring) both}
-.pv img,.pv video{width:62px;height:62px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block}
-.pv .fc{height:62px;max-width:170px}
-.pv i{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--inv);color:var(--invt);font:600 14px/20px var(--f);text-align:center;cursor:pointer;font-style:normal}
-.row{display:flex;align-items:flex-end;gap:4px}
-#clip svg{width:22px;height:22px}
-textarea{flex:1;resize:none;border:0;outline:0;background:none;color:var(--text);font:16px/1.45 var(--f);max-height:140px;padding:10px 6px}
-textarea::placeholder{color:var(--muted)}
-#mic.rec{color:#ff5a5a;animation:breathe 1s ease-in-out infinite}
-@keyframes breathe{50%{transform:scale(.85);opacity:.6}}
-#send{flex:none;width:40px;height:40px;border:0;border-radius:50%;background:var(--hi2);color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:transform .35s var(--spring),background .3s,color .3s}
-#send.on{background:var(--inv);color:var(--invt)}#send.on:active{transform:scale(.88)}
-#send svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.note{text-align:center;font-size:11.5px;color:var(--muted);margin-top:8px}
-
-
-#intro{position:fixed;inset:0;z-index:99;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;transition:opacity .8s ease,transform .9s var(--out),filter .8s}
-#intro.done{opacity:0;transform:scale(1.12);filter:blur(8px);pointer-events:none}
-#intro svg.logo{width:min(46vw,210px);height:auto;animation:glow 1.6s 1.4s ease-in-out both}
-@keyframes glow{40%{filter:drop-shadow(0 0 22px color-mix(in srgb,var(--text) 60%,transparent))}}
-#word{display:flex;font-size:clamp(20px,6vw,30px);font-weight:500;letter-spacing:.42em;margin-right:-.42em}
-#word span{opacity:0;transform:translateY(40%);animation:lt .7s var(--spring) forwards}
-@keyframes lt{to{opacity:1;transform:none}}
-.bar{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 46px);width:110px;height:2px;background:var(--line);overflow:hidden;border-radius:2px}
-.bar::after{content:"";display:block;height:100%;background:var(--text);transform:translateX(-100%);animation:ld 2.5s var(--out) forwards}
-@keyframes ld{to{transform:none}}
-
-#modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:var(--ov);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);opacity:0;pointer-events:none;transition:opacity .35s}
-#modal.on{opacity:1;pointer-events:auto}
-.card{width:min(440px,100%);max-height:calc(var(--vh,100dvh) - 32px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:20px;transform:translateY(24px) scale(.96);transition:transform .5s var(--spring)}
-#modal.on .card{transform:none}
-.mh{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;letter-spacing:.1em;color:var(--sub);margin-bottom:16px}
-.mh .lg{width:32px;height:32px;border-radius:10px;background:var(--hi);display:grid;place-items:center}.mh svg.logo{width:19px;height:auto}
-.mh .ib{margin-left:auto;width:34px;height:34px;font-size:22px}
-.tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:4px;gap:4px}
-.tabs::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 6px);border-radius:12px;background:var(--inv);transition:transform .5s var(--spring)}
-.tabs[data-m=up]::before{transform:translateX(calc(100% + 4px))}
-.tabs button{position:relative;border:0;background:none;padding:11px;border-radius:12px;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer;transition:color .3s}
-.tabs button.on{color:var(--invt);font-weight:600}
-.hero{text-align:center;padding:22px 0 16px;animation:rise .5s var(--spring) both}
-.shield{width:58px;height:58px;margin:0 auto 14px;border-radius:18px;background:var(--hi);border:1px solid var(--line);display:grid;place-items:center}
-.hero h3{font-size:24px;font-weight:600}.hero p{color:var(--muted);font-size:14px;line-height:1.5;margin-top:8px}
-.fld{display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:0 14px;margin-bottom:10px;color:var(--muted);transition:border-color .25s,color .25s}
-.fld:focus-within{border-color:var(--muted);color:var(--text)}
-.fld input{flex:1;min-width:0;height:50px;background:none;border:0;outline:0;color:var(--text);font:16px var(--f)}
-.fld input::placeholder{color:var(--muted)}
-.eye{border:0;background:none;color:var(--muted);cursor:pointer;display:grid;padding:4px}.eye:hover{color:var(--text)}
-.chk{display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:13px;color:var(--sub);margin:4px 0 14px}
-.chk label{display:flex;gap:9px;align-items:center;cursor:pointer}
-.chk input{accent-color:var(--inv);width:17px;height:17px}
-.lk{color:inherit;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;background:none;border:0}
-.pbtn{width:100%;height:50px;border-radius:16px;border:0;background:var(--inv);color:var(--invt);font:600 15px var(--f);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:transform .2s,opacity .2s}
-.pbtn:active{transform:scale(.98)}.pbtn:disabled{opacity:.5;cursor:wait}
-.pbtn.g{background:#fff;color:#111;border:1px solid var(--line)}
-.or{display:flex;align-items:center;gap:12px;margin:16px 0;font-size:11.5px;letter-spacing:.12em;color:var(--muted)}
-.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
-.sw{text-align:center;font-size:13.5px;color:var(--sub);margin-top:16px}
-.sw .quiet{text-decoration:underline;font-weight:400;color:var(--muted)}
-.err{color:#ff6b6b;font-size:13px;margin:0 2px 10px}.err.ok{color:#5fd38d}.err:empty{display:none}
-
-@media(max-width:820px){
-#side{position:fixed;top:0;bottom:0;left:0;width:min(84vw,310px)!important;transform:translateX(-102%)}
-.sin{width:100%}
-#app.m-open #side{transform:none}
-#rs{display:none}
-#back{display:block;position:fixed;inset:0;background:var(--ov);z-index:20;opacity:0;pointer-events:none;transition:opacity .4s}
-#app.m-open #back{opacity:1;pointer-events:auto}
-}
-</style>
-<link rel="canonical" href="https://rockgpt-ten.vercel.app/">
-<link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=3">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=3">
-<link rel="icon" type="image/png" href="/rockgpt-mark.png?v=3">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">
-<link rel="manifest" href="/site.webmanifest">
-<meta name="keywords" content="RockGPT, Rock GPT, ROCKGPT, AI assistant, RockGPT AI, cognitive workspace, code assistant, multimodal AI, official website">
-<meta name="author" content="Suman Mansuri">
-<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-<meta name="google-site-verification" content="u0_xTleUGQcoOBGqKW254PhIHjbj44NCDFRMSNhkMJw">
-
-<!-- Open Graph / Social Media -->
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://rockgpt-ten.vercel.app/">
-<meta property="og:title" content="ROCKGPT - AI Assistant">
-<meta property="og:description" content="ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.">
-<meta property="og:image" content="https://rockgpt-ten.vercel.app/rockgpt-logo.png">
-<meta property="og:site_name" content="RockGPT">
-<meta property="og:locale" content="en_US">
-
-<!-- Twitter Cards -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://rockgpt-ten.vercel.app/">
-<meta name="twitter:title" content="ROCKGPT - AI Assistant">
-<meta name="twitter:description" content="ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.">
-<meta name="twitter:image" content="https://rockgpt-ten.vercel.app/rockgpt-logo.png">
-
-<!-- JSON-LD Structured Data for Google SEO -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "WebApplication",
-      "@id": "https://rockgpt-ten.vercel.app/#app",
-      "name": "RockGPT",
-      "alternateName": ["Rock GPT", "ROCKGPT", "RockGPT AI", "Rock GPT AI", "RockGPT Assistant"],
-      "url": "https://rockgpt-ten.vercel.app/",
-      "logo": "https://rockgpt-ten.vercel.app/rockgpt-mark.png",
-      "image": "https://rockgpt-ten.vercel.app/rockgpt-logo.png",
-      "description": "ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.",
-      "applicationCategory": "ProductivityApplication, EducationalApplication, DeveloperApplication",
-      "operatingSystem": "All",
-      "browserRequirements": "Requires JavaScript. Requires HTML5.",
-      "author": {
-        "@type": "Person",
-        "name": "Suman Mansuri"
-      },
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      }
-    },
-    {
-      "@type": "WebSite",
-      "@id": "https://rockgpt-ten.vercel.app/#website",
-      "name": "RockGPT",
-      "alternateName": ["Rock GPT", "ROCKGPT", "RockGPT AI Assistant"],
-      "url": "https://rockgpt-ten.vercel.app/",
-      "description": "Official website for RockGPT (Rock GPT) – Next-Generation AI Assistant & Workspace.",
-      "publisher": {
-        "@type": "Organization",
-        "@id": "https://rockgpt-ten.vercel.app/#organization",
+  <!-- JSON-LD Structured Data for Google SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "@id": "https://rockgpt-ten.vercel.app/#app",
         "name": "RockGPT",
-        "alternateName": ["Rock GPT"],
+        "alternateName": ["Rock GPT", "ROCKGPT", "RockGPT AI", "Rock GPT AI", "RockGPT Assistant"],
         "url": "https://rockgpt-ten.vercel.app/",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://rockgpt-ten.vercel.app/rockgpt-mark.png"
+        "logo": "https://rockgpt-ten.vercel.app/rockgpt-mark.png",
+        "image": "https://rockgpt-ten.vercel.app/rockgpt-logo.png",
+        "description": "ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.",
+        "applicationCategory": "ProductivityApplication, EducationalApplication, DeveloperApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires JavaScript. Requires HTML5.",
+        "author": {
+          "@type": "Person",
+          "name": "Suman Mansuri"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://rockgpt-ten.vercel.app/#website",
+        "name": "RockGPT",
+        "alternateName": ["Rock GPT", "ROCKGPT", "RockGPT AI Assistant"],
+        "url": "https://rockgpt-ten.vercel.app/",
+        "description": "Official website for RockGPT (Rock GPT) – Next-Generation AI Assistant & Workspace.",
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://rockgpt-ten.vercel.app/#organization",
+          "name": "RockGPT",
+          "alternateName": ["Rock GPT"],
+          "url": "https://rockgpt-ten.vercel.app/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://rockgpt-ten.vercel.app/rockgpt-mark.png"
+          }
         }
       }
-    }
-  ]
-}
-</script>
+    ]
+  }
+  </script>
 </head>
 <body>
-<div id="intro"><div id="iLogo"></div><div id="word"></div><div class="bar"></div></div>
-<div id="app">
-<aside id="side"><div class="sin">
-<div class="brand" id="sLogo"></div>
-<button class="btn" id="new"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
-<div id="hist"></div>
-<div class="sfoot">
-<div class="theme"><span class="tl" id="tl"></span><div class="seg" id="tseg"><button data-t="light" id="tLight"></button><button data-t="dark" id="tDark"></button></div></div>
-<div id="acct"></div>
-</div></div><div id="rs"></div></aside>
-<div id="back"></div>
-<div id="main">
-<header>
-<button class="ib" id="menu" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h16"/></svg></button>
-<h1>ROCKGPT</h1>
-<button class="new-top" id="new2" aria-label="Start a new chat"><span class="nt-i"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nt-l">New chat</span></button>
-</header>
-<main id="sc">
-<div id="empty"><div id="eLogo"></div><h2 id="hello">How can I help you today?</h2>
-<div class="chips"><button class="chip">Explain this code</button><button class="chip">Summarise a document</button><button class="chip">Describe an image</button></div></div>
-<div id="list"></div>
-</main>
-<footer>
-<div class="composer" id="comp"><div id="tray"></div>
-<div class="row">
-<button class="ib" id="clip" aria-label="Attach files"></button>
-<textarea id="input" rows="1" placeholder="Ask RockGPT…" enterkeyhint="send"></textarea>
-<button class="ib" id="mic" aria-label="Voice input"></button>
-<button id="send" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
-</div></div>
-<input type="file" id="file" multiple hidden accept="image/*,video/*,.pdf,.txt,.md,.csv,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.js,.py,.html,.css">
-<div class="note">ROCKGPT can make mistakes. Check important info.</div>
-</footer>
-</div></div>
-<div id="modal"><div class="card" role="dialog" aria-modal="true" aria-label="ROCKGPT account">
-<div class="mh"><span class="lg" id="mLogo"></span>ROCKGPT ACCOUNT<button class="ib" id="mx" aria-label="Close">×</button></div>
-<div class="tabs" id="tabs"><button data-m="in">Sign In</button><button data-m="up">Create Account</button></div>
-<div id="mbody"></div></div></div>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
 
-<script>
-const $=id=>document.getElementById(id);
-const sc=$("sc"),list=$("list"),input=$("input"),sendBtn=$("send"),tray=$("tray"),comp=$("comp"),app=$("app"),empty=$("empty"),hist=$("hist"),modal=$("modal");
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-/* ===== CONFIG: connect your backend ===== */
-const CONFIG={
-API_URL: (location.hostname==="localhost"||location.hostname==="127.0.0.1")?"http://localhost:5000/api/chat":"https://rockgpt.onrender.com/api/chat",
-AUTH_URL: (location.hostname==="localhost"||location.hostname==="127.0.0.1")?"http://localhost:5000/api/auth":"https://rockgpt.onrender.com/api/auth",
-GOOGLE_URL: ""
-};
-async function askRock(messages,onChunk){
-if(!CONFIG.API_URL){
-const last=messages[messages.length-1],n=(last.attachments||[]).length;
-const demo=`Hi, I'm **ROCKGPT**. This is demo mode.${n?`\n\nI received ${n} attachment${n>1?"s":""}: ${last.attachments.map(a=>"`"+a.name+"`").join(", ")}.`:""}\n\nConnect your API in \`CONFIG.API_URL\` for real answers.\n\n- Smooth streaming\n- Markdown and code\n\n\`\`\`js\nconsole.log("ROCKGPT");\n\`\`\``;
-await sleep(2200);
-for(let i=0;i<demo.length;i+=12){onChunk(demo.slice(0,i+12));await sleep(80)}
-return}
-const headers={"Content-Type":"application/json"};
-if(user&&user.token)headers["Authorization"]="Bearer "+user.token;
-let res;
-try{
-  res=await fetch(CONFIG.API_URL,{method:"POST",headers,body:JSON.stringify({messages})});
-}catch(err){
-  await sleep(1000);
-  try{
-    res=await fetch(CONFIG.API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages})});
-  }catch(e){
-    throw new Error("Unable to reach RockGPT servers. Please check your connection and try again.");
-  }
-}
-if(!res||!res.ok){
-  const j=await (res?res.json().catch(()=>({})):Promise.resolve({}));
-  throw new Error(j.error||(res?"Server returned status "+res.status:"Connection failed. Please check your network."));
-}
-const rd=res.body.getReader(),dc=new TextDecoder();let full="",buf="";
-for(;;){
-const{done,value}=await rd.read();if(done)break;
-buf+=dc.decode(value,{stream:true});
-const lines=buf.split("\n");
-buf=lines.pop()||"";
-for(const l of lines){
-const t=l.trim();if(!t.startsWith("data:"))continue;
-const raw=t.slice(5).trim();if(!raw||raw==="[DONE]")continue;
-try{const p=JSON.parse(raw);if(p.token){full+=p.token;onChunk(full)}else if(p.error)throw new Error(p.error)}
-catch(e){if(raw&&!raw.startsWith("{")&&!raw.endsWith("}")){full+=raw;onChunk(full)}}
-}
-}
-if(buf.trim().startsWith("data:")){
-const raw=buf.trim().slice(5).trim();
-if(raw&&raw!=="[DONE]"){try{const p=JSON.parse(raw);if(p.token){full+=p.token;onChunk(full)}}catch{}}
-}
-if(!full){onChunk("I received your message. How can I help you further?")}
-}
-async function auth(path,body){
-if(!CONFIG.AUTH_URL){await sleep(600);return{user:{name:body.name||(body.email||"guest").split("@")[0],email:body.email||"guest@local"}}}
-let endpoint=CONFIG.AUTH_URL+"/"+path;
-let payload=body;
-if(path==="signin"){endpoint=CONFIG.AUTH_URL+"/direct-login";payload={email:body.email,password:body.password}}
-else if(path==="signup"){endpoint=CONFIG.AUTH_URL+"/send-otp";payload={email:body.email,type:"signup"}}
-else if(path==="verify"){endpoint=CONFIG.AUTH_URL+"/signup";payload={name:body.name,email:body.email,password:body.password,otp:body.code}}
-else if(path==="forgot"){endpoint=CONFIG.AUTH_URL+"/send-otp";payload={email:body.email,type:"reset"}}
-const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"Authentication failed. Please check your credentials.");return j}
-
-/* ===== Icons ===== */
-const I={
-user:'<path d="M20 21v-1a4 4 0 00-4-4H8a4 4 0 00-4 4v1"/><circle cx="12" cy="8" r="4"/>',
-mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
-key:'<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>',
-eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
-sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
-moon:'<path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>',
-mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/>',
-plus:'<path d="M12 5v14M5 12h14"/>'};
-const sv=(k,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I[k]}</svg>`;
-const GG='<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>';
-$("clip").innerHTML=sv("plus",22);$("mic").innerHTML=sv("mic",20);
-$("tl").innerHTML=sv("moon",17)+"Theme";$("tLight").innerHTML=sv("sun",15)+"Light";$("tDark").innerHTML=sv("moon",15)+"Dark";
-
-/* ===== Logo: official vector shape ===== */
-const LOGO_D="M155 82H222L255 138L186 257L186 261L210 301L293 159H312L314 161L366 251L366 255L359 268L298 372L311 396H336L340 392L418 255L339 118L337 116H289L270 82H357L458 256L358 429H290L260 377L259 372L315 276L327 251L305 212L302 211L221 352H200L146 259L215 140L202 116H176L95 257L175 395H223L243 429H155L56 258L59 248Z";
-const logo=(c="")=>`<svg class="logo ${c}" viewBox="0 0 512 512" aria-hidden="true"><path pathLength="1" d="${LOGO_D}"/></svg>`;
-$("iLogo").innerHTML=logo("draw");$("sLogo").innerHTML=logo()+"ROCKGPT";$("eLogo").innerHTML=logo("draw");$("mLogo").innerHTML=logo();
-"ROCKGPT".split("").forEach((c,i)=>{const s=document.createElement("span");s.textContent=c;s.style.animationDelay=(1.2+i*.07)+"s";$("word").appendChild(s)});
-const intro=$("intro"),endIntro=()=>intro.classList.add("done");setTimeout(endIntro,3100);intro.onclick=endIntro;setTimeout(()=>intro.remove(),4200);
-
-/* ===== Theme ===== */
-function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem("rockgpt_theme",t)}catch(e){}
-document.querySelector('meta[name=theme-color]').content=t==="light"?"#ffffff":"#000000";
-document.querySelectorAll("#tseg button").forEach(b=>b.classList.toggle("on",b.dataset.t===t))}
-$("tseg").onclick=e=>{const b=e.target.closest("button");if(b)setTheme(b.dataset.t)};
-setTheme(document.documentElement.dataset.theme||"dark");
-
-/* ===== Viewport ===== */
-const setVH=()=>{document.documentElement.style.setProperty("--vh",(window.visualViewport?visualViewport.height:innerHeight)+"px");scrollTo(0,0)};
-setVH();addEventListener("resize",setVH);if(window.visualViewport){visualViewport.addEventListener("resize",setVH);visualViewport.addEventListener("scroll",setVH)}
-
-/* ===== Sidebar ===== */
-const isM=()=>matchMedia("(max-width:820px)").matches;
-$("menu").onclick=()=>isM()?app.classList.toggle("m-open"):app.classList.toggle("collapsed");
-$("back").onclick=()=>app.classList.remove("m-open");
-const rs=$("rs");
-rs.addEventListener("pointerdown",e=>{app.classList.add("drag");rs.setPointerCapture(e.pointerId)});
-rs.addEventListener("pointermove",e=>{if(app.classList.contains("drag"))document.documentElement.style.setProperty("--sw",Math.min(420,Math.max(240,e.clientX))+"px")});
-rs.addEventListener("pointerup",()=>app.classList.remove("drag"));
-
-/* ===== Markdown Parser & Code Copy ===== */
-const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-function copyCode(btn){
-  const block=btn.closest(".code-block");
-  const code=block?block.querySelector("pre code"):null;
-  if(!code)return;
-  const text=code.innerText||code.textContent||"";
-  navigator.clipboard.writeText(text).then(()=>{
-    const span=btn.querySelector("span");
-    const orig=span?span.textContent:"Copy code";
-    btn.classList.add("copied");
-    if(span)span.textContent="Copied!";
-    setTimeout(()=>{btn.classList.remove("copied");if(span)span.textContent=orig},2000);
-  }).catch(()=>{});
-}
-function md(t){
-  if(!t)return"";
-  const parts=[];
-  const reCode=/```([a-zA-Z0-9_-]*)\n?([\s\S]*?)(?:```|$)/g;
-  let lastIdx=0,match;
-  while((match=reCode.exec(t))!==null){
-    if(match.index>lastIdx){parts.push({type:"text",content:t.slice(lastIdx,match.index)})}
-    parts.push({type:"code",lang:(match[1]||"code").toLowerCase(),code:match[2]});
-    lastIdx=reCode.lastIndex;
-    if(lastIdx>=t.length)break;
-  }
-  if(lastIdx<t.length){parts.push({type:"text",content:t.slice(lastIdx)})}
-
-  const inline=s=>s
-    .replace(/`([^`]+)`/g,'<code class="inline-code">$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g,'<em>$1</em>')
-    .replace(/~~([^~]+)~~/g,'<del>$1</del>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-
-  const formatText=block=>{
-    const lines=block.split("\n");
-    let html="",inList=false,listType="ul",inTable=false,tableHtml="";
-    const closeList=()=>{if(inList){html+=`</${listType}>`;inList=false}};
-    const closeTable=()=>{if(inTable){html+=tableHtml+"</tbody></table></div>";inTable=false;tableHtml=""}};
-
-    for(let i=0;i<lines.length;i++){
-      const line=lines[i],trimmed=line.trim();
-      if(/^(\*{3,}|-{3,}|_{3,})$/.test(trimmed)){closeList();closeTable();html+="<hr>";continue}
-      const hMatch=trimmed.match(/^(#{1,6})\s+(.*)$/);
-      if(hMatch){closeList();closeTable();html+=`<h${hMatch[1].length}>${inline(esc(hMatch[2]))}</h${hMatch[1].length}>`;continue}
-      if(trimmed.startsWith("> ")){closeList();closeTable();html+=`<blockquote>${inline(esc(trimmed.slice(2)))}</blockquote>`;continue}
-      if(trimmed.startsWith("|")&&trimmed.endsWith("|")){
-        closeList();
-        const cells=trimmed.slice(1,-1).split("|").map(c=>c.trim());
-        if(!inTable){
-          if(i+1<lines.length&&/^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$/.test(lines[i+1].trim())){
-            inTable=true;
-            tableHtml='<div class="table-wrap"><table><thead><tr>';
-            cells.forEach(c=>{tableHtml+=`<th>${inline(esc(c))}</th>`});
-            tableHtml+='</tr></thead><tbody>';
-            i++;continue;
-          }
-        }else{
-          tableHtml+='<tr>';
-          cells.forEach(c=>{tableHtml+=`<td>${inline(esc(c))}</td>`});
-          tableHtml+='</tr>';continue;
-        }
-      }else{closeTable()}
-      const ulMatch=line.match(/^(\s*)[-*]\s+(.*)$/);
-      if(ulMatch){closeTable();if(!inList||listType!=="ul"){closeList();inList=true;listType="ul";html+="<ul>"}html+=`<li>${inline(esc(ulMatch[2]))}</li>`;continue}
-      const olMatch=line.match(/^(\s*)\d+\.\s+(.*)$/);
-      if(olMatch){closeTable();if(!inList||listType!=="ol"){closeList();inList=true;listType="ol";html+="<ol>"}html+=`<li>${inline(esc(olMatch[2]))}</li>`;continue}
-      closeList();
-      if(!trimmed)continue;
-      html+=`<p>${inline(esc(line))}</p>`;
-    }
-    closeList();closeTable();return html;
-  };
-
-  let out="";
-  for(const p of parts){
-    if(p.type==="code"){
-      out+=`<div class="code-block"><div class="code-head"><span class="code-lang">${esc(p.lang||"code")}</span><button class="code-copy" onclick="copyCode(this)" type="button"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy code</span></button></div><pre><code>${esc(p.code)}</code></pre></div>`;
-    }else{out+=formatText(p.content)}
-  }
-  return out;
-}
-
-/* ===== State (chats stored per account) ===== */
-const UK="rockgpt_user";
-let user=null;try{user=JSON.parse(localStorage.getItem(UK)||sessionStorage.getItem(UK)||"null")}catch(e){}
-const ck=()=>"rockgpt"+(user?":"+user.email:"");
-const loadChats=()=>{try{return JSON.parse(localStorage.getItem(ck())||"[]")}catch(e){return[]}};
-let chats=loadChats(),cur=null,busy=false,pending=[];
-const save=()=>{try{localStorage.setItem(ck(),JSON.stringify(chats.slice(0,40)))}catch(e){}};
-const nearB=()=>sc.scrollHeight-sc.scrollTop-sc.clientHeight<150;
-const toB=()=>sc.scrollTo({top:sc.scrollHeight,behavior:"smooth"});
-
-function renderHist(){
-hist.innerHTML=chats.length?'<div class="hl">Recent</div>':"";
-chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(cur===c?" on":"");
-d.innerHTML='<span></span><b title="Delete">✕</b>';d.firstChild.textContent=c.title;
-d.onclick=e=>{if(e.target.tagName==="B"){chats=chats.filter(x=>x!==c);if(cur===c)newChat();save();renderHist();return}openChat(c)};
-hist.appendChild(d)})}
-function newChat(){if(busy)return;cur=null;list.innerHTML="";empty.classList.remove("gone");pending=[];tray.innerHTML="";fit();renderHist();app.classList.remove("m-open")}
-function openChat(c){if(busy)return;cur=c;list.innerHTML="";empty.classList.add("gone");
-c.msgs.forEach(m=>m.role==="user"?userRow(m.content,m.files||[],true):(aiRow(true).body.innerHTML=md(m.content)));
-renderHist();app.classList.remove("m-open");sc.style.scrollBehavior="auto";sc.scrollTop=sc.scrollHeight;sc.style.scrollBehavior=""}
-$("new").onclick=newChat;
-$("new2").onclick=()=>{const b=$("new2");b.classList.remove("pop");void b.offsetWidth;b.classList.add("pop");newChat()};
-
-/* ===== Account ===== */
-function renderAcct(){const a=$("acct");
-if(user){a.innerHTML='<div class="me"><span class="av"></span><div><span></span><small></small></div><button>Log out</button></div>';
-a.querySelector(".av").textContent=(user.name||"?")[0].toUpperCase();
-a.querySelector("div span").textContent=user.name;a.querySelector("small").textContent=user.email}
-else a.innerHTML='<div class="auth"><button data-m="in">Log in</button><button class="fill" data-m="up">Sign up</button></div>';
-$("hello").textContent=user?"Welcome back, "+user.name.split(" ")[0]:"How can I help you today?"}
-$("acct").onclick=e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.m)openM(b.dataset.m);else logout()};
-function afterAuth(){closeM();chats=loadChats();cur=null;list.innerHTML="";empty.classList.remove("gone");pending=[];tray.innerHTML="";renderAcct();renderHist();fit()}
-function setUser(u,rem=true){user=u;(rem?localStorage:sessionStorage).setItem(UK,JSON.stringify(u));afterAuth()}
-function logout(){user=null;localStorage.removeItem(UK);sessionStorage.removeItem(UK);afterAuth()}
-
-/* ===== Account modal ===== */
-let mode="in",pend={};
-const fld=(ic,t,ph,id,eye)=>`<label class="fld">${sv(ic,17)}<input id="${id}" type="${t}" placeholder="${ph}">${eye?`<button type="button" class="eye" data-for="${id}" aria-label="Show or hide">${sv("eye")}</button>`:""}</label>`;
-const hero=(h,p)=>`<div class="hero"><div class="shield">${sv("shield",24)}</div><h3>${h}</h3><p>${p}</p></div>`;
-const soc=`<div class="or">OR CONTINUE WITH</div><button class="pbtn g" id="goog">${GG}Continue with Google</button>`;
-const E='<div class="err" id="err"></div>';
-function view(m){mode=m;
-$("tabs").dataset.m=m==="up"?"up":"in";
-document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.m===m||(m==="code"&&b.dataset.m==="up")));
-$("mbody").innerHTML={
-in:hero("Welcome Back","Sign in with your email and password to access your chats.")+fld("mail","email","Email Address","em")+fld("key","password","Password","pw",1)+
-`<div class="chk"><label><input type="checkbox" id="rem" checked>Remember session</label><button class="lk" data-go="forgot">Forgot password?</button></div>${E}<button class="pbtn" id="go">Sign In →</button>`+soc+
-`<div class="sw">Don't have an account? <button class="lk" data-go="up">Sign Up</button></div><div class="sw"><button class="lk quiet" id="guest">Continue as guest</button></div>`,
-up:hero("Create Your Account","Create an account to unlock cloud sync, personal memory & higher limits.")+fld("user","text","Full Name","nm")+fld("mail","email","Email Address","em")+fld("key","password","Create a strong password (min 8 chars)","pw",1)+fld("key","password","Confirm your password","pw2",1)+
-`<div class="chk"><label><input type="checkbox" id="tos">I agree to the&nbsp;<a class="lk" href="#" onclick="return false">Terms of Service</a>&nbsp;and&nbsp;<a class="lk" href="#" onclick="return false">Privacy Policy</a>.</label></div>${E}<button class="pbtn" id="go">Send Verification Code →</button>`+soc+
-`<div class="sw">Already have an account? <button class="lk" data-go="in">Sign In</button></div>`,
-code:hero("Check your email",`Enter the 6-digit code we sent to ${esc(pend.email||"")}.${CONFIG.AUTH_URL?"":" Demo mode: any 6 digits work."}`)+
-`<label class="fld">${sv("shield",17)}<input id="code" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code"></label>${E}<button class="pbtn" id="go">Verify &amp; Create Account</button><div class="sw">Wrong email? <button class="lk" data-go="up">Go back</button></div>`
-}[m]}
-function openM(m){view(m);modal.classList.add("on");app.classList.remove("m-open")}
-function closeM(){modal.classList.remove("on")}
-$("mx").onclick=closeM;modal.onclick=e=>{if(e.target===modal)closeM()};
-addEventListener("keydown",e=>{if(e.key==="Escape")closeM()});
-$("tabs").onclick=e=>{const b=e.target.closest("button");if(b)view(b.dataset.m)};
-$("mbody").onclick=e=>{const t=e.target.closest("button");if(!t)return;
-if(t.classList.contains("eye")){const i=$(t.dataset.for);i.type=i.type==="password"?"text":"password"}
-else if(t.id==="go")submit();else if(t.id==="goog")google();else if(t.id==="guest")closeM();
-else if(t.dataset.go==="forgot")forgot();else if(t.dataset.go)view(t.dataset.go)};
-$("mbody").onkeydown=e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"&&e.target.type!=="checkbox"){e.preventDefault();submit()}};
-const msg=(t,ok)=>{const x=$("err");if(x){x.textContent=t;x.className="err"+(ok?" ok":"")}};
-const val=id=>($(id)?.value||"").trim();
-const okMail=s=>/^\S+@\S+\.\S+$/.test(s);
-async function submit(){const b=$("go"),lab=b.innerHTML;msg("");
-try{
-if(mode==="in"){if(!okMail(val("em")))throw Error("Enter a valid email address.");if(!$("pw").value)throw Error("Enter your password.");
-b.disabled=true;b.textContent="Signing in…";const rem=$("rem").checked;
-const r=await auth("signin",{email:val("em"),password:$("pw").value,remember:rem});setUser(r.user,rem)}
-else if(mode==="up"){if(!val("nm"))throw Error("Enter your full name.");if(!okMail(val("em")))throw Error("Enter a valid email address.");
-if($("pw").value.length<8)throw Error("Password needs at least 8 characters.");if($("pw").value!==$("pw2").value)throw Error("Passwords don't match.");
-if(!$("tos").checked)throw Error("Accept the Terms of Service and Privacy Policy to continue.");
-b.disabled=true;b.textContent="Sending code…";await auth("signup",{name:val("nm"),email:val("em"),password:$("pw").value});pend={name:val("nm"),email:val("em")};view("code")}
-else{if(!/^\d{6}$/.test(val("code")))throw Error("Enter the 6-digit code.");
-b.disabled=true;b.textContent="Verifying…";const r=await auth("verify",{...pend,code:val("code")});setUser(r.user)}
-}catch(e){msg(e.message);b.disabled=false;b.innerHTML=lab}}
-async function forgot(){if(!okMail(val("em")))return msg("Enter your email above, then tap Forgot password.");
-try{await auth("forgot",{email:val("em")});msg(CONFIG.AUTH_URL?"Reset link sent. Check your inbox.":"Demo mode: no email is sent.",1)}catch(e){msg(e.message)}}
-function google(){if(CONFIG.GOOGLE_URL)location.href=CONFIG.GOOGLE_URL;else setUser({name:"Google User",email:"google.user@local"})}
-
-/* ===== Attachments ===== */
-const ico='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5"/></svg>';
-function thumb(f,big){
-if(f.url&&f.type.startsWith("image/")){const i=document.createElement("img");i.src=f.url;return i}
-if(f.url&&f.type.startsWith("video/")){const v=document.createElement("video");v.src=f.url;v.muted=true;v.playsInline=true;if(big)v.controls=true;return v}
-const d=document.createElement("div");d.className="fc";d.innerHTML=ico+"<span></span>";d.lastChild.textContent=f.name;return d}
-function addFiles(fl){[...fl].forEach(f=>{const o={name:f.name,type:f.type||"",file:f,url:/^(image|video)\//.test(f.type)?URL.createObjectURL(f):""};pending.push(o);
-const p=document.createElement("div");p.className="pv";p.appendChild(thumb(o));const x=document.createElement("i");x.textContent="×";
-x.onclick=()=>{pending=pending.filter(q=>q!==o);p.remove();fit()};p.appendChild(x);tray.appendChild(p)});fit()}
-$("clip").onclick=()=>$("file").click();$("file").onchange=e=>{addFiles(e.target.files);e.target.value=""};
-comp.addEventListener("dragover",e=>{e.preventDefault();comp.classList.add("over")});
-comp.addEventListener("dragleave",()=>comp.classList.remove("over"));
-comp.addEventListener("drop",e=>{e.preventDefault();comp.classList.remove("over");addFiles(e.dataTransfer.files)});
-input.addEventListener("paste",e=>{const f=[...e.clipboardData.files];if(f.length){e.preventDefault();addFiles(f)}});
-const readF=(f,m)=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result);x.onerror=()=>r(null);m==="t"?x.readAsText(f):x.readAsDataURL(f)});
-const pack=fs=>Promise.all(fs.map(async o=>{const a={name:o.name,type:o.type};
-if(o.file.size<5e6){if(o.type.startsWith("image/"))a.dataUrl=await readF(o.file);else if(/^text|json|javascript/.test(o.type)||/\.(md|csv|py|js|html|css|txt)$/.test(o.name))a.text=await readF(o.file,"t")}return a}));
-
-/* ===== Voice input ===== */
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
-if(!SR)$("mic").hidden=true;
-$("mic").onclick=()=>{if(rec){rec.stop();return}
-rec=new SR();rec.interimResults=true;rec.lang=navigator.language||"en-US";const base=input.value;
-rec.onresult=e=>{input.value=(base+" "+[...e.results].map(r=>r[0].transcript).join("")).trim();fit()};
-rec.onend=rec.onerror=()=>{rec=null;$("mic").classList.remove("rec")};
-rec.start();
-$("mic").classList.add("rec");
-};
-
-/* ===== Message Rows & Composer ===== */
-function fit(){
-  input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 140) + "px";
-  sendBtn.classList.toggle("on", Boolean(input.value.trim() || pending.length));
-}
-input.oninput = fit;
-input.onkeydown = e => {
-  if(e.key === "Enter" && !e.shiftKey){
-    e.preventDefault();
-    send();
-  }
-};
-sendBtn.onclick = send;
-
-function userRow(t, fl = [], imm = false){
-  const d = document.createElement("div");
-  d.className = "msg user";
-  if(imm) d.style.animation = "none";
-  if(fl && fl.length){
-    const a = document.createElement("div");
-    a.className = "att";
-    fl.forEach(f => a.appendChild(thumb(f, true)));
-    d.appendChild(a);
-  }
-  if(t){
-    const b = document.createElement("div");
-    b.className = "bub";
-    b.textContent = t;
-    d.appendChild(b);
-  }
-  list.appendChild(d);
-  return d;
-}
-
-function aiRow(done = false){
-  const d = document.createElement("div");
-  d.className = "msg ai-msg";
-  const mk = document.createElement("div");
-  mk.className = "ai-mark" + (done ? " done" : " live");
-  mk.innerHTML = logo("ai-logo");
-  const ct = document.createElement("div");
-  ct.className = "ai-content";
-  const nm = document.createElement("div");
-  nm.className = "ai-name";
-  nm.textContent = "ROCKGPT";
-  const bd = document.createElement("div");
-  bd.className = "body";
-  if(!done){
-    bd.innerHTML = '<span class="thinking"><i></i><i></i><i></i></span>';
-  }
-  ct.appendChild(nm);
-  ct.appendChild(bd);
-  d.appendChild(mk);
-  d.appendChild(ct);
-  list.appendChild(d);
-  return {
-    row: d,
-    mark: mk,
-    body: bd,
-    set(t){
-      bd.innerHTML = md(t) + '<span class="caret"></span>';
-    },
-    done(t){
-      mk.classList.remove("live");
-      mk.classList.add("done");
-      if(t !== undefined) bd.innerHTML = md(t);
-      else {
-        const c = bd.querySelector(".caret"); if(c) c.remove();
-        const th = bd.querySelector(".thinking"); if(th) th.remove();
-      }
-      bd.classList.add("fadein");
-    }
-  };
-}
-
-async function send(){
-  if(busy) return;
-  const t = input.value.trim();
-  if(!t && !pending.length) return;
-  const fl = [...pending];
-  const packed = await pack(fl);
-  pending = [];
-  tray.innerHTML = "";
-  input.value = "";
-  fit();
-  empty.classList.add("gone");
-  if(!cur){
-    cur = { id: Date.now(), title: t.slice(0, 36) || (fl[0] ? fl[0].name : "New Chat"), msgs: [] };
-    chats.unshift(cur);
-    save();
-    renderHist();
-  }
-  userRow(t, fl);
-  cur.msgs.push({ role: "user", content: t, files: fl });
-  save();
-  toB();
-  busy = true;
-  const ai = aiRow(false);
-  toB();
-  try{
-    const apiMsgs = cur.msgs.map(m => {
-      let content = m.content || "";
-      if(m.files && m.files.length){
-        m.files.forEach(f => {
-          if(f.text) content += "\n\n[Attached File: " + f.name + "]\n" + f.text;
-        });
-      }
-      return { role: m.role, content };
-    });
-    let ans = "";
-    await askRock(apiMsgs, chunk => {
-      ans = chunk;
-      ai.set(ans);
-      if(nearB()) toB();
-    });
-    ai.done(ans);
-    cur.msgs.push({ role: "assistant", content: ans });
-    save();
-  }catch(err){
-    console.error("Chat error:", err);
-    ai.done(err&&err.message?err.message:"I encountered a connection error. Please try again.");
-  }finally{
-    busy = false;
-    fit();
-  }
-}
-
-document.querySelectorAll(".chip").forEach(b => {
-  b.onclick = () => {
-    input.value = b.textContent;
-    fit();
-    send();
-  };
-});
-
-renderAcct();
-renderHist();
-fit();
-</script>
-
-<noscript>
-  <div style="max-width:800px;margin:40px auto;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#f4f4f5;line-height:1.6">
-    <h1>RockGPT (Rock GPT) – AI Assistant</h1>
-    <p>RockGPT is the official next-generation AI assistant and cognitive workspace. Built for developers, students, and professionals needing instant code generation, multimodal analysis, and real-time streaming answers.</p>
-    <h2>Core Capabilities of RockGPT:</h2>
-    <ul>
-      <li><strong>Real-time AI Conversations:</strong> Lightning-fast streaming responses.</li>
-      <li><strong>Multimodal Vision & Docs:</strong> Analyze photos, screenshots, code files, and documents.</li>
-      <li><strong>Coding Intelligence:</strong> Debug syntax, generate tests, and refactor code.</li>
-      <li><strong>Security & Privacy:</strong> Optional TOTP two-factor authentication with zero data sale.</li>
-    </ul>
-    <nav>
-      <p>Explore more resources: 
-        <a href="/features" style="color:#60a5fa">Features</a> | 
-        <a href="/rock-gpt" style="color:#60a5fa">What is Rock GPT?</a> | 
-        <a href="/how-it-works" style="color:#60a5fa">How RockGPT Works</a> | 
-        <a href="/faq" style="color:#60a5fa">FAQ</a> | 
-        <a href="/about" style="color:#60a5fa">About RockGPT</a>
-      </p>
-    </nav>
-  </div>
-</noscript>
+  <noscript>
+    <div style="max-width:800px;margin:40px auto;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#f4f4f5;line-height:1.6">
+      <h1>RockGPT (Rock GPT) – AI Assistant</h1>
+      <p>RockGPT is the official next-generation AI assistant and cognitive workspace. Built for developers, students, and professionals needing instant code generation, multimodal analysis, and real-time streaming answers.</p>
+      <h2>Core Capabilities of RockGPT:</h2>
+      <ul>
+        <li><strong>Real-time AI Conversations:</strong> Lightning-fast streaming responses.</li>
+        <li><strong>Multimodal Vision & Docs:</strong> Analyze photos, screenshots, code files, and documents.</li>
+        <li><strong>Coding Intelligence:</strong> Debug syntax, generate tests, and refactor code.</li>
+      </ul>
+      <nav>
+        <p>Explore more resources: 
+          <a href="/features" style="color:#60a5fa">Features</a> | 
+          <a href="/rock-gpt" style="color:#60a5fa">What is Rock GPT?</a> | 
+          <a href="/how-it-works" style="color:#60a5fa">How RockGPT Works</a> | 
+          <a href="/faq" style="color:#60a5fa">FAQ</a> | 
+          <a href="/about" style="color:#60a5fa">About RockGPT</a>
+        </p>
+      </nav>
+    </div>
+  </noscript>
 </body>
 </html>

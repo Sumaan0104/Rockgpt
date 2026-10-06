@@ -1,29 +1,54 @@
 import mongoose from "mongoose";
 
-const userSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true },
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password: { type: String }, // Optional for Google OAuth users
-  googleId: { type: String, sparse: true, unique: true, index: true },
-  avatar: { type: String },
-  twoFactorEnabled: { type: Boolean, default: false },
-  twoFactorSecret: { type: String },
-  failedLoginAttempts: { type: Number, default: 0 },
-  lockUntil: { type: Date },
-  securityLogs: [
-    {
-      action: { type: String },
-      ip: { type: String },
-      userAgent: { type: String },
-      timestamp: { type: Date, default: Date.now },
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
     },
-  ],
-  lastLoginAt: { type: Date },
-  plan: { type: String, default: "Free" },
-  planExpiresAt: { type: Date },
-  razorpayPaymentId: { type: String },
-  razorpayOrderId: { type: String },
-  createdAt: { type: Date, default: Date.now },
-});
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+    passwordHash: {
+      type: String,
+      default: null,
+    },
+    googleId: {
+      type: String,
+      default: null,
+    },
+    plan: {
+      type: String,
+      enum: ["free", "plus", "pro"],
+      default: "free",
+    },
+    planExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    totpSecret: {
+      type: String,
+      default: null,
+    },
+    is2faEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-export default mongoose.model("User", userSchema);
+const User = mongoose.models.User || mongoose.model("User", userSchema);
+export default User;

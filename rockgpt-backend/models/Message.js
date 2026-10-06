@@ -2,15 +2,9 @@ import mongoose from "mongoose";
 
 const messageSchema = new mongoose.Schema(
   {
-    conversationId: {
+    chatId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Conversation",
-      required: true,
-      index: true,
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Chat",
       required: true,
       index: true,
     },
@@ -20,24 +14,28 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
     content: {
-      type: mongoose.Schema.Types.Mixed,
-      required: true,
+      type: String,
+      default: "",
     },
-    attachment: {
-      name: { type: String },
-      kind: { type: String },
-      dataUrl: { type: String },
-    },
-    liked: {
-      type: Boolean,
-      default: null,
+    attachments: [
+      {
+        name: { type: String, default: "" },
+        type: { type: String, default: "" },
+        url: { type: String, default: "" },
+      },
+    ],
+    createdAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
-    timestamps: { createdAt: true, updatedAt: false },
+    timestamps: true,
   }
 );
 
-messageSchema.index({ conversationId: 1, createdAt: 1 });
+// Compound index for instant chronological message loading
+messageSchema.index({ chatId: 1, createdAt: 1 });
 
-export default mongoose.model("Message", messageSchema);
+const Message = mongoose.models.Message || mongoose.model("Message", messageSchema);
+export default Message;
