@@ -992,6 +992,29 @@ header h1 {
   color: var(--text);
   text-decoration: underline;
   text-underline-offset: 3px;
+  word-break: break-word;
+  transition: opacity .2s;
+}
+
+.markdown-link:hover {
+  opacity: .8;
+}
+
+.inline-code-link {
+  text-decoration: none;
+  display: inline;
+}
+
+.inline-code-link .inline-code {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2.5px;
+  transition: background .2s, border-color .2s;
+}
+
+.inline-code-link:hover .inline-code {
+  background: var(--hi);
+  border-color: var(--text);
 }
 
 /* Message Actions (Copy all, Regenerate) */

@@ -126,6 +126,8 @@ Formatting Guidelines:
 - Format code blocks using triple backticks with the exact language specified (e.g. \`\`\`javascript, \`\`\`python).
 - Use clear markdown headers (##, ###), bullet points, bold emphasis, and clean tables for data sets.
 - Never output raw unformatted text when code, lists, or tables are appropriate.
+- Links & Resources: Always provide real, clickable Markdown links formatted as [Resource Name](https://url) for any mentioned websites, documentation, learning platforms, tools, or references (e.g. [Python Documentation](https://www.python.org), [MDN Web Docs](https://developer.mozilla.org), [LeetCode](https://leetcode.com), [Exercism](https://exercism.org), [CS50](https://cs50.harvard.edu)). Never wrap websites in code backticks (do NOT write \`python.org\`), always make them clickable Markdown links.
+- Tables & Multi-line Cells: In Markdown tables, use clean formatting or <br /> tags for line breaks within cells.
 
 Strict Non-Repetition & Canonical Enumeration Rule:
 Every item in an enumeration, list, or table MUST be completely unique, accurate, and authentic. Never repeat items, duplicate rows, or append "(Repeated)" or "(re-appears)".

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
 function CodeBlock({ language, code }) {
   const [copied, setCopied] = useState(false);
@@ -54,6 +55,7 @@ export default function MarkdownView({ content = "", className = "" }) {
     <div className={`markdown-body ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
         components={{
           code({ inline, className: codeClass, children, ...props }) {
             const match = /language-(\w+)/.exec(codeClass || "");
@@ -65,6 +67,32 @@ export default function MarkdownView({ content = "", className = "" }) {
                   language={match ? match[1] : ""}
                   code={rawText}
                 />
+              );
+            }
+
+            // If inline code is a domain or URL (e.g. `python.org`, `exercism.io`), make it an active clickable link
+            const trimmed = rawText.trim();
+            const isDomainOrUrl =
+              /^https?:\/\/[^\s]+$/i.test(trimmed) ||
+              /^(?:[a-zA-Z0-9-]+\.)+(?:com|org|io|net|edu|gov|dev|app|ai|co)(?:\/[^\s]*)?$/i.test(trimmed);
+
+            if (isDomainOrUrl) {
+              const href =
+                trimmed.startsWith("http://") || trimmed.startsWith("https://")
+                  ? trimmed
+                  : `https://${trimmed}`;
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-code-link"
+                  title={`Open ${trimmed}`}
+                >
+                  <code className="inline-code" {...props}>
+                    {children}
+                  </code>
+                </a>
               );
             }
 
@@ -82,9 +110,19 @@ export default function MarkdownView({ content = "", className = "" }) {
             );
           },
           a({ href, children, ...props }) {
+            let safeHref = href || "";
+            if (
+              safeHref &&
+              !safeHref.startsWith("http://") &&
+              !safeHref.startsWith("https://") &&
+              !safeHref.startsWith("mailto:") &&
+              !safeHref.startsWith("#")
+            ) {
+              safeHref = `https://${safeHref}`;
+            }
             return (
               <a
-                href={href}
+                href={safeHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="markdown-link"
