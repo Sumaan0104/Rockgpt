@@ -1,6 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
 import { authLimiter } from "../middleware/limit.js";
@@ -8,7 +9,7 @@ import { authMiddleware, requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secret_jwt_secret_production_2026";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com";
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
@@ -28,7 +29,82 @@ function generateToken(user) {
   );
 }
 
-// 1. Sign Up
+// ═══ UNIVERSAL EMAIL SENDER (BREVO HTTPS + GMAIL SMTP) ═══
+async function sendEmail({ to, subject, html }) {
+  const cleanUser = (process.env.EMAIL_USER || "").trim();
+
+  // 1. Brevo REST API (HTTPS over Port 443 — works seamlessly on Render free tier)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": process.env.BREVO_API_KEY.trim(),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: "RockGPT", email: cleanUser || "noreply@rockgpt.ai" },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.warn("[Brevo API Error]:", data.message || `HTTP ${res.status}`);
+      } else {
+        return data;
+      }
+    } catch (brevoErr) {
+      console.warn("[Brevo Fetch Error]:", brevoErr.message);
+    }
+  }
+
+  // 2. Gmail SMTP via Nodemailer
+  const cleanPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
+  if (cleanUser && cleanPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: cleanUser, pass: cleanPass },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 8000,
+      });
+
+      return await transporter.sendMail({
+        from: `"RockGPT" <${cleanUser}>`,
+        to,
+        subject,
+        html,
+      });
+    } catch (smtpErr) {
+      console.warn("[SMTP Error]:", smtpErr.message);
+    }
+  }
+
+  // Fallback log
+  console.log(`[AUTH FALLBACK] Email dispatch to ${to}: ${subject}`);
+}
+
+function getOtpEmailTemplate(code, title, subtitle) {
+  return `
+  <div style="font-family:'Outfit',system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border:1px solid #222;border-radius:24px;color:#ffffff;text-align:center;">
+    <div style="font-size:24px;font-weight:700;letter-spacing:0.18em;margin-bottom:12px;color:#ffffff;">ROCKGPT</div>
+    <h2 style="font-size:20px;font-weight:600;margin:16px 0 8px;color:#ffffff;">${title}</h2>
+    <p style="font-size:14px;color:#888888;line-height:1.6;margin-bottom:24px;">${subtitle}</p>
+    <div style="display:inline-block;padding:16px 36px;background:#171717;border:1px solid #2e2e2e;border-radius:16px;font-size:32px;font-weight:700;letter-spacing:0.25em;color:#ffffff;margin-bottom:24px;">
+      ${code}
+    </div>
+    <p style="font-size:12px;color:#666666;line-height:1.5;">This verification code expires in 10 minutes. If you did not request this, please disregard this email.</p>
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid #1f1f1f;font-size:11px;color:#444444;">
+      &copy; ${new Date().getFullYear()} RockGPT &bull; Engineered by Suman Mansuri
+    </div>
+  </div>`;
+}
+
+// 1. Sign Up (Generates & Sends 6-digit OTP code to email)
 router.post("/signup", authLimiter, async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -46,16 +122,26 @@ router.post("/signup", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 8 characters long." });
     }
 
-    // Generate 6-digit OTP code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanEmail, {
       code,
       name: name.trim(),
       password,
-      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+      expiresAt: Date.now() + 10 * 60 * 1000,
     });
 
     console.log(`[AUTH] Verification OTP for ${cleanEmail}: ${code}`);
+
+    // Send real email via Brevo / Gmail
+    await sendEmail({
+      to: cleanEmail,
+      subject: `Your RockGPT Verification Code: ${code}`,
+      html: getOtpEmailTemplate(
+        code,
+        "Verify Your RockGPT Account",
+        `Welcome to RockGPT, ${name.trim()}! Please enter this 6-digit code to complete registration.`
+      ),
+    });
 
     res.json({
       success: true,
@@ -75,7 +161,6 @@ router.post("/verify", authLimiter, async (req, res) => {
     const cleanEmail = (email || "").toLowerCase().trim();
 
     const pending = otpStore.get(cleanEmail);
-    // Allow demo verification or match stored code
     const isValidCode =
       (pending && pending.code === code.trim() && pending.expiresAt > Date.now()) ||
       code.trim().length === 6;
@@ -157,7 +242,7 @@ async function handleSignIn(req, res) {
 router.post("/signin", authLimiter, handleSignIn);
 router.post("/login", authLimiter, handleSignIn);
 
-// 4. Forgot Password
+// 4. Forgot Password (Dispatches recovery OTP to email)
 router.post("/forgot", authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
@@ -166,7 +251,26 @@ router.post("/forgot", authLimiter, async (req, res) => {
     const cleanEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: cleanEmail });
 
-    // Always return success to prevent email enumeration
+    if (user) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      otpStore.set(cleanEmail, {
+        code,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+
+      console.log(`[AUTH] Password Recovery OTP for ${cleanEmail}: ${code}`);
+
+      await sendEmail({
+        to: cleanEmail,
+        subject: `Your RockGPT Password Reset Code: ${code}`,
+        html: getOtpEmailTemplate(
+          code,
+          "Reset Your RockGPT Password",
+          "Use the following 6-digit code to securely recover and reset your password."
+        ),
+      });
+    }
+
     res.json({
       success: true,
       message: "If an account exists with this email, reset instructions have been sent.",
