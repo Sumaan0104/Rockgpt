@@ -135,11 +135,13 @@ export async function apiSignUp(name, email, password) {
   return data;
 }
 
-export async function apiVerifyOtp(name, email, password, code) {
+export async function apiVerifyOtp(emailOrName, codeOrEmail, password, code) {
+  const email = code !== undefined ? codeOrEmail : emailOrName;
+  const finalCode = code !== undefined ? code : codeOrEmail;
   const res = await fetch(`${API_BASE}/auth/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, code }),
+    body: JSON.stringify({ email, code: finalCode }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Verification failed.");
@@ -154,6 +156,17 @@ export async function apiForgotPassword(email) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to send reset code.");
+  return data;
+}
+
+export async function apiResetPassword(email, code, newPassword) {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, newPassword }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to reset password.");
   return data;
 }
 

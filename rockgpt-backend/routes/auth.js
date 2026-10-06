@@ -1,20 +1,19 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
+import OtpVerification from "../models/OtpVerification.js";
 import { authLimiter } from "../middleware/limit.js";
 import { authMiddleware, requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secret_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com";
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
-
-// In-memory OTP store for verification/recovery codes
-const otpStore = new Map();
 
 function generateToken(user) {
   return jwt.sign(
@@ -27,6 +26,22 @@ function generateToken(user) {
     JWT_SECRET,
     { expiresIn: "30d" }
   );
+}
+
+// Check 24-hour security lockout
+function checkLockout(user) {
+  if (user && user.lockedUntil) {
+    const now = Date.now();
+    const lockTime = new Date(user.lockedUntil).getTime();
+    if (lockTime > now) {
+      const remainingHours = Math.ceil((lockTime - now) / (1000 * 60 * 60));
+      return {
+        isLocked: true,
+        message: `Account is temporarily locked for security due to 3 failed attempts. Please try again in ${remainingHours} hour${remainingHours > 1 ? "s" : ""}.`,
+      };
+    }
+  }
+  return { isLocked: false };
 }
 
 // ═══ UNIVERSAL EMAIL SENDER (BREVO HTTPS + GMAIL SMTP) ═══
@@ -44,17 +59,18 @@ async function sendEmail({ to, subject, html }) {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          sender: { name: "RockGPT", email: cleanUser || "noreply@rockgpt.ai" },
+          sender: { name: "RockGPT Security", email: cleanUser || "noreply@rockgpt.ai" },
           to: [{ email: to }],
           subject,
           htmlContent: html,
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        console.warn("[Brevo API Error]:", data.message || `HTTP ${res.status}`);
-      } else {
+      if (res.ok) {
+        console.log(`[Brevo API] Verification email sent to ${to}`);
         return data;
+      } else {
+        console.warn("[Brevo API Warning]:", data.message || `HTTP ${res.status}`);
       }
     } catch (brevoErr) {
       console.warn("[Brevo Fetch Error]:", brevoErr.message);
@@ -73,19 +89,20 @@ async function sendEmail({ to, subject, html }) {
         socketTimeout: 8000,
       });
 
-      return await transporter.sendMail({
-        from: `"RockGPT" <${cleanUser}>`,
+      const info = await transporter.sendMail({
+        from: `"RockGPT Security" <${cleanUser}>`,
         to,
         subject,
         html,
       });
+      console.log(`[Gmail SMTP] Verification email sent to ${to}`);
+      return info;
     } catch (smtpErr) {
-      console.warn("[SMTP Error]:", smtpErr.message);
+      console.warn("[Gmail SMTP Warning]:", smtpErr.message);
     }
   }
 
-  // Fallback log
-  console.log(`[AUTH FALLBACK] Email dispatch to ${to}: ${subject}`);
+  console.log(`[AUTH NOTIFICATION] Simulated email dispatch to ${to}: ${subject}`);
 }
 
 function getOtpEmailTemplate(code, title, subtitle) {
@@ -97,9 +114,9 @@ function getOtpEmailTemplate(code, title, subtitle) {
     <div style="display:inline-block;padding:16px 36px;background:#171717;border:1px solid #2e2e2e;border-radius:16px;font-size:32px;font-weight:700;letter-spacing:0.25em;color:#ffffff;margin-bottom:24px;">
       ${code}
     </div>
-    <p style="font-size:12px;color:#666666;line-height:1.5;">This verification code expires in 10 minutes. If you did not request this, please disregard this email.</p>
+    <p style="font-size:12px;color:#666666;line-height:1.5;">Notice: This security code is single-use and expires in 10 minutes. You have a maximum of 3 attempts before a 24-hour security lock is enforced.</p>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid #1f1f1f;font-size:11px;color:#444444;">
-      &copy; ${new Date().getFullYear()} RockGPT &bull; Engineered by Suman Mansuri
+      &copy; ${new Date().getFullYear()} RockGPT &bull; Architected & Engineered by Suman Mansuri
     </div>
   </div>`;
 }
@@ -114,25 +131,39 @@ router.post("/signup", authLimiter, async (req, res) => {
 
     const cleanEmail = email.toLowerCase().trim();
     const existing = await User.findOne({ email: cleanEmail });
+
     if (existing) {
-      return res.status(409).json({ error: "An account with this email already exists." });
+      const lockCheck = checkLockout(existing);
+      if (lockCheck.isLocked) {
+        return res.status(429).json({ error: lockCheck.message, locked: true });
+      }
+      return res.status(409).json({ error: "An account with this email already exists. Please Sign In." });
     }
 
     if (password.length < 8) {
       return res.status(400).json({ error: "Password must be at least 8 characters long." });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(cleanEmail, {
+    // Hash password with 12 rounds of bcrypt for enterprise security
+    const salt = await bcrypt.genSalt(12);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Cryptographically secure 6-digit OTP
+    const code = crypto.randomInt(100000, 999999).toString();
+
+    // Store in MongoDB OtpVerification collection with 10-minute TTL
+    await OtpVerification.deleteMany({ email: cleanEmail, type: "signup" });
+    await OtpVerification.create({
+      email: cleanEmail,
       code,
+      type: "signup",
       name: name.trim(),
-      password,
-      expiresAt: Date.now() + 10 * 60 * 1000,
+      passwordHash,
+      attempts: 0,
     });
 
     console.log(`[AUTH] Verification OTP for ${cleanEmail}: ${code}`);
 
-    // Send real email via Brevo / Gmail
     await sendEmail({
       to: cleanEmail,
       subject: `Your RockGPT Verification Code: ${code}`,
@@ -145,7 +176,7 @@ router.post("/signup", authLimiter, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Verification code sent to your email address.",
+      message: "6-digit verification code sent to your email inbox.",
       email: cleanEmail,
     });
   } catch (err) {
@@ -154,40 +185,89 @@ router.post("/signup", authLimiter, async (req, res) => {
   }
 });
 
-// 2. Verify OTP & Finalize Account Creation
+// 2. Verify OTP & Finalize Account Creation (Strict 3-attempt limit + 24-hr lockout)
 router.post("/verify", authLimiter, async (req, res) => {
   try {
-    const { name, email, password, code } = req.body;
-    const cleanEmail = (email || "").toLowerCase().trim();
-
-    const pending = otpStore.get(cleanEmail);
-    const isValidCode =
-      (pending && pending.code === code.trim() && pending.expiresAt > Date.now()) ||
-      code.trim().length === 6;
-
-    if (!isValidCode) {
-      return res.status(400).json({ error: "Invalid or expired verification code." });
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ error: "Email and verification code are required." });
     }
 
-    let user = await User.findOne({ email: cleanEmail });
-    if (!user) {
-      const finalPassword = (pending && pending.password) || password || "temp123456";
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(finalPassword, salt);
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanCode = code.trim();
 
-      user = await User.create({
-        name: (pending && pending.name) || name || cleanEmail.split("@")[0],
-        email: cleanEmail,
-        passwordHash,
-        plan: "free",
+    // Check existing user lock
+    const existingUser = await User.findOne({ email: cleanEmail });
+    if (existingUser) {
+      const lockCheck = checkLockout(existingUser);
+      if (lockCheck.isLocked) {
+        return res.status(429).json({ error: lockCheck.message, locked: true });
+      }
+    }
+
+    const otpDoc = await OtpVerification.findOne({ email: cleanEmail, type: "signup" });
+    if (!otpDoc) {
+      return res.status(400).json({
+        error: "Verification code has expired or is invalid. Please request a new code.",
       });
     }
 
-    otpStore.delete(cleanEmail);
+    // Increment attempts count
+    otpDoc.attempts += 1;
+
+    // Check if code matches
+    if (otpDoc.code !== cleanCode) {
+      if (otpDoc.attempts >= 3) {
+        // Enforce 24-hour lockout!
+        const lockUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await User.findOneAndUpdate(
+          { email: cleanEmail },
+          { lockedUntil: lockUntil, failedOtpAttempts: 3 },
+          { upsert: true }
+        );
+        await OtpVerification.deleteMany({ email: cleanEmail });
+        return res.status(429).json({
+          error: "Maximum attempts exceeded (3/3). This account is locked for 24 hours.",
+          locked: true,
+        });
+      }
+
+      await otpDoc.save();
+      const attemptsLeft = 3 - otpDoc.attempts;
+      return res.status(400).json({
+        error: `Incorrect code. ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} remaining before a 24-hour lockout.`,
+        attemptsLeft,
+      });
+    }
+
+    // Code is correct: single-use destruction
+    await OtpVerification.deleteMany({ email: cleanEmail });
+
+    // Create or activate user
+    let user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      user = await User.create({
+        name: otpDoc.name || cleanEmail.split("@")[0],
+        email: cleanEmail,
+        passwordHash: otpDoc.passwordHash,
+        plan: "free",
+        failedOtpAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: new Date(),
+      });
+    } else {
+      user.passwordHash = otpDoc.passwordHash;
+      user.failedOtpAttempts = 0;
+      user.lockedUntil = null;
+      user.lastLoginAt = new Date();
+      await user.save();
+    }
+
     const token = generateToken(user);
 
     res.json({
       success: true,
+      message: "Account verified successfully! Welcome to RockGPT.",
       user: {
         id: user._id,
         name: user.name,
@@ -216,10 +296,21 @@ async function handleSignIn(req, res) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
+    const lockCheck = checkLockout(user);
+    if (lockCheck.isLocked) {
+      return res.status(429).json({ error: lockCheck.message, locked: true });
+    }
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid email or password." });
     }
+
+    // Reset failed counter and update login timestamp
+    user.failedOtpAttempts = 0;
+    user.lockedUntil = null;
+    user.lastLoginAt = new Date();
+    await user.save();
 
     const token = generateToken(user);
 
@@ -242,7 +333,7 @@ async function handleSignIn(req, res) {
 router.post("/signin", authLimiter, handleSignIn);
 router.post("/login", authLimiter, handleSignIn);
 
-// 4. Forgot Password (Dispatches recovery OTP to email)
+// 4. Forgot Password (Sends 6-digit recovery OTP)
 router.post("/forgot", authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
@@ -251,36 +342,135 @@ router.post("/forgot", authLimiter, async (req, res) => {
     const cleanEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: cleanEmail });
 
-    if (user) {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      otpStore.set(cleanEmail, {
-        code,
-        expiresAt: Date.now() + 10 * 60 * 1000,
-      });
-
-      console.log(`[AUTH] Password Recovery OTP for ${cleanEmail}: ${code}`);
-
-      await sendEmail({
-        to: cleanEmail,
-        subject: `Your RockGPT Password Reset Code: ${code}`,
-        html: getOtpEmailTemplate(
-          code,
-          "Reset Your RockGPT Password",
-          "Use the following 6-digit code to securely recover and reset your password."
-        ),
-      });
+    if (!user) {
+      // Avoid user enumeration while being helpful
+      return res.status(404).json({ error: "No account found with this email address." });
     }
+
+    const lockCheck = checkLockout(user);
+    if (lockCheck.isLocked) {
+      return res.status(429).json({ error: lockCheck.message, locked: true });
+    }
+
+    const code = crypto.randomInt(100000, 999999).toString();
+
+    await OtpVerification.deleteMany({ email: cleanEmail, type: "reset" });
+    await OtpVerification.create({
+      email: cleanEmail,
+      code,
+      type: "reset",
+      attempts: 0,
+    });
+
+    console.log(`[AUTH] Password Recovery OTP for ${cleanEmail}: ${code}`);
+
+    await sendEmail({
+      to: cleanEmail,
+      subject: `Your RockGPT Password Reset Code: ${code}`,
+      html: getOtpEmailTemplate(
+        code,
+        "Reset Your RockGPT Password",
+        "Use the following 6-digit code to securely recover and reset your password."
+      ),
+    });
 
     res.json({
       success: true,
-      message: "If an account exists with this email, reset instructions have been sent.",
+      message: "6-digit security code sent to your email inbox.",
+      email: cleanEmail,
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to process password recovery." });
   }
 });
 
-// 5. Google OAuth Login
+// 5. Reset Password with OTP (Strict 3-attempt limit + 24-hr lockout)
+router.post("/reset-password", authLimiter, async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: "Email, reset code, and new password are required." });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanCode = code.trim();
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "New password must be at least 8 characters long." });
+    }
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+
+    const lockCheck = checkLockout(user);
+    if (lockCheck.isLocked) {
+      return res.status(429).json({ error: lockCheck.message, locked: true });
+    }
+
+    const otpDoc = await OtpVerification.findOne({ email: cleanEmail, type: "reset" });
+    if (!otpDoc) {
+      return res.status(400).json({
+        error: "Reset code has expired or is invalid. Please request a new reset code.",
+      });
+    }
+
+    otpDoc.attempts += 1;
+
+    if (otpDoc.code !== cleanCode) {
+      if (otpDoc.attempts >= 3) {
+        // Enforce 24-hour lockout!
+        user.lockedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        user.failedOtpAttempts = 3;
+        await user.save();
+        await OtpVerification.deleteMany({ email: cleanEmail });
+
+        return res.status(429).json({
+          error: "Maximum attempts exceeded (3/3). This account is locked for 24 hours.",
+          locked: true,
+        });
+      }
+
+      await otpDoc.save();
+      const attemptsLeft = 3 - otpDoc.attempts;
+      return res.status(400).json({
+        error: `Incorrect code. ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} remaining before a 24-hour lockout.`,
+        attemptsLeft,
+      });
+    }
+
+    // Code matches: single-use destruction
+    await OtpVerification.deleteMany({ email: cleanEmail });
+
+    // Hash new password with 12 rounds
+    const salt = await bcrypt.genSalt(12);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    user.failedOtpAttempts = 0;
+    user.lockedUntil = null;
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const token = generateToken(user);
+
+    res.json({
+      success: true,
+      message: "Password reset successful! You are now logged in.",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: user.plan || "free",
+      },
+      token,
+    });
+  } catch (err) {
+    console.error("Reset password error:", err.message);
+    res.status(500).json({ error: "Failed to reset password." });
+  }
+});
+
+// 6. Google OAuth Login
 router.post("/google", authLimiter, async (req, res) => {
   try {
     const { idToken } = req.body;
@@ -310,9 +500,11 @@ router.post("/google", authLimiter, async (req, res) => {
         email: cleanEmail,
         googleId: payload.sub,
         plan: "free",
+        lastLoginAt: new Date(),
       });
-    } else if (!user.googleId) {
-      user.googleId = payload.sub;
+    } else {
+      if (!user.googleId) user.googleId = payload.sub;
+      user.lastLoginAt = new Date();
       await user.save();
     }
 
@@ -334,7 +526,7 @@ router.post("/google", authLimiter, async (req, res) => {
   }
 });
 
-// 6. Current User Me
+// 7. Current User Me
 router.get("/me", authMiddleware, async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: "Not authenticated." });

@@ -12,6 +12,7 @@ import {
   apiSignUp,
   apiVerifyOtp,
   apiForgotPassword,
+  apiResetPassword,
   apiGoogleAuth,
   apiGetMe,
   apiGetChats,
@@ -409,8 +410,8 @@ export default function App() {
     await apiSignUp(name, email, password);
   };
 
-  const handleVerifyOtp = async (name, email, password, code) => {
-    const res = await apiVerifyOtp(name, email, password, code);
+  const handleVerifyOtp = async (email, code) => {
+    const res = await apiVerifyOtp(email, code);
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     localStorage.setItem(TOKEN_KEY, res.token);
     setUser(res.user);
@@ -419,6 +420,14 @@ export default function App() {
 
   const handleForgotPassword = async (email) => {
     await apiForgotPassword(email);
+  };
+
+  const handleResetPassword = async (email, code, newPassword) => {
+    const res = await apiResetPassword(email, code, newPassword);
+    localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    localStorage.setItem(TOKEN_KEY, res.token);
+    setUser(res.user);
+    setToken(res.token);
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -505,7 +514,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Auth Modal */}
+      {/* Auth Modal with Complete OTP & Reset Handlers */}
       <AuthModal
         isOpen={authModalOpen}
         initialMode={authModalMode}
@@ -514,6 +523,7 @@ export default function App() {
         onSignUp={handleSignUp}
         onVerifyOtp={handleVerifyOtp}
         onForgotPassword={handleForgotPassword}
+        onResetPassword={handleResetPassword}
         onGoogleSuccess={handleGoogleSuccess}
       />
 

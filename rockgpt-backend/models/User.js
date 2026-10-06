@@ -40,6 +40,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    failedOtpAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockedUntil: {
+      type: Date,
+      default: null,
+    },
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

@@ -20,9 +20,10 @@ export default function AuthModal({
   onSignUp,
   onVerifyOtp,
   onForgotPassword,
+  onResetPassword,
   onGoogleSuccess,
 }) {
-  const [mode, setMode] = useState(initialMode); // 'in', 'up', 'code', 'forgot'
+  const [mode, setMode] = useState(initialMode); // 'in', 'up', 'code', 'forgot', 'reset'
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,14 +43,13 @@ export default function AuthModal({
       setMode(initialMode);
       setErrorMessage("");
       setSuccessMessage("");
+      setOtpCode("");
     }
   }, [isOpen, initialMode]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
+      if (e.key === "Escape" && isOpen) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -82,24 +82,57 @@ export default function AuthModal({
         setIsSubmitting(true);
         await onSignUp(name.trim(), email, password);
         setMode("code");
-        setSuccessMessage(`Verification code sent to ${email}.`);
+        setSuccessMessage(`Verification code sent to ${email}. You have 3 attempts.`);
       } else if (mode === "code") {
         if (!/^\d{6}$/.test(otpCode.trim())) {
           throw new Error("Enter the 6-digit verification code.");
         }
 
         setIsSubmitting(true);
-        await onVerifyOtp(name.trim(), email, password, otpCode.trim());
+        await onVerifyOtp(email, otpCode.trim());
         onClose();
       } else if (mode === "forgot") {
-        if (!validateEmail(email)) throw new Error("Enter your email address to receive reset instructions.");
+        if (!validateEmail(email)) throw new Error("Enter your registered email address.");
 
         setIsSubmitting(true);
         await onForgotPassword(email);
-        setSuccessMessage("Password reset instructions have been sent to your inbox.");
+        setMode("reset");
+        setSuccessMessage(`6-digit reset code sent to ${email}. You have 3 attempts.`);
+      } else if (mode === "reset") {
+        if (!/^\d{6}$/.test(otpCode.trim())) {
+          throw new Error("Enter the 6-digit reset code.");
+        }
+        if (password.length < 8) {
+          throw new Error("New password must be at least 8 characters.");
+        }
+        if (password !== passwordConfirm) {
+          throw new Error("Passwords do not match.");
+        }
+
+        setIsSubmitting(true);
+        await onResetPassword(email, otpCode.trim(), password);
+        onClose();
       }
     } catch (err) {
       setErrorMessage(err.message || "Authentication failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    try {
+      setIsSubmitting(true);
+      setErrorMessage("");
+      if (mode === "code") {
+        await onSignUp(name.trim() || "User", email, password || "Temp123456");
+        setSuccessMessage(`Fresh verification code sent to ${email}.`);
+      } else if (mode === "reset") {
+        await onForgotPassword(email);
+        setSuccessMessage(`Fresh reset code sent to ${email}.`);
+      }
+    } catch (err) {
+      setErrorMessage(err.message || "Failed to resend code.");
     } finally {
       setIsSubmitting(false);
     }
@@ -121,7 +154,7 @@ export default function AuthModal({
           <span className="lg">
             <Logo size={19} />
           </span>
-          ROCKGPT ACCOUNT
+          ROCKGPT SECURITY AUTH
           <button
             className="ib"
             onClick={onClose}
@@ -161,7 +194,7 @@ export default function AuthModal({
         )}
 
         <form onSubmit={handleSubmit}>
-          {/* Mode: Sign In */}
+          {/* Mode 1: Sign In */}
           {mode === "in" && (
             <>
               <div className="hero">
@@ -230,6 +263,7 @@ export default function AuthModal({
                   onClick={() => {
                     setMode("forgot");
                     setErrorMessage("");
+                    setSuccessMessage("");
                   }}
                 >
                   Forgot password?
@@ -276,6 +310,7 @@ export default function AuthModal({
                   onClick={() => {
                     setMode("up");
                     setErrorMessage("");
+                    setSuccessMessage("");
                   }}
                 >
                   Sign Up
@@ -290,7 +325,7 @@ export default function AuthModal({
             </>
           )}
 
-          {/* Mode: Sign Up */}
+          {/* Mode 2: Sign Up */}
           {mode === "up" && (
             <>
               <div className="hero">
@@ -395,7 +430,7 @@ export default function AuthModal({
               {successMessage && <div className="err ok">{successMessage}</div>}
 
               <button className="pbtn" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Sending code…" : "Send Verification Code →"}
+                {isSubmitting ? "Sending verification code…" : "Send Verification Code →"}
               </button>
 
               <div className="or">OR CONTINUE WITH</div>
@@ -431,6 +466,7 @@ export default function AuthModal({
                   onClick={() => {
                     setMode("in");
                     setErrorMessage("");
+                    setSuccessMessage("");
                   }}
                 >
                   Sign In
@@ -439,7 +475,7 @@ export default function AuthModal({
             </>
           )}
 
-          {/* Mode: Code Verification */}
+          {/* Mode 3: Code Verification (Sign Up OTP) */}
           {mode === "code" && (
             <>
               <div className="hero">
@@ -449,7 +485,10 @@ export default function AuthModal({
                   </svg>
                 </div>
                 <h3>Check your email</h3>
-                <p>Enter the 6-digit verification code sent to {email}.</p>
+                <p>Enter the 6-digit verification code sent to <b>{email}</b>.</p>
+                <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--muted)" }}>
+                  🔒 Maximum 3 attempts allowed &bull; 24h lockout on failure
+                </div>
               </div>
 
               <label className="fld">
@@ -463,7 +502,7 @@ export default function AuthModal({
                   placeholder="6-digit code"
                   autoComplete="one-time-code"
                   value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   required
                 />
               </label>
@@ -472,11 +511,13 @@ export default function AuthModal({
               {successMessage && <div className="err ok">{successMessage}</div>}
 
               <button className="pbtn" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Verifying…" : "Verify & Create Account"}
+                {isSubmitting ? "Verifying…" : "Verify & Create Account →"}
               </button>
 
-              <div className="sw">
-                Wrong email?{" "}
+              <div className="sw" style={{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}>
+                <button type="button" className="lk" onClick={handleResendOtp} disabled={isSubmitting}>
+                  Resend code
+                </button>
                 <button
                   type="button"
                   className="lk"
@@ -485,13 +526,13 @@ export default function AuthModal({
                     setErrorMessage("");
                   }}
                 >
-                  Go back
+                  Wrong email? Go back
                 </button>
               </div>
             </>
           )}
 
-          {/* Mode: Forgot Password */}
+          {/* Mode 4: Forgot Password Request */}
           {mode === "forgot" && (
             <>
               <div className="hero">
@@ -502,7 +543,7 @@ export default function AuthModal({
                   </svg>
                 </div>
                 <h3>Reset Password</h3>
-                <p>Enter your email to receive recovery instructions.</p>
+                <p>Enter your email to receive a 6-digit recovery code.</p>
               </div>
 
               <label className="fld">
@@ -523,7 +564,7 @@ export default function AuthModal({
               {successMessage && <div className="err ok">{successMessage}</div>}
 
               <button className="pbtn" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Sending…" : "Send Reset Code →"}
+                {isSubmitting ? "Sending Recovery Code…" : "Send Recovery Code →"}
               </button>
 
               <div className="sw">
@@ -534,6 +575,117 @@ export default function AuthModal({
                   onClick={() => {
                     setMode("in");
                     setErrorMessage("");
+                    setSuccessMessage("");
+                  }}
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Mode 5: Reset Password with OTP Code */}
+          {mode === "reset" && (
+            <>
+              <div className="hero">
+                <div className="shield">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="8" cy="15" r="4" />
+                    <path d="M11 12l9-9M16 7l3 3" />
+                  </svg>
+                </div>
+                <h3>Enter Recovery Code</h3>
+                <p>We sent a 6-digit code to <b>{email}</b>. Enter it below with your new password.</p>
+                <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--muted)" }}>
+                  🔒 Maximum 3 attempts allowed &bull; 24h lockout on failure
+                </div>
+              </div>
+
+              {/* OTP Code Input */}
+              <label className="fld">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                </svg>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="6-digit reset code"
+                  autoComplete="one-time-code"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  required
+                />
+              </label>
+
+              {/* New Password */}
+              <label className="fld">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="8" cy="15" r="4" />
+                  <path d="M11 12l9-9M16 7l3 3" />
+                </svg>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="New Password (min 8 chars)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="eye"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </label>
+
+              {/* Confirm New Password */}
+              <label className="fld">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="8" cy="15" r="4" />
+                  <path d="M11 12l9-9M16 7l3 3" />
+                </svg>
+                <input
+                  type={showPasswordConfirm ? "text" : "password"}
+                  placeholder="Confirm New Password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="eye"
+                  onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </label>
+
+              {errorMessage && <div className="err">{errorMessage}</div>}
+              {successMessage && <div className="err ok">{successMessage}</div>}
+
+              <button className="pbtn" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Resetting Password…" : "Reset Password & Log In →"}
+              </button>
+
+              <div className="sw" style={{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}>
+                <button type="button" className="lk" onClick={handleResendOtp} disabled={isSubmitting}>
+                  Resend reset code
+                </button>
+                <button
+                  type="button"
+                  className="lk"
+                  onClick={() => {
+                    setMode("in");
+                    setErrorMessage("");
+                    setSuccessMessage("");
                   }}
                 >
                   Back to Sign In
