@@ -198,7 +198,10 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
         `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${ACTIVE_GEMINI_KEY}`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": ACTIVE_GEMINI_KEY,
+          },
           body: JSON.stringify(payload),
         }
       );
