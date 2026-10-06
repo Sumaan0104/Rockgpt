@@ -190,8 +190,10 @@ export async function apiGoogleAuth(tokenOrCred) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken: token, credential: token, code: token }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Google authentication failed.");
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || data.message || `Google authentication failed (${res.status}). Please try again.`);
+  }
   return data;
 }
 
