@@ -713,11 +713,13 @@ header h1 {
   width: 24px;
 }
 
-.ai-mark.live .ai-logo {
+.ai-mark.live .ai-logo,
+.ai-mark-inline.live .ai-logo {
   animation: aiReveal 1.1s var(--out) both, aiBreathe 2.4s ease-in-out 1.1s infinite;
 }
 
-.ai-mark.done .ai-logo {
+.ai-mark.done .ai-logo,
+.ai-mark-inline.done .ai-logo {
   animation: aiSettle .8s ease-out both;
 }
 
@@ -770,13 +772,23 @@ header h1 {
   flex: 1;
 }
 
+.ai-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 18px;
+  margin: 1px 0 4px;
+}
+
+.ai-mark-inline {
+  display: none;
+}
+
 .ai-name {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: .14em;
   color: var(--muted);
-  margin: 1px 0 4px;
-  height: 18px;
   display: flex;
   align-items: center;
 }
@@ -1679,6 +1691,105 @@ textarea::placeholder {
   #app.m-open #back {
     opacity: 1;
     pointer-events: auto;
+  }
+}
+
+/* ===== Mobile Chat Layout Optimization (<= 640px) ===== */
+@media (max-width: 640px) {
+  #sc {
+    /* Minimal comfortable left/right padding: preserves a little bit of breathing room while maximizing chat width */
+    padding: 6px 10px 20px;
+  }
+
+  #list {
+    gap: 18px;
+    width: 100%;
+  }
+
+  /* On mobile: hide the desktop 40px outer avatar mark to eliminate the 52px empty column on the left */
+  .ai-msg > .ai-mark {
+    display: none;
+  }
+
+  /* Show the compact 22px mark inline next to ROCKGPT in the header */
+  .ai-mark-inline {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    flex: none;
+  }
+
+  .ai-mark-inline .ai-logo {
+    width: 13px;
+  }
+
+  .ai-msg {
+    display: block;
+    width: 100%;
+    gap: 0;
+  }
+
+  .ai-content {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .ai-header-row {
+    margin-bottom: 6px;
+    height: 22px;
+  }
+
+  .ai-name {
+    margin: 0;
+    height: auto;
+    font-size: 11.5px;
+  }
+
+  .body {
+    font-size: 15px;
+    line-height: 1.62;
+    width: 100%;
+  }
+
+  /* User messages */
+  .msg.user {
+    gap: 4px;
+  }
+
+  .bub {
+    max-width: 90%;
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  /* Table formatting: compact padding so tables fit cleanly on mobile screens */
+  .table-responsive-wrapper {
+    margin: 0.8em 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rock-table {
+    font-size: 13px;
+  }
+
+  .rock-table th,
+  .rock-table td {
+    padding: 6px 8px;
+  }
+
+  /* Footer & composer */
+  footer {
+    padding: 4px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .composer {
+    padding: 4px 6px;
   }
 }
 

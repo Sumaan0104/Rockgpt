@@ -29,7 +29,12 @@ export default function AiRow({
       </div>
 
       <div className="ai-content">
-        <div className="ai-name">ROCKGPT</div>
+        <div className="ai-header-row">
+          <div className={`ai-mark-inline ${markClass}`} aria-hidden="true">
+            <Logo className="ai-logo" />
+          </div>
+          <div className="ai-name">ROCKGPT</div>
+        </div>
 
         {isWaiting && !content ? (
           <div className="body">
