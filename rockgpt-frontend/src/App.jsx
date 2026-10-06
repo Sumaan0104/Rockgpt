@@ -4,8 +4,8 @@ import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
 import ChatList from "./components/ChatList.jsx";
 import Composer from "./components/Composer.jsx";
-import AuthModal from "./components/AuthModal.jsx";
-import WelcomeModal from "./components/WelcomeModal.jsx";
+const AuthModal = React.lazy(() => import("./components/AuthModal.jsx"));
+const WelcomeModal = React.lazy(() => import("./components/WelcomeModal.jsx"));
 import {
   askRock,
   pingServerHealth,
@@ -538,26 +538,31 @@ export default function App() {
         </div>
       </div>
 
-      {/* Auth Modal with Complete OTP & Reset Handlers */}
-      <AuthModal
-        isOpen={authModalOpen}
-        initialMode={authModalMode}
-        onClose={() => setAuthModalOpen(false)}
-        onSignIn={handleSignIn}
-        onSignUp={handleSignUp}
-        onVerifyOtp={handleVerifyOtp}
-        onForgotPassword={handleForgotPassword}
-        onResetPassword={handleResetPassword}
-        onGoogleSuccess={handleGoogleSuccess}
-      />
+      {/* Lazy-Loaded Modals */}
+      <React.Suspense fallback={null}>
+        {authModalOpen && (
+          <AuthModal
+            isOpen={authModalOpen}
+            initialMode={authModalMode}
+            onClose={() => setAuthModalOpen(false)}
+            onSignIn={handleSignIn}
+            onSignUp={handleSignUp}
+            onVerifyOtp={handleVerifyOtp}
+            onForgotPassword={handleForgotPassword}
+            onResetPassword={handleResetPassword}
+            onGoogleSuccess={handleGoogleSuccess}
+          />
+        )}
 
-      {/* Welcome to RockGPT Animated Celebration Popup */}
-      <WelcomeModal
-        isOpen={Boolean(welcomeUser)}
-        user={welcomeUser}
-        isNewUser={isWelcomeNewUser}
-        onClose={() => setWelcomeUser(null)}
-      />
+        {Boolean(welcomeUser) && (
+          <WelcomeModal
+            isOpen={Boolean(welcomeUser)}
+            user={welcomeUser}
+            isNewUser={isWelcomeNewUser}
+            onClose={() => setWelcomeUser(null)}
+          />
+        )}
+      </React.Suspense>
 
       {/* Undo Toast */}
       {toast && (

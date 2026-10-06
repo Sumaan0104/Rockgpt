@@ -1222,21 +1222,20 @@ textarea::placeholder {
 #intro {
   position: fixed;
   inset: 0;
-  z-index: 99;
+  z-index: 99999;
   background: var(--bg);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 26px;
-  transition: opacity .8s ease, transform .9s var(--out), filter .8s;
+  transition: opacity .8s ease, transform .9s var(--out);
   cursor: pointer;
 }
 
 #intro.done {
   opacity: 0;
-  transform: scale(1.12);
-  filter: blur(8px);
+  transform: scale(1.08);
   pointer-events: none;
 }
 
@@ -1255,6 +1254,10 @@ textarea::placeholder {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   animation: ilDraw 1.9s cubic-bezier(.65, 0, .35, 1) .25s forwards, ilFill 1s cubic-bezier(.4, 0, .2, 1) 1.9s forwards;
+}
+
+.il path:nth-child(2) {
+  animation-delay: .5s, 2.05s;
 }
 
 @keyframes ilIn {
@@ -1292,7 +1295,6 @@ textarea::placeholder {
 #word span {
   opacity: 0;
   transform: translateY(60%);
-  filter: blur(8px);
   animation: lt .9s var(--out) forwards;
 }
 
@@ -1300,9 +1302,16 @@ textarea::placeholder {
   to {
     opacity: 1;
     transform: none;
-    filter: blur(0);
   }
 }
+
+#word span:nth-child(1) { animation-delay: 2.50s; }
+#word span:nth-child(2) { animation-delay: 2.58s; }
+#word span:nth-child(3) { animation-delay: 2.66s; }
+#word span:nth-child(4) { animation-delay: 2.74s; }
+#word span:nth-child(5) { animation-delay: 2.82s; }
+#word span:nth-child(6) { animation-delay: 2.90s; }
+#word span:nth-child(7) { animation-delay: 2.98s; }
 
 .bar {
   position: absolute;
@@ -1329,6 +1338,57 @@ textarea::placeholder {
   }
 }
 
+.ai-mark, .ai-logo, .thinking i, #intro .il, #word span {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@media (hover: none), (display-mode: standalone) {
+  @keyframes aiReveal {
+    from {
+      opacity: 0;
+      transform: scale(.8);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .thinking {
+    animation: none;
+  }
+}
+
+#intro:not(.go) * {
+  animation-play-state: paused !important;
+}
+
+.app-mode #intro .il {
+  width: 24vw;
+  max-width: 150px;
+  animation: none;
+}
+
+.app-mode .il path {
+  fill-opacity: 1;
+  stroke-opacity: 0;
+  stroke-dashoffset: 0;
+  animation: none;
+}
+
+.app-mode .bar::after {
+  animation-duration: 2.2s;
+}
+
+.app-mode #word span:nth-child(1) { animation-delay: 0.35s; }
+.app-mode #word span:nth-child(2) { animation-delay: 0.43s; }
+.app-mode #word span:nth-child(3) { animation-delay: 0.51s; }
+.app-mode #word span:nth-child(4) { animation-delay: 0.59s; }
+.app-mode #word span:nth-child(5) { animation-delay: 0.67s; }
+.app-mode #word span:nth-child(6) { animation-delay: 0.75s; }
+.app-mode #word span:nth-child(7) { animation-delay: 0.83s; }
+
 /* ===== Account Modal ===== */
 #modal {
   position: fixed;
@@ -1338,8 +1398,6 @@ textarea::placeholder {
   place-items: center;
   padding: 16px;
   background: var(--ov);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   opacity: 0;
   pointer-events: none;
   transition: opacity .35s;
@@ -1802,8 +1860,6 @@ textarea::placeholder {
   place-items: center;
   padding: 16px;
   background: var(--ov);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   animation: welcomeFadeIn .3s var(--out) both;
 }
 

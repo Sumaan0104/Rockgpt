@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Logo from "./Logo.jsx";
-import MarkdownView from "./MarkdownView.jsx";
+const MarkdownView = React.lazy(() => import("./MarkdownView.jsx"));
 
 export default function AiRow({
   content = "",
@@ -46,7 +46,9 @@ export default function AiRow({
           </div>
         ) : (
           <div className="body fadein">
-            <MarkdownView content={content} />
+            <React.Suspense fallback={<div className="whitespace-pre-wrap">{content}</div>}>
+              <MarkdownView content={content} />
+            </React.Suspense>
             {isStreaming && <span className="caret" />}
           </div>
         )}

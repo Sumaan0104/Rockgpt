@@ -1,23 +1,30 @@
 {
   "name": "ROCKGPT - AI Assistant",
   "short_name": "ROCKGPT",
-  "description": "Official next-generation AI assistant and cognitive workspace.",
+  "description": "ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#070709",
-  "theme_color": "#070709",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [
     {
-      "src": "/icon-192.png?v=3",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon-512.png?v=3",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
