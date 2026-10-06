@@ -28,6 +28,14 @@ function generateToken(user) {
   );
 }
 
+function formatPlanName(plan) {
+  if (!plan) return "Free";
+  const p = String(plan).toLowerCase();
+  if (p === "pro") return "Pro";
+  if (p === "plus") return "Plus";
+  return "Free";
+}
+
 // Check 24-hour security lockout
 function checkLockout(user) {
   if (user && user.lockedUntil) {
@@ -505,7 +513,12 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
   }
 
   const rawEnvId = (process.env.GOOGLE_CLIENT_ID || "").trim();
-  const knownClientIds = [rawEnvId].filter(Boolean);
+  const knownClientIds = Array.from(
+    new Set([
+      rawEnvId,
+      "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com",
+    ])
+  ).filter(Boolean);
   const cleanSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
 
   // 1. If authorization code (starts with 4/ or no dots):
@@ -643,13 +656,21 @@ router.post("/google", authLimiter, async (req, res) => {
         name: googleUser.name || cleanEmail.split("@")[0],
         email: cleanEmail,
         googleId: googleUser.googleId,
-        plan: "Free",
+        plan: "free",
         lastLoginAt: new Date(),
       });
     } else {
       if (!user.googleId) user.googleId = googleUser.googleId;
       user.lastLoginAt = new Date();
-      await user.save();
+      if (user.plan) user.plan = String(user.plan).toLowerCase();
+      try {
+        await user.save();
+      } catch (saveErr) {
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { googleId: user.googleId, lastLoginAt: new Date() } }
+        );
+      }
     }
 
     // Enforce 2FA if enabled on account
@@ -675,13 +696,13 @@ router.post("/google", authLimiter, async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        plan: user.plan || "Free",
+        plan: formatPlanName(user.plan),
       },
       token,
     });
   } catch (err) {
-    console.error("Google auth error:", err.message);
-    res.status(500).json({ error: "Google authentication failed." });
+    console.error("[Google Auth Error]:", err);
+    res.status(500).json({ error: err.message || "Google authentication failed. Please try again." });
   }
 });
 
