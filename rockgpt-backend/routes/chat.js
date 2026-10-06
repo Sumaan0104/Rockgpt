@@ -271,30 +271,43 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
 
     const lastMessage = messages[messages.length - 1];
 
-    // If valid chatId and user authenticated, save user message to DB in background without blocking stream start
-    let chatPromise = null;
-    if (chatId && req.user && mongoose.Types.ObjectId.isValid(chatId)) {
-      chatPromise = Chat.findOne({ _id: chatId, userId: req.user._id })
-        .then(async (chat) => {
-          if (chat && lastMessage && lastMessage.role === "user") {
-            await Message.create({
-              chatId: chat._id,
-              role: "user",
-              content: lastMessage.content || "",
-              attachments: (lastMessage.attachments || []).map((a) => ({
-                name: a.name || "",
-                type: a.type || "",
-              })),
-            });
-            chat.updatedAt = new Date();
-            await chat.save();
-          }
-          return chat;
-        })
-        .catch((dbErr) => {
-          console.warn("DB user message save warning:", dbErr.message);
-          return null;
-        });
+    // Find existing chat or automatically create one for authenticated user
+    let targetChat = null;
+    if (req.user) {
+      try {
+        if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
+          targetChat = await Chat.findOne({ _id: chatId, userId: req.user._id });
+        }
+        if (!targetChat && lastMessage) {
+          const titleText = (typeof lastMessage.content === "string" ? lastMessage.content : "New Conversation").slice(0, 60).trim();
+          targetChat = await Chat.create({
+            userId: req.user._id,
+            title: titleText || "New Chat",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+
+        if (targetChat && lastMessage && lastMessage.role === "user") {
+          await Message.create({
+            chatId: targetChat._id,
+            role: "user",
+            content: typeof lastMessage.content === "string" ? lastMessage.content : "",
+            attachments: (lastMessage.attachments || []).map((a) => ({
+              name: a.name || "",
+              type: a.type || "",
+            })),
+          });
+          targetChat.updatedAt = new Date();
+          await targetChat.save();
+        }
+
+        if (targetChat) {
+          res.write(`data: ${JSON.stringify({ chatId: targetChat._id.toString() })}\n\n`);
+        }
+      } catch (dbErr) {
+        console.warn("DB user message save warning:", dbErr.message);
+      }
     }
 
     const systemPrompt = buildSystemPrompt(fast);
@@ -383,16 +396,15 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     }
 
     // 3. Save assistant message to MongoDB if chat is tracked
-    const validChat = chatPromise ? await chatPromise : null;
-    if (validChat && fullAssistantResponse && !isClosed) {
+    if (targetChat && fullAssistantResponse && !isClosed) {
       try {
         await Message.create({
-          chatId: validChat._id,
+          chatId: targetChat._id,
           role: "assistant",
           content: fullAssistantResponse,
         });
-        validChat.updatedAt = new Date();
-        await validChat.save();
+        targetChat.updatedAt = new Date();
+        await targetChat.save();
       } catch (err) {
         console.warn("Failed to persist assistant reply:", err.message);
       }

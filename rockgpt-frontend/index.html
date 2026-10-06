@@ -110,10 +110,7 @@
       stroke-linejoin: miter;
       stroke-dasharray: 1;
       stroke-dashoffset: 1;
-      animation: ilDraw 1.9s cubic-bezier(.65, 0, .35, 1) .25s forwards, ilFill 1s cubic-bezier(.4, 0, .2, 1) 1.9s forwards;
-    }
-    .il path:nth-child(2) {
-      animation-delay: .5s, 2.05s;
+      animation: ilDraw 1.6s cubic-bezier(.65, 0, .35, 1) 0.1s forwards, ilFill 0.9s cubic-bezier(.4, 0, .2, 1) 1.5s forwards;
     }
     @keyframes ilIn {
       from { opacity: 0; transform: scale(.9); }
@@ -135,18 +132,18 @@
     #word span {
       opacity: 0;
       transform: translateY(60%);
-      animation: lt .9s var(--out) forwards;
+      animation: lt .7s var(--out) forwards;
     }
     @keyframes lt {
       to { opacity: 1; transform: none; }
     }
-    #word span:nth-child(1) { animation-delay: 2.50s; }
-    #word span:nth-child(2) { animation-delay: 2.58s; }
-    #word span:nth-child(3) { animation-delay: 2.66s; }
-    #word span:nth-child(4) { animation-delay: 2.74s; }
-    #word span:nth-child(5) { animation-delay: 2.82s; }
-    #word span:nth-child(6) { animation-delay: 2.90s; }
-    #word span:nth-child(7) { animation-delay: 2.98s; }
+    #word span:nth-child(1) { animation-delay: 1.80s; }
+    #word span:nth-child(2) { animation-delay: 1.88s; }
+    #word span:nth-child(3) { animation-delay: 1.96s; }
+    #word span:nth-child(4) { animation-delay: 2.04s; }
+    #word span:nth-child(5) { animation-delay: 2.12s; }
+    #word span:nth-child(6) { animation-delay: 2.20s; }
+    #word span:nth-child(7) { animation-delay: 2.28s; }
 
     .bar {
       position: absolute;
@@ -163,7 +160,7 @@
       height: 100%;
       background: var(--text);
       transform: translateX(-100%);
-      animation: ld 4s cubic-bezier(.65, 0, .35, 1) forwards;
+      animation: ld 3.0s cubic-bezier(.65, 0, .35, 1) forwards;
     }
     @keyframes ld {
       to { transform: none; }
@@ -176,27 +173,6 @@
     #intro:not(.go) * {
       animation-play-state: paused !important;
     }
-    .app-mode #intro .il {
-      width: 24vw;
-      max-width: 150px;
-      animation: none;
-    }
-    .app-mode .il path {
-      fill-opacity: 1;
-      stroke-opacity: 0;
-      stroke-dashoffset: 0;
-      animation: none;
-    }
-    .app-mode .bar::after {
-      animation-duration: 2.2s;
-    }
-    .app-mode #word span:nth-child(1) { animation-delay: 0.35s; }
-    .app-mode #word span:nth-child(2) { animation-delay: 0.43s; }
-    .app-mode #word span:nth-child(3) { animation-delay: 0.51s; }
-    .app-mode #word span:nth-child(4) { animation-delay: 0.59s; }
-    .app-mode #word span:nth-child(5) { animation-delay: 0.67s; }
-    .app-mode #word span:nth-child(6) { animation-delay: 0.75s; }
-    .app-mode #word span:nth-child(7) { animation-delay: 0.83s; }
   </style>
 
   <!-- JSON-LD Structured Data for Google SEO -->
@@ -268,28 +244,16 @@
       var intro = document.getElementById("intro");
       if (!intro) return;
 
-      try {
-        if (sessionStorage.getItem("rockgpt_intro_played")) {
-          intro.remove();
-          return;
-        }
-      } catch (e) {}
-
-      var isApp = document.documentElement.classList.contains("app-mode");
       var done = false;
-
       var endIntro = function () {
         if (done) return;
         done = true;
-        try {
-          sessionStorage.setItem("rockgpt_intro_played", "true");
-        } catch (e) {}
         intro.classList.add("done");
         setTimeout(function () {
           if (intro && intro.parentNode) {
             intro.parentNode.removeChild(intro);
           }
-        }, 1000);
+        }, 900);
       };
 
       intro.onclick = endIntro;
@@ -299,7 +263,7 @@
 
       requestAnimationFrame(function () {
         intro.classList.add("go");
-        setTimeout(endIntro, isApp ? 2300 : 4200);
+        setTimeout(endIntro, 3100);
       });
     })();
   </script>

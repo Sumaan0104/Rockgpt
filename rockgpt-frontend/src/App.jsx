@@ -174,23 +174,32 @@ export default function App() {
 
   const handleSelectChat = async (chat) => {
     if (isWaiting || isStreaming) return;
+    const targetId = chat.id || chat._id;
+    if (!targetId) return;
 
-    if (token && chat.id) {
-      try {
-        const fullChat = await apiGetChatById(chat.id || chat._id);
-        if (fullChat) {
-          setCurrentChat(fullChat);
-        } else {
-          setCurrentChat(chat);
-        }
-      } catch {
-        setCurrentChat(chat);
-      }
+    // Immediately set chat optimistically and close drawer so the UI responds instantly
+    const localInState = chats.find((c) => (c.id || c._id) === targetId);
+    if (localInState && Array.isArray(localInState.messages) && localInState.messages.length > 0) {
+      setCurrentChat(localInState);
     } else {
       setCurrentChat(chat);
     }
-
     setMobileDrawerOpen(false);
+
+    // If authenticated, fetch full conversation with messages from DB
+    if (token) {
+      try {
+        const fullChat = await apiGetChatById(targetId);
+        if (fullChat && Array.isArray(fullChat.messages)) {
+          setCurrentChat(fullChat);
+          setChats((prev) =>
+            prev.map((c) => ((c.id || c._id) === targetId ? { ...c, ...fullChat } : c))
+          );
+        }
+      } catch (err) {
+        console.warn("apiGetChatById fetch warning:", err);
+      }
+    }
   };
 
   const handleDeleteChat = async (chatToDelete) => {
@@ -276,19 +285,17 @@ export default function App() {
 
     // Initialize or update current chat immediately
     let activeChat = currentChat;
-    if (!activeChat) {
+    const isNew = !activeChat;
+    if (isNew) {
       const generatedTitle = (text || fileList[0]?.name || "New Chat").slice(0, 42);
+      const tempId = Date.now().toString();
       activeChat = {
-        id: Date.now().toString(),
+        id: tempId,
+        _id: tempId,
         title: generatedTitle,
         messages: [],
       };
       setChats((prev) => [activeChat, ...prev]);
-      if (token) {
-        apiCreateChat(generatedTitle).then((res) => {
-          if (res && res.id) activeChat.id = res.id;
-        }).catch(() => {});
-      }
     }
 
     const updatedMessages = [...(activeChat.messages || []), newUserMsg];
@@ -335,7 +342,22 @@ export default function App() {
         },
         {
           signal: abortControllerRef.current.signal,
-          chatId: activeChat.id,
+          chatId: activeChat.id || activeChat._id,
+          onChatIdAssigned: (serverChatId) => {
+            if (serverChatId) {
+              const oldId = activeChat.id || activeChat._id;
+              activeChat.id = serverChatId;
+              activeChat._id = serverChatId;
+              setCurrentChat((prev) => (prev ? { ...prev, id: serverChatId, _id: serverChatId } : prev));
+              setChats((prev) =>
+                prev.map((c) =>
+                  (c.id === oldId || c._id === oldId || c.id === serverChatId || c._id === serverChatId)
+                    ? { ...c, id: serverChatId, _id: serverChatId }
+                    : c
+                )
+              );
+            }
+          },
         }
       );
 
@@ -365,10 +387,20 @@ export default function App() {
       };
 
       const finalMessages = [...updatedMessages, finalAssistantMsg];
-      const completedChat = { ...activeChat, messages: finalMessages };
+      const completedChat = {
+        ...activeChat,
+        id: activeChat.id || activeChat._id,
+        _id: activeChat._id || activeChat.id,
+        messages: finalMessages,
+      };
       setCurrentChat(completedChat);
       setChats((prev) =>
-        prev.map((c) => ((c.id || c._id) === (completedChat.id || completedChat._id) ? completedChat : c))
+        prev.map((c) => {
+          const match =
+            (c.id && (c.id === completedChat.id || c.id === completedChat._id)) ||
+            (c._id && (c._id === completedChat.id || c._id === completedChat._id));
+          return match ? completedChat : c;
+        })
       );
       setCurrentStreamingText("");
     }

@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
 import Message from "../models/Message.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -19,6 +20,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     const formatted = chats.map((c) => ({
       id: c._id.toString(),
+      _id: c._id.toString(),
       title: c.title,
       updatedAt: c.updatedAt,
       createdAt: c.createdAt,
@@ -37,6 +39,10 @@ router.get("/:id", requireAuth, async (req, res) => {
     const userId = req.user._id;
     const chatId = req.params.id;
 
+    if (!mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(404).json({ error: "Invalid chat ID format." });
+    }
+
     const chat = await Chat.findOne({ _id: chatId, userId }).lean();
     if (!chat) {
       return res.status(404).json({ error: "Chat not found." });
@@ -44,18 +50,21 @@ router.get("/:id", requireAuth, async (req, res) => {
 
     const messages = await Message.find({ chatId })
       .sort({ createdAt: 1 })
-      .select("role content attachments createdAt")
+      .select("_id role content attachments createdAt")
       .lean();
 
     res.json({
       id: chat._id.toString(),
+      _id: chat._id.toString(),
       title: chat.title,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
       messages: messages.map((m) => ({
+        id: m._id.toString(),
+        _id: m._id.toString(),
         role: m.role,
         content: m.content,
-        attachments: m.attachments,
+        attachments: m.attachments || [],
         createdAt: m.createdAt,
       })),
     });

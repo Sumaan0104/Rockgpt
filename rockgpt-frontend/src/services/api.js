@@ -93,6 +93,11 @@ export async function askRock(messages, onChunk, options = {}) {
 
       try {
         const parsed = JSON.parse(dataStr);
+        if (parsed.chatId && options.onChatIdAssigned) {
+          try {
+            options.onChatIdAssigned(parsed.chatId);
+          } catch {}
+        }
         if (parsed.token) {
           accumulated += parsed.token;
           onChunk(accumulated);

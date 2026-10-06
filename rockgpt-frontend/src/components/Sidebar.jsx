@@ -103,10 +103,12 @@ export default function Sidebar({
         <div id="hist">
           {chats.length > 0 && <div className="hl">Recent</div>}
           {chats.map((c) => {
-            const isSelected = currentChat && (currentChat.id === c.id || currentChat._id === c._id);
+            const currentId = currentChat ? (currentChat.id || currentChat._id) : null;
+            const itemChatId = c.id || c._id;
+            const isSelected = Boolean(currentId && itemChatId && currentId === itemChatId);
             return (
               <div
-                key={c.id || c._id}
+                key={itemChatId}
                 className={`it ${isSelected ? "on" : ""}`}
                 onClick={() => onSelectChat(c)}
               >
