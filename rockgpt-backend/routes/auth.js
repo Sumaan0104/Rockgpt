@@ -626,32 +626,6 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
     }
   } catch {}
 
-  // 5. Fallback: Parse decoded payload if valid Google issuer and verified
-  try {
-    const p = jwt.decode(resolvedIdToken);
-    if (
-      p &&
-      p.email &&
-      (p.iss === "https://accounts.google.com" || p.iss === "accounts.google.com")
-    ) {
-      if (p.email_verified === false || p.email_verified === "false") {
-        throw new Error("Email not verified by Google");
-      }
-      const now = Math.floor(Date.now() / 1000);
-      if (!p.exp || p.exp > now - 7200) {
-        return {
-          email: p.email.toLowerCase().trim(),
-          name: p.name || p.email.split("@")[0],
-          googleId: p.sub,
-          picture: p.picture,
-        };
-      }
-    }
-  } catch (decErr) {
-    if (decErr.message.includes("Email not verified")) throw decErr;
-    console.warn("[Google Auth] JWT decode fallback error:", decErr.message);
-  }
-
   return null;
 }
 

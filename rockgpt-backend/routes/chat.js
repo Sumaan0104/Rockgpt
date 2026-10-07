@@ -12,6 +12,8 @@ const router = express.Router();
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY || "dummy_groq_key",
   baseURL: "https://api.groq.com/openai/v1",
+  maxRetries: 0,
+  timeout: 3500,
 });
 
 const ACTIVE_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
@@ -143,7 +145,7 @@ Exhaustive Completeness:
 Whenever the user asks for enumerations or complete sets, you must ALWAYS provide the COMPLETE, FULL list from start to finish without skipping or stopping halfway.${fast ? " Be swift and concise in narrative explanations while keeping lists and data sets 100% complete." : ""}`;
 }
 
-async function streamGeminiChat(messages, systemPrompt, fast, res) {
+async function streamGeminiChat(messages, systemPrompt, fast, res, externalSignal = null) {
   if (!ACTIVE_GEMINI_KEY) return false;
 
   const contents = [];
@@ -192,11 +194,16 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
     },
   };
 
-  const modelsToTry = ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-2.5-flash"];
+  const modelsToTry = ["gemini-flash-lite-latest", "gemini-flash-latest"];
   let response = null;
 
   for (const modelName of modelsToTry) {
+    if (externalSignal?.aborted) break;
     try {
+      const abortSignals = [AbortSignal.timeout(3500)];
+      if (externalSignal) abortSignals.push(externalSignal);
+      const combinedSignal = AbortSignal.any(abortSignals);
+
       const resp = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${ACTIVE_GEMINI_KEY}`,
         {
@@ -206,7 +213,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
             "x-goog-api-key": ACTIVE_GEMINI_KEY,
           },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(5000),
+          signal: combinedSignal,
         }
       );
       if (resp.ok) {
@@ -254,8 +261,10 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
 // ═══ POST /api/chat — Real SSE Stream ═══
 router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, res) => {
   let isClosed = false;
+  const clientAbortController = new AbortController();
   req.on("close", () => {
     isClosed = true;
+    clientAbortController.abort();
   });
 
   try {
@@ -346,9 +355,11 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     );
 
     let handledByGemini = false;
+    let isAiSuccess = false;
     if (hasMedia && ACTIVE_GEMINI_KEY) {
       try {
-        handledByGemini = await streamGeminiChat(messages, systemPrompt, fast, res);
+        handledByGemini = await streamGeminiChat(messages, systemPrompt, fast, res, clientAbortController.signal);
+        if (handledByGemini) isAiSuccess = true;
       } catch (gemErr) {
         console.warn("Gemini stream error:", gemErr.message);
       }
@@ -356,7 +367,7 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
 
     // 2. Groq streaming engine (ultra-fast primary text engine)
     if (!handledByGemini) {
-      const groqModels = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+      const groqModels = ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"];
       let stream = null;
 
       // Format messages for Groq OpenAI compatibility
@@ -383,46 +394,93 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
         }),
       ];
 
+      const groqAbortController = new AbortController();
+      if (clientAbortController.signal.aborted) groqAbortController.abort();
+      else clientAbortController.signal.addEventListener("abort", () => groqAbortController.abort(), { once: true });
+
       for (const model of groqModels) {
-        if (isClosed) break;
+        if (isClosed || clientAbortController.signal.aborted || groqAbortController.signal.aborted) break;
         try {
-          stream = await groq.chat.completions.create({
+          const callOpts = {
             model,
             max_tokens: fast ? 2048 : 8192,
             temperature: 0.5,
             messages: groqMessages,
             stream: true,
-          });
+          };
+          if (model.includes("oss")) {
+            callOpts.reasoning_format = "hidden";
+          }
+          const reqOptions = {
+            timeout: 3500,
+            maxRetries: 0,
+            signal: groqAbortController.signal,
+          };
+          stream = await groq.chat.completions.create(callOpts, reqOptions);
           if (stream) break;
         } catch (e) {
+          if (e.name === "AbortError" || groqAbortController.signal.aborted) break;
           console.warn(`Groq model ${model} failed:`, e.message);
         }
       }
 
       if (stream) {
-        for await (const chunk of stream) {
-          if (isClosed) break;
-          const token = chunk.choices[0]?.delta?.content || "";
-          if (token) {
-            fullAssistantResponse += token;
-            res.write(`data: ${JSON.stringify({ token })}\n\n`);
+        let firstTokenReceived = false;
+        const firstTokenTimer = setTimeout(() => {
+          if (!firstTokenReceived) {
+            groqAbortController.abort();
+            try {
+              if (stream && stream.controller && typeof stream.controller.abort === "function") {
+                stream.controller.abort();
+              }
+            } catch (_) {}
           }
+        }, 3500);
+
+        try {
+          for await (const chunk of stream) {
+            if (isClosed || clientAbortController.signal.aborted) break;
+            const token = chunk.choices[0]?.delta?.content || "";
+            if (token) {
+              if (!firstTokenReceived) {
+                firstTokenReceived = true;
+                clearTimeout(firstTokenTimer);
+              }
+              isAiSuccess = true;
+              fullAssistantResponse += token;
+              res.write(`data: ${JSON.stringify({ token })}\n\n`);
+            }
+          }
+        } catch (streamErr) {
+          if (!firstTokenReceived) {
+            console.warn("Groq streaming aborted before first token:", streamErr.message);
+          }
+        } finally {
+          clearTimeout(firstTokenTimer);
         }
-      } else {
-        // Fallback to Gemini if Groq was unavailable
-        if (ACTIVE_GEMINI_KEY) {
-          await streamGeminiChat(messages, systemPrompt, fast, res);
-        } else {
-          const fallbackMsg = "I'm experiencing high neural traffic. Please tap 'Regenerate' or try again in a moment.";
-          fullAssistantResponse = fallbackMsg;
-          res.write(`data: ${JSON.stringify({ token: fallbackMsg })}\n\n`);
-        }
+      }
+
+      // Fallback to Gemini if Groq failed or stalled without emitting tokens
+      if (!isAiSuccess && ACTIVE_GEMINI_KEY && !isClosed && !clientAbortController.signal.aborted) {
+        const geminiSuccess = await streamGeminiChat(
+          messages,
+          systemPrompt,
+          fast,
+          res,
+          clientAbortController.signal
+        );
+        if (geminiSuccess) isAiSuccess = true;
+      }
+      
+      if (!isAiSuccess && !isClosed) {
+        const fallbackMsg = "I'm experiencing high neural traffic. Please tap 'Regenerate' or try again in a moment.";
+        res.write(`data: ${JSON.stringify({ error: fallbackMsg })}\n\n`);
       }
     }
 
-    // 3. Save assistant message to MongoDB if chat is tracked
+    // 3. Save assistant message to MongoDB ONLY if real generation succeeded
     await dbPromise.catch(() => {});
-    if (targetChat && fullAssistantResponse) {
+    if (targetChat && isAiSuccess && fullAssistantResponse.trim()) {
       try {
         const now = new Date();
         await Promise.all([

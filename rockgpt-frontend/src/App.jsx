@@ -115,9 +115,21 @@ export default function App() {
     };
   }, []);
 
-  // 3. Ping server health to wake up Render free tier on mount
+  // 3. Ping server health to wake up Render free tier on mount and keep warm
   useEffect(() => {
     pingServerHealth();
+    const interval = setInterval(pingServerHealth, 4 * 60 * 1000); // 4-minute heartbeat keepalive
+    const onFocus = () => pingServerHealth();
+    window.addEventListener("focus", onFocus);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") pingServerHealth();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   // 4. Load chats on mount and when user/token changes
@@ -352,7 +364,8 @@ export default function App() {
     const tick = () => {
       const target = targetTextRef.current;
       if (shownLength < target.length) {
-        shownLength += Math.max(1, Math.ceil((target.length - shownLength) / 20));
+        shownLength += Math.max(3, Math.ceil((target.length - shownLength) / 4));
+        if (shownLength > target.length) shownLength = target.length;
         setCurrentStreamingText(target.slice(0, shownLength));
       }
       animFrameRef.current = requestAnimationFrame(tick);

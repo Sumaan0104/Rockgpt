@@ -1,6 +1,15 @@
 import rateLimit from "express-rate-limit";
 import Usage from "../models/Usage.js";
 
+// Global DDoS / burst limiter across all API routes (200 requests per 1 minute window)
+export const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: { error: "Too many requests from this IP. Please slow down." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Per-minute IP limiter for auth endpoints
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
