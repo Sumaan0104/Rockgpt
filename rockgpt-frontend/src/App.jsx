@@ -80,6 +80,8 @@ export default function App() {
   // 1. Sync theme to document & meta tags
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+    document.body.style.backgroundColor = "";
     try {
       localStorage.setItem("rockgpt_theme", theme);
     } catch {

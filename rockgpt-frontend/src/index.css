@@ -69,6 +69,8 @@ button {
   right: 0;
   height: var(--vh, 100dvh);
   display: flex;
+  background: var(--bg);
+  color: var(--text);
   overflow: hidden;
 }
 
@@ -368,6 +370,8 @@ button {
   display: flex;
   flex-direction: column;
   position: relative;
+  background: var(--bg);
+  color: var(--text);
 }
 
 header {
@@ -531,6 +535,8 @@ header h1 {
   padding: 6px 16px 20px;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  background: var(--bg);
+  color: var(--text);
 }
 
 #list {
@@ -989,15 +995,21 @@ header h1 {
   border: 1px solid var(--line);
   padding: 8px 12px;
   text-align: left;
+  color: var(--text);
 }
 
 .rock-table th {
   background: var(--hi);
   font-weight: 600;
+  color: var(--text);
 }
 
 .rock-table tr:nth-child(even) {
   background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.rock-table tr:nth-child(odd) {
+  background: var(--bg);
 }
 
 .markdown-link {
