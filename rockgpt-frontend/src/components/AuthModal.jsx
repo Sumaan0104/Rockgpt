@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Logo from "./Logo.jsx";
 import { GoogleLogin } from "@react-oauth/google";
 import { isGoogleConfigured } from "../config/googleAuth.js";
@@ -38,14 +38,16 @@ export default function AuthModal({
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setMode(initialMode);
       setErrorMessage("");
       setSuccessMessage("");
       setOtpCode("");
     }
-  }, [isOpen, initialMode]);
+  }
 
   useEffect(() => {
     const handleKeyDown = (e) => {

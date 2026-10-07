@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Intro from "./components/Intro.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
@@ -15,10 +15,8 @@ import {
   apiForgotPassword,
   apiResetPassword,
   apiGoogleAuth,
-  apiGetMe,
   apiGetChats,
   apiGetChatById,
-  apiCreateChat,
   apiDeleteChat,
 } from "./services/api.js";
 
@@ -84,7 +82,9 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     try {
       localStorage.setItem("rockgpt_theme", theme);
-    } catch {}
+    } catch {
+      /* storage disabled or quota exceeded */
+    }
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
@@ -147,7 +147,9 @@ export default function App() {
     if (!token && chats.length > 0) {
       try {
         localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(chats.slice(0, 40)));
-      } catch {}
+      } catch {
+        /* storage quota exceeded */
+      }
     }
   }, [chats, token]);
 
@@ -264,12 +266,16 @@ export default function App() {
     if (token) {
       try {
         await apiDeleteChat(chatId);
-      } catch {}
+      } catch {
+        /* ignore delete sync error */
+      }
     } else {
       try {
         const updated = chats.filter((c) => (c.id || c._id) !== chatId);
         localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(updated));
-      } catch {}
+      } catch {
+        /* storage unavailable */
+      }
     }
   };
 

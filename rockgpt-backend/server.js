@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "crypto";
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
@@ -136,8 +137,24 @@ app.post("/api/payment/create-order", authMiddleware, async (req, res) => {
 app.post("/api/payment/verify-payment", authMiddleware, async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: "Authentication required." });
-    const { planId, billingCycle } = req.body;
+    const { planId, billingCycle, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     const planKey = (planId || "plus").toLowerCase();
+
+    const keySecret = process.env.RAZORPAY_KEY_SECRET ? process.env.RAZORPAY_KEY_SECRET.trim() : "";
+    if (keySecret) {
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return res.status(400).json({
+          error: "Payment verification parameters missing (order_id, payment_id, and signature required).",
+        });
+      }
+      const generatedSignature = crypto
+        .createHmac("sha256", keySecret)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest("hex");
+      if (generatedSignature !== razorpay_signature) {
+        return res.status(400).json({ error: "Invalid payment signature verification failed." });
+      }
+    }
 
     const expiryDays = billingCycle === "yearly" ? 365 : 30;
     const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);

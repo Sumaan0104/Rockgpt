@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import Logo from "./Logo.jsx";
 
 const MoonIcon = ({ size = 15 }) => (
@@ -54,7 +54,9 @@ export default function Sidebar({
         document.getElementById("app")?.classList.remove("drag");
         try {
           rs.releasePointerCapture(e.pointerId);
-        } catch {}
+        } catch {
+          /* pointer already released */
+        }
       }
     };
 

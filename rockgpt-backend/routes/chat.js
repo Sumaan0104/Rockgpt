@@ -192,7 +192,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
     },
   };
 
-  const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+  const modelsToTry = ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-2.5-flash"];
   let response = null;
 
   for (const modelName of modelsToTry) {
@@ -206,6 +206,7 @@ async function streamGeminiChat(messages, systemPrompt, fast, res) {
             "x-goog-api-key": ACTIVE_GEMINI_KEY,
           },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(5000),
         }
       );
       if (resp.ok) {
@@ -272,9 +273,10 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
 
     const lastMessage = messages[messages.length - 1];
 
-    // Find existing chat or automatically create one for authenticated user
+    // Find existing chat or automatically create one concurrently alongside AI streaming
     let targetChat = null;
-    if (req.user) {
+    const dbPromise = (async () => {
+      if (!req.user) return null;
       try {
         if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
           const objId = new mongoose.Types.ObjectId(chatId);
@@ -291,8 +293,8 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
             createdAt: new Date(),
             updatedAt: new Date(),
           });
-          // Mirror to Conversation
-          await Conversation.create({
+          // Mirror to Conversation in background
+          Conversation.create({
             _id: targetChat._id,
             userId: req.user._id,
             title: titleText || "New Chat",
@@ -303,32 +305,35 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
           }).catch(() => {});
         }
 
-        if (targetChat && lastMessage && lastMessage.role === "user") {
-          await Message.create({
-            chatId: targetChat._id,
-            conversationId: targetChat._id,
-            userId: req.user._id,
-            role: "user",
-            content: typeof lastMessage.content === "string" ? lastMessage.content : "",
-            attachments: (lastMessage.attachments || []).map((a) => ({
-              name: a.name || "",
-              type: a.type || "",
-              url: a.url || "",
-            })),
-          });
-          const now = new Date();
-          targetChat.updatedAt = now;
-          await targetChat.save();
-          await Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {});
-        }
-
-        if (targetChat) {
+        if (targetChat && !isClosed) {
           res.write(`data: ${JSON.stringify({ chatId: targetChat._id.toString() })}\n\n`);
         }
+
+        if (targetChat && lastMessage && lastMessage.role === "user") {
+          const now = new Date();
+          await Promise.all([
+            Message.create({
+              chatId: targetChat._id,
+              conversationId: targetChat._id,
+              userId: req.user._id,
+              role: "user",
+              content: typeof lastMessage.content === "string" ? lastMessage.content : "",
+              attachments: (lastMessage.attachments || []).map((a) => ({
+                name: a.name || "",
+                type: a.type || "",
+                url: a.url || "",
+              })),
+            }),
+            Chat.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
+            Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
+          ]);
+        }
+        return targetChat;
       } catch (dbErr) {
         console.warn("DB user message save warning:", dbErr.message);
+        return targetChat;
       }
-    }
+    })();
 
     const systemPrompt = buildSystemPrompt(fast);
     let fullAssistantResponse = "";
@@ -416,19 +421,21 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     }
 
     // 3. Save assistant message to MongoDB if chat is tracked
+    await dbPromise.catch(() => {});
     if (targetChat && fullAssistantResponse) {
       try {
-        await Message.create({
-          chatId: targetChat._id,
-          conversationId: targetChat._id,
-          userId: req.user ? req.user._id : undefined,
-          role: "assistant",
-          content: fullAssistantResponse,
-        });
         const now = new Date();
-        targetChat.updatedAt = now;
-        await targetChat.save();
-        await Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {});
+        await Promise.all([
+          Message.create({
+            chatId: targetChat._id,
+            conversationId: targetChat._id,
+            userId: req.user ? req.user._id : undefined,
+            role: "assistant",
+            content: fullAssistantResponse,
+          }),
+          Chat.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
+          Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
+        ]);
       } catch (err) {
         console.warn("Failed to persist assistant reply:", err.message);
       }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Logo from "./Logo.jsx";
 
 export default function WelcomeModal({
@@ -9,10 +9,16 @@ export default function WelcomeModal({
 }) {
   const [closing, setClosing] = useState(false);
 
+  const handleDismiss = useCallback(() => {
+    setClosing(true);
+    setTimeout(() => {
+      if (onClose) onClose();
+      setClosing(false);
+    }, 350);
+  }, [onClose]);
+
   useEffect(() => {
     if (!isOpen) return;
-
-    setClosing(false);
 
     // Auto-dismiss after 3.4 seconds
     const timer = setTimeout(() => {
@@ -28,17 +34,9 @@ export default function WelcomeModal({
       clearTimeout(timer);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, handleDismiss]);
 
   if (!isOpen) return null;
-
-  const handleDismiss = () => {
-    setClosing(true);
-    setTimeout(() => {
-      if (onClose) onClose();
-      setClosing(false);
-    }, 350);
-  };
 
   const displayName = user?.name
     ? user.name.split(" ")[0]

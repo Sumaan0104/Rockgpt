@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 export function NewChatButton({ onClick, disabled = false, className = "" }) {
   const [popped, setPopped] = useState(false);

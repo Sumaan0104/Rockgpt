@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB limit
 
@@ -227,6 +227,7 @@ export default function Composer({
             id="input"
             rows="1"
             placeholder="Ask RockGPT…"
+            aria-label="Message prompt"
             enterKeyHint="send"
             value={text}
             onChange={handleInputChange}

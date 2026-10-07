@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { Buffer } from "node:buffer";
 import sharp from "sharp";
 import pngToIco from "png-to-ico";
 

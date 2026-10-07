@@ -26,7 +26,9 @@ const getAuthHeaders = (token) => {
 export async function pingServerHealth() {
   try {
     await fetch(`${BASE_URL}/api/version`, { method: "GET" });
-  } catch {}
+  } catch {
+    /* ignore background ping failure */
+  }
 }
 
 /**
@@ -96,7 +98,9 @@ export async function askRock(messages, onChunk, options = {}) {
         if (parsed.chatId && options.onChatIdAssigned) {
           try {
             options.onChatIdAssigned(parsed.chatId);
-          } catch {}
+          } catch {
+            /* ignore callback error */
+          }
         }
         if (parsed.token) {
           accumulated += parsed.token;
@@ -104,7 +108,7 @@ export async function askRock(messages, onChunk, options = {}) {
         } else if (parsed.error) {
           throw new Error(parsed.error);
         }
-      } catch (parseErr) {
+      } catch {
         // Fallback for raw text token stream
         if (!dataStr.startsWith("{")) {
           accumulated += dataStr;

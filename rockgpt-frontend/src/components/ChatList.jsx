@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import Logo from "./Logo.jsx";
 import AiRow from "./AiRow.jsx";
 
