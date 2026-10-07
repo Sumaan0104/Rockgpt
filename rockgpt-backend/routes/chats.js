@@ -135,7 +135,7 @@ router.post("/", requireAuth, async (req, res) => {
   try {
     const userId = req.user._id;
     const { title } = req.body;
-    const safeTitle = (title || "New Chat").slice(0, 80);
+    const safeTitle = typeof title === "string" && title.trim() ? title.trim().slice(0, 80) : "New Chat";
     const now = new Date();
 
     const chat = await Chat.create({
@@ -177,8 +177,8 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const chatId = req.params.id;
     const { title } = req.body;
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({ error: "Title is required." });
+    if (!title || typeof title !== "string" || !title.trim()) {
+      return res.status(400).json({ error: "Title is required and must be a string." });
     }
 
     if (!mongoose.Types.ObjectId.isValid(chatId)) {
