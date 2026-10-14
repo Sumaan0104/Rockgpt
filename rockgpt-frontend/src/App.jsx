@@ -52,8 +52,21 @@ export default function App() {
     }
   });
 
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [authModalMode, setAuthModalMode] = useState("in");
+  const [isAuthMandatory, setIsAuthMandatory] = useState(() => {
+    try {
+      return sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [welcomeUser, setWelcomeUser] = useState(null);
   const [isWelcomeNewUser, setIsWelcomeNewUser] = useState(false);
 
@@ -76,6 +89,10 @@ export default function App() {
   const targetTextRef = useRef("");
   const animFrameRef = useRef(null);
   const deletedChatBackupRef = useRef(null);
+  const currentChatRef = useRef(currentChat);
+  useEffect(() => {
+    currentChatRef.current = currentChat;
+  }, [currentChat]);
 
   // 1. Sync theme to document & meta tags
   useEffect(() => {
@@ -134,15 +151,104 @@ export default function App() {
     };
   }, []);
 
-  // 4. Load chats on mount and when user/token changes
+  // 4. Initial visit authentication popup for unauthenticated guests
+  useEffect(() => {
+    if (user || token) return;
+
+    try {
+      const isMandatoryStored = sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
+      if (isMandatoryStored) return;
+
+      const prompted = sessionStorage.getItem("rockgpt_guest_prompted");
+      if (!prompted) {
+        // Smooth entrance after intro splash (~3200ms)
+        const timer = setTimeout(() => {
+          if (!user && !token) {
+            try {
+              sessionStorage.setItem("rockgpt_guest_prompted", "true");
+            } catch (err) {
+              void err;
+            }
+            setAuthModalMode("in");
+            setIsAuthMandatory(false);
+            setAuthModalOpen(true);
+          }
+        }, 3200);
+        return () => clearTimeout(timer);
+      }
+    } catch (err) {
+      void err;
+    }
+  }, [user, token]);
+
+  // 5. Timed re-trigger: 3.5 minutes (210s) after guest session, prompt mandatory sign in / sign up
+  useEffect(() => {
+    if (user || token) return;
+
+    try {
+      const isMandatoryStored = sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
+      if (isMandatoryStored) return;
+
+      let timerStart = Number(sessionStorage.getItem("rockgpt_guest_timer_start"));
+      if (!timerStart) {
+        timerStart = Date.now();
+        sessionStorage.setItem("rockgpt_guest_timer_start", String(timerStart));
+      }
+
+      const TIMEOUT_MS = 3.5 * 60 * 1000; // 3.5 minutes (210 seconds)
+      const elapsed = Date.now() - timerStart;
+      const remaining = Math.max(0, TIMEOUT_MS - elapsed);
+
+      const triggerLock = () => {
+        if (!user && !token) {
+          try {
+            sessionStorage.setItem("rockgpt_guest_mandatory", "true");
+          } catch (err) {
+            void err;
+          }
+          setIsAuthMandatory(true);
+          setAuthModalMode("in");
+          setAuthModalOpen(true);
+        }
+      };
+
+      const mandatoryTimer = setTimeout(() => {
+        if (isWaiting || isStreaming) {
+          // If response is streaming, let it finish gracefully before showing modal
+          const waitInterval = setInterval(() => {
+            if (!isWaiting && !isStreaming) {
+              clearInterval(waitInterval);
+              triggerLock();
+            }
+          }, 800);
+        } else {
+          triggerLock();
+        }
+      }, remaining);
+
+      return () => clearTimeout(mandatoryTimer);
+    } catch (err) {
+      void err;
+    }
+  }, [user, token, isWaiting, isStreaming]);
+
+  // 6. Load chats on mount and when user/token changes (preserving active guest conversation)
   useEffect(() => {
     async function loadUserChats() {
       if (token) {
         try {
           const remoteChats = await apiGetChats();
-          setChats(remoteChats || []);
+          const active = currentChatRef.current;
+          if (active && Array.isArray(active.messages) && active.messages.length > 0) {
+            const currentId = String(active.id || active._id);
+            const exists = (remoteChats || []).some((c) => String(c.id || c._id) === currentId);
+            setChats(exists ? (remoteChats || []) : [active, ...(remoteChats || [])]);
+          } else {
+            setChats(remoteChats || []);
+          }
         } catch {
-          setChats([]);
+          const active = currentChatRef.current;
+          setChats(active ? [active] : []);
         }
       } else {
         try {
@@ -327,6 +433,14 @@ export default function App() {
   const handleSendMessage = async (text, fileList = []) => {
     if ((!text && !fileList.length) || isWaiting || isStreaming) return;
 
+    // Guard: if guest session has expired, require sign in / sign up
+    if (isAuthMandatory || (!user && !token && sessionStorage.getItem("rockgpt_guest_mandatory") === "true")) {
+      setIsAuthMandatory(true);
+      setAuthModalMode("in");
+      setAuthModalOpen(true);
+      return;
+    }
+
     // 1. Instantly trigger optimistic AI waiting animation and show user message (0ms latency)
     setIsWaiting(true);
     setIsStreaming(false);
@@ -492,10 +606,34 @@ export default function App() {
   };
 
   // ═══ AUTH MODAL ACTIONS ═══
-  const handleOpenAuth = (mode = "in") => {
+  const clearGuestSessionLock = () => {
+    setIsAuthMandatory(false);
+    try {
+      sessionStorage.removeItem("rockgpt_guest_mandatory");
+      sessionStorage.removeItem("rockgpt_guest_timer_start");
+      sessionStorage.removeItem("rockgpt_guest_prompted");
+    } catch {
+      /* storage disabled */
+    }
+  };
+
+  const handleOpenAuth = (mode = "in", mandatory = false) => {
     setAuthModalMode(mode);
+    setIsAuthMandatory(mandatory);
     setAuthModalOpen(true);
     setMobileDrawerOpen(false);
+  };
+
+  const handleStayLoggedOut = () => {
+    try {
+      sessionStorage.setItem("rockgpt_guest_prompted", "true");
+      if (!sessionStorage.getItem("rockgpt_guest_timer_start")) {
+        sessionStorage.setItem("rockgpt_guest_timer_start", String(Date.now()));
+      }
+    } catch {
+      /* storage disabled */
+    }
+    setAuthModalOpen(false);
   };
 
   const handleSignIn = async (email, password, remember = true) => {
@@ -503,6 +641,7 @@ export default function App() {
     const storage = remember ? localStorage : sessionStorage;
     storage.setItem(USER_KEY, JSON.stringify(res.user));
     storage.setItem(TOKEN_KEY, res.token);
+    clearGuestSessionLock();
     setUser(res.user);
     setToken(res.token);
     setAuthModalOpen(false);
@@ -518,6 +657,7 @@ export default function App() {
     const res = await apiVerifyOtp(email, code);
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     localStorage.setItem(TOKEN_KEY, res.token);
+    clearGuestSessionLock();
     setUser(res.user);
     setToken(res.token);
     setAuthModalOpen(false);
@@ -533,6 +673,7 @@ export default function App() {
     const res = await apiResetPassword(email, code, newPassword);
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     localStorage.setItem(TOKEN_KEY, res.token);
+    clearGuestSessionLock();
     setUser(res.user);
     setToken(res.token);
     setAuthModalOpen(false);
@@ -550,6 +691,7 @@ export default function App() {
     const res = await apiGoogleAuth(token);
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     localStorage.setItem(TOKEN_KEY, res.token);
+    clearGuestSessionLock();
     setUser(res.user);
     setToken(res.token);
     setAuthModalOpen(false);
@@ -564,6 +706,7 @@ export default function App() {
     localStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
+    clearGuestSessionLock();
     setCurrentChat(null);
     setChats([]);
   };
@@ -635,7 +778,11 @@ export default function App() {
           <AuthModal
             isOpen={authModalOpen}
             initialMode={authModalMode}
-            onClose={() => setAuthModalOpen(false)}
+            isMandatory={isAuthMandatory}
+            onClose={() => {
+              if (!isAuthMandatory) setAuthModalOpen(false);
+            }}
+            onStayLoggedOut={handleStayLoggedOut}
             onSignIn={handleSignIn}
             onSignUp={handleSignUp}
             onVerifyOtp={handleVerifyOtp}

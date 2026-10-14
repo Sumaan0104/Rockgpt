@@ -1438,6 +1438,67 @@ textarea::placeholder {
   font-size: 22px;
 }
 
+/* Mandatory Auth Banner */
+.auth-mandatory-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  animation: fadeInDown .3s ease;
+}
+
+.auth-mandatory-banner .amb-icon {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.auth-mandatory-banner .amb-text strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.auth-mandatory-banner .amb-text p {
+  font-size: 12px;
+  color: var(--muted, #a1a1aa);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Stay Logged Out Button */
+.stay-logged-out-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--sub);
+  padding: 8px 20px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stay-logged-out-btn:hover {
+  background: var(--hi);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.stay-logged-out-btn:active {
+  transform: translateY(0);
+}
+
 .tabs {
   position: relative;
   display: grid;

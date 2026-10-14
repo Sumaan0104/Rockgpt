@@ -15,7 +15,9 @@ const GoogleIcon = () => (
 export default function AuthModal({
   isOpen,
   initialMode = "in",
+  isMandatory = false,
   onClose,
+  onStayLoggedOut,
   onSignIn,
   onSignUp,
   onVerifyOtp,
@@ -51,11 +53,11 @@ export default function AuthModal({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isOpen) onClose();
+      if (e.key === "Escape" && isOpen && !isMandatory) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isMandatory, onClose]);
 
   if (!isOpen) return null;
 
@@ -157,26 +159,39 @@ export default function AuthModal({
       id="modal"
       className="on"
       onClick={(e) => {
-        if (e.target.id === "modal") onClose();
+        if (!isMandatory && e.target.id === "modal") onClose();
       }}
       role="dialog"
       aria-modal="true"
     >
       <div className="card">
+        {/* Mandatory Session Alert Banner */}
+        {isMandatory && (
+          <div className="auth-mandatory-banner">
+            <span className="amb-icon">🔒</span>
+            <div className="amb-text">
+              <strong>Sign in to continue your conversation</strong>
+              <p>Your guest session has expired. Sign in or create a free account to continue chatting without losing your conversation.</p>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mh">
           <span className="lg">
             <Logo size={19} />
           </span>
           ROCKGPT SECURITY AUTH
-          <button
-            className="ib"
-            onClick={onClose}
-            type="button"
-            aria-label="Close modal"
-          >
-            ×
-          </button>
+          {!isMandatory && (
+            <button
+              className="ib"
+              onClick={onClose}
+              type="button"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {/* Tab switcher */}
@@ -328,11 +343,17 @@ export default function AuthModal({
                 </button>
               </div>
 
-              <div className="sw">
-                <button type="button" className="lk quiet" onClick={onClose}>
-                  Continue as guest
-                </button>
-              </div>
+              {!isMandatory && (
+                <div className="sw" style={{ marginTop: "14px" }}>
+                  <button
+                    type="button"
+                    className="stay-logged-out-btn"
+                    onClick={onStayLoggedOut || onClose}
+                  >
+                    Stay logged out
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -480,6 +501,18 @@ export default function AuthModal({
                   Sign In
                 </button>
               </div>
+
+              {!isMandatory && (
+                <div className="sw" style={{ marginTop: "14px" }}>
+                  <button
+                    type="button"
+                    className="stay-logged-out-btn"
+                    onClick={onStayLoggedOut || onClose}
+                  >
+                    Stay logged out
+                  </button>
+                </div>
+              )}
             </>
           )}
 
