@@ -40,6 +40,7 @@ export default function AuthModal({
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (isOpen !== prevIsOpen) {
@@ -49,6 +50,7 @@ export default function AuthModal({
       setErrorMessage("");
       setSuccessMessage("");
       setOtpCode("");
+      setResendCountdown(0);
     }
   }
 
@@ -59,6 +61,14 @@ export default function AuthModal({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, isMandatory, onClose]);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCountdown]);
 
   if (!isOpen) return null;
 
@@ -86,6 +96,7 @@ export default function AuthModal({
 
         setIsSubmitting(true);
         const res = await onSignUp(name.trim(), email, password);
+        setResendCountdown(59);
         if (res?.emailSent) {
           setMode("code");
           setSuccessMessage(`Account created! 6-digit verification code sent to ${email}. You have 5 attempts.`);
@@ -109,6 +120,7 @@ export default function AuthModal({
 
         setIsSubmitting(true);
         const res = await onForgotPassword(email);
+        setResendCountdown(59);
         setMode("reset");
         if (res?.backupCode) {
           setOtpCode(res.backupCode);
@@ -139,10 +151,12 @@ export default function AuthModal({
   };
 
   const handleResendOtp = async () => {
+    if (resendCountdown > 0 || isSubmitting) return;
     try {
       setIsSubmitting(true);
       setErrorMessage("");
       const res = await apiResendOtp(email, mode === "code" ? "signup" : "reset");
+      setResendCountdown(59);
       if (res?.backupCode) {
         setOtpCode(res.backupCode);
         setSuccessMessage(`New security code generated: ${res.backupCode}`);
@@ -587,8 +601,14 @@ export default function AuthModal({
               </button>
 
               <div className="sw" style={{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}>
-                <button type="button" className="lk" onClick={handleResendOtp} disabled={isSubmitting}>
-                  Resend code
+                <button
+                  type="button"
+                  className="lk"
+                  onClick={handleResendOtp}
+                  disabled={isSubmitting || resendCountdown > 0}
+                  style={resendCountdown > 0 ? { opacity: 0.6, cursor: "not-allowed" } : {}}
+                >
+                  {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : "Resend code"}
                 </button>
                 <button
                   type="button"
@@ -759,8 +779,14 @@ export default function AuthModal({
               </button>
 
               <div className="sw" style={{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}>
-                <button type="button" className="lk" onClick={handleResendOtp} disabled={isSubmitting}>
-                  Resend reset code
+                <button
+                  type="button"
+                  className="lk"
+                  onClick={handleResendOtp}
+                  disabled={isSubmitting || resendCountdown > 0}
+                  style={resendCountdown > 0 ? { opacity: 0.6, cursor: "not-allowed" } : {}}
+                >
+                  {resendCountdown > 0 ? `Resend in ${resendCountdown}s` : "Resend reset code"}
                 </button>
                 <button
                   type="button"
