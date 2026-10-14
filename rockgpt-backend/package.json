@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/test_google_oauth.mjs"
+    "test": "node tests/test_google_oauth.mjs",
+    "test:auth": "node tests/test_auth_otp.mjs",
+    "test:all": "node tests/test_auth_otp.mjs && node tests/test_google_oauth.mjs"
   },
   "keywords": [],
   "author": "",

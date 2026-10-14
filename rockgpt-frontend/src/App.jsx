@@ -650,7 +650,17 @@ export default function App() {
   };
 
   const handleSignUp = async (name, email, password) => {
-    await apiSignUp(name, email, password);
+    const res = await apiSignUp(name, email, password);
+    if (res?.user && res?.token) {
+      localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+      localStorage.setItem(TOKEN_KEY, res.token);
+      clearGuestSessionLock();
+      setUser(res.user);
+      setToken(res.token);
+      setIsWelcomeNewUser(true);
+      setWelcomeUser(res.user);
+    }
+    return res;
   };
 
   const handleVerifyOtp = async (email, code) => {

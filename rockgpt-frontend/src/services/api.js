@@ -157,6 +157,17 @@ export async function apiVerifyOtp(emailOrName, codeOrEmail, password, code) {
   return data;
 }
 
+export async function apiResendOtp(email, type = "signup") {
+  const res = await fetch(`${API_BASE}/auth/resend-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, type }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to resend code.");
+  return data;
+}
+
 export async function apiForgotPassword(email) {
   const res = await fetch(`${API_BASE}/auth/forgot`, {
     method: "POST",

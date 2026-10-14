@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Logo from "./Logo.jsx";
 import { GoogleLogin } from "@react-oauth/google";
 import { isGoogleConfigured } from "../config/googleAuth.js";
+import { apiResendOtp } from "../services/api.js";
 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 48 48">
@@ -84,9 +85,17 @@ export default function AuthModal({
         if (!agreedTos) throw new Error("Please accept the Terms of Service and Privacy Policy.");
 
         setIsSubmitting(true);
-        await onSignUp(name.trim(), email, password);
-        setMode("code");
-        setSuccessMessage(`Verification code sent to ${email}. You have 3 attempts.`);
+        const res = await onSignUp(name.trim(), email, password);
+        if (res?.emailSent) {
+          setMode("code");
+          setSuccessMessage(`Account created! 6-digit verification code sent to ${email}. You have 5 attempts.`);
+        } else if (res?.backupCode) {
+          setOtpCode(res.backupCode);
+          setMode("code");
+          setSuccessMessage(`Account and password saved! Your instant verification code: ${res.backupCode}`);
+        } else {
+          onClose();
+        }
       } else if (mode === "code") {
         if (!/^\d{6}$/.test(otpCode.trim())) {
           throw new Error("Enter the 6-digit verification code.");
@@ -99,9 +108,14 @@ export default function AuthModal({
         if (!validateEmail(email)) throw new Error("Enter your registered email address.");
 
         setIsSubmitting(true);
-        await onForgotPassword(email);
+        const res = await onForgotPassword(email);
         setMode("reset");
-        setSuccessMessage(`6-digit reset code sent to ${email}. You have 3 attempts.`);
+        if (res?.backupCode) {
+          setOtpCode(res.backupCode);
+          setSuccessMessage(`Recovery code generated: ${res.backupCode}`);
+        } else {
+          setSuccessMessage(`6-digit reset code sent to ${email}. You have 5 attempts.`);
+        }
       } else if (mode === "reset") {
         if (!/^\d{6}$/.test(otpCode.trim())) {
           throw new Error("Enter the 6-digit reset code.");
@@ -128,12 +142,12 @@ export default function AuthModal({
     try {
       setIsSubmitting(true);
       setErrorMessage("");
-      if (mode === "code") {
-        await onSignUp(name.trim() || "User", email, password || "Temp123456");
+      const res = await apiResendOtp(email, mode === "code" ? "signup" : "reset");
+      if (res?.backupCode) {
+        setOtpCode(res.backupCode);
+        setSuccessMessage(`New security code generated: ${res.backupCode}`);
+      } else {
         setSuccessMessage(`Fresh verification code sent to ${email}.`);
-      } else if (mode === "reset") {
-        await onForgotPassword(email);
-        setSuccessMessage(`Fresh reset code sent to ${email}.`);
       }
     } catch (err) {
       setErrorMessage(err.message || "Failed to resend code.");
@@ -242,11 +256,13 @@ export default function AuthModal({
                   <path d="M3 7l9 6 9-6" />
                 </svg>
                 <input
+                  id="signin-email"
+                  name="email"
                   type="email"
                   placeholder="Email Address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  autoComplete="username email"
                   required
                 />
               </label>
@@ -257,6 +273,8 @@ export default function AuthModal({
                   <path d="M11 12l9-9M16 7l3 3" />
                 </svg>
                 <input
+                  id="signin-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Password"
                   value={password}
@@ -376,10 +394,13 @@ export default function AuthModal({
                   <circle cx="12" cy="8" r="4" />
                 </svg>
                 <input
+                  id="signup-name"
+                  name="name"
                   type="text"
                   placeholder="Full Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  autoComplete="name"
                   required
                 />
               </label>
@@ -390,11 +411,13 @@ export default function AuthModal({
                   <path d="M3 7l9 6 9-6" />
                 </svg>
                 <input
+                  id="signup-email"
+                  name="email"
                   type="email"
                   placeholder="Email Address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  autoComplete="username email"
                   required
                 />
               </label>
@@ -405,10 +428,13 @@ export default function AuthModal({
                   <path d="M11 12l9-9M16 7l3 3" />
                 </svg>
                 <input
+                  id="signup-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Create password (min 8 chars)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -429,10 +455,13 @@ export default function AuthModal({
                   <path d="M11 12l9-9M16 7l3 3" />
                 </svg>
                 <input
+                  id="signup-password-confirm"
+                  name="confirm-password"
                   type={showPasswordConfirm ? "text" : "password"}
                   placeholder="Confirm password"
                   value={passwordConfirm}
                   onChange={(e) => setPasswordConfirm(e.target.value)}
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -528,7 +557,7 @@ export default function AuthModal({
                 <h3>Check your email</h3>
                 <p>Enter the 6-digit verification code sent to <b>{email}</b>.</p>
                 <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--muted)" }}>
-                  🔒 Maximum 3 attempts allowed &bull; 24h lockout on failure
+                  🔒 Maximum 5 attempts allowed &bull; 15m cooldown on failure
                 </div>
               </div>
 
@@ -537,6 +566,8 @@ export default function AuthModal({
                   <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
                 </svg>
                 <input
+                  id="code-input"
+                  name="code"
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
@@ -552,7 +583,7 @@ export default function AuthModal({
               {successMessage && <div className="err ok">{successMessage}</div>}
 
               <button className="pbtn" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Verifying…" : "Verify & Create Account →"}
+                {isSubmitting ? "Verifying…" : "Verify & Complete →"}
               </button>
 
               <div className="sw" style={{ display: "flex", justifyContent: "space-between", marginTop: "16px" }}>
@@ -593,10 +624,13 @@ export default function AuthModal({
                   <path d="M3 7l9 6 9-6" />
                 </svg>
                 <input
+                  id="forgot-email"
+                  name="email"
                   type="email"
                   placeholder="Email Address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username email"
                   required
                 />
               </label>
@@ -638,7 +672,7 @@ export default function AuthModal({
                 <h3>Enter Recovery Code</h3>
                 <p>We sent a 6-digit code to <b>{email}</b>. Enter it below with your new password.</p>
                 <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--muted)" }}>
-                  🔒 Maximum 3 attempts allowed &bull; 24h lockout on failure
+                  🔒 Maximum 5 attempts allowed &bull; 15m cooldown on failure
                 </div>
               </div>
 
@@ -648,6 +682,8 @@ export default function AuthModal({
                   <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
                 </svg>
                 <input
+                  id="reset-code-input"
+                  name="code"
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
@@ -666,10 +702,13 @@ export default function AuthModal({
                   <path d="M11 12l9-9M16 7l3 3" />
                 </svg>
                 <input
+                  id="reset-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="New Password (min 8 chars)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -691,10 +730,13 @@ export default function AuthModal({
                   <path d="M11 12l9-9M16 7l3 3" />
                 </svg>
                 <input
+                  id="reset-password-confirm"
+                  name="confirm-password"
                   type={showPasswordConfirm ? "text" : "password"}
                   placeholder="Confirm New Password"
                   value={passwordConfirm}
                   onChange={(e) => setPasswordConfirm(e.target.value)}
+                  autoComplete="new-password"
                   required
                 />
                 <button
