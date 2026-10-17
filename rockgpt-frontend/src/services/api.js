@@ -18,6 +18,13 @@ const getAuthHeaders = (token) => {
 
   if (activeToken) {
     headers["Authorization"] = `Bearer ${activeToken}`;
+  } else {
+    const guestToken =
+      (typeof localStorage !== "undefined" && localStorage.getItem("rockgpt_guest_token")) ||
+      (typeof sessionStorage !== "undefined" && sessionStorage.getItem("rockgpt_guest_token"));
+    if (guestToken) {
+      headers["x-guest-token"] = guestToken;
+    }
   }
   return headers;
 };
@@ -29,6 +36,21 @@ export async function pingServerHealth() {
   } catch {
     /* ignore background ping failure */
   }
+}
+
+/**
+ * Initialize guest session JWT token from backend
+ */
+export async function apiInitGuestSession() {
+  const res = await fetch(`${API_BASE}/auth/guest-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to initialize guest session.");
+  }
+  return res.json();
 }
 
 /**
@@ -68,9 +90,12 @@ export async function askRock(messages, onChunk, options = {}) {
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(
+    const error = new Error(
       errorData.error || `Server responded with status ${res.status}.`
     );
+    error.status = res.status;
+    error.guestExpired = Boolean(errorData.guestExpired || res.status === 403);
+    throw error;
   }
 
   const reader = res.body.getReader();

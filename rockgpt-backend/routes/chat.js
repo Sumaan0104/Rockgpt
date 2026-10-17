@@ -1,6 +1,7 @@
 import express from "express";
 import OpenAI from "openai";
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 import Chat from "../models/Chat.js";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
@@ -8,6 +9,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { chatRateLimiter, dailyUsageLimit } from "../middleware/limit.js";
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
 
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY || "dummy_groq_key",
@@ -271,6 +273,38 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     const { chatId, messages, fast } = req.body;
     if (!messages || !Array.isArray(messages) || !messages.length) {
       return res.status(400).json({ error: "messages array is required." });
+    }
+
+    // Backend enforcement: Guest access authorization & expiration check
+    if (!req.user) {
+      const guestToken =
+        req.headers["x-guest-token"] ||
+        (req.headers.authorization && req.headers.authorization.startsWith("Bearer guest_")
+          ? req.headers.authorization.slice(7)
+          : null) ||
+        req.body?.guestToken;
+
+      if (!guestToken) {
+        return res.status(403).json({
+          error: "Your guest access has ended. Log in or create an account to continue chatting with ROCKGPT.",
+          guestExpired: true,
+        });
+      }
+
+      try {
+        const decoded = jwt.verify(guestToken, JWT_SECRET);
+        if (!decoded || !decoded.isGuest) {
+          return res.status(403).json({
+            error: "Your guest access has ended. Log in or create an account to continue chatting with ROCKGPT.",
+            guestExpired: true,
+          });
+        }
+      } catch {
+        return res.status(403).json({
+          error: "Your guest access has ended. Log in or create an account to continue chatting with ROCKGPT.",
+          guestExpired: true,
+        });
+      }
     }
 
     // Set immediate SSE headers

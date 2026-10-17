@@ -6,9 +6,11 @@ import ChatList from "./components/ChatList.jsx";
 import Composer from "./components/Composer.jsx";
 const AuthModal = React.lazy(() => import("./components/AuthModal.jsx"));
 const WelcomeModal = React.lazy(() => import("./components/WelcomeModal.jsx"));
+const LogoutConfirmModal = React.lazy(() => import("./components/LogoutConfirmModal.jsx"));
 import {
   askRock,
   pingServerHealth,
+  apiInitGuestSession,
   apiSignIn,
   apiSignUp,
   apiVerifyOtp,
@@ -23,6 +25,40 @@ import {
 const GUEST_STORAGE_KEY = "rockgpt_guest_chats";
 const USER_KEY = "rockgpt_user";
 const TOKEN_KEY = "rockgpt_token";
+const GUEST_MANDATORY_KEY = "rockgpt_guest_mandatory";
+const GUEST_TIMER_START_KEY = "rockgpt_guest_start_time";
+const GUEST_TOKEN_KEY = "rockgpt_guest_token";
+const GUEST_PROMPTED_KEY = "rockgpt_guest_prompted";
+
+// Configurable guest access duration: 150 seconds (2 minutes and 30 seconds)
+const GUEST_ACCESS_DURATION_SEC = 150;
+const GUEST_ACCESS_DURATION_MS = GUEST_ACCESS_DURATION_SEC * 1000;
+
+function checkInitialGuestMandatory() {
+  try {
+    const isMandatory =
+      localStorage.getItem(GUEST_MANDATORY_KEY) === "true" ||
+      sessionStorage.getItem(GUEST_MANDATORY_KEY) === "true";
+    if (isMandatory) return true;
+
+    const timerStart = Number(
+      localStorage.getItem(GUEST_TIMER_START_KEY) ||
+      sessionStorage.getItem(GUEST_TIMER_START_KEY)
+    );
+    if (timerStart && (Date.now() - timerStart >= GUEST_ACCESS_DURATION_MS)) {
+      try {
+        localStorage.setItem(GUEST_MANDATORY_KEY, "true");
+        sessionStorage.setItem(GUEST_MANDATORY_KEY, "true");
+      } catch {
+        /* storage error */
+      }
+      return true;
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return false;
+}
 
 export default function App() {
   // Theme State
@@ -54,7 +90,10 @@ export default function App() {
 
   const [authModalOpen, setAuthModalOpen] = useState(() => {
     try {
-      return sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
+      const storedUser = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+      const storedToken = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+      if (storedUser || storedToken) return false;
+      return checkInitialGuestMandatory();
     } catch {
       return false;
     }
@@ -62,13 +101,20 @@ export default function App() {
   const [authModalMode, setAuthModalMode] = useState("in");
   const [isAuthMandatory, setIsAuthMandatory] = useState(() => {
     try {
-      return sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
+      const storedUser = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+      const storedToken = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+      if (storedUser || storedToken) return false;
+      return checkInitialGuestMandatory();
     } catch {
       return false;
     }
   });
   const [welcomeUser, setWelcomeUser] = useState(null);
   const [isWelcomeNewUser, setIsWelcomeNewUser] = useState(false);
+
+  // Logout Confirmation State
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Chat State
   const [chats, setChats] = useState([]);
@@ -156,16 +202,27 @@ export default function App() {
     if (user || token) return;
 
     try {
-      const isMandatoryStored = sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
-      if (isMandatoryStored) return;
+      const isMandatory =
+        localStorage.getItem(GUEST_MANDATORY_KEY) === "true" ||
+        sessionStorage.getItem(GUEST_MANDATORY_KEY) === "true";
+      if (isMandatory) return;
 
-      const prompted = sessionStorage.getItem("rockgpt_guest_prompted");
+      const timerStart = Number(
+        localStorage.getItem(GUEST_TIMER_START_KEY) ||
+        sessionStorage.getItem(GUEST_TIMER_START_KEY)
+      );
+      if (timerStart) return;
+
+      const prompted =
+        localStorage.getItem(GUEST_PROMPTED_KEY) ||
+        sessionStorage.getItem(GUEST_PROMPTED_KEY);
       if (!prompted) {
         // Smooth entrance after intro splash (~3200ms)
         const timer = setTimeout(() => {
           if (!user && !token) {
             try {
-              sessionStorage.setItem("rockgpt_guest_prompted", "true");
+              sessionStorage.setItem(GUEST_PROMPTED_KEY, "true");
+              localStorage.setItem(GUEST_PROMPTED_KEY, "true");
             } catch (err) {
               void err;
             }
@@ -181,28 +238,19 @@ export default function App() {
     }
   }, [user, token]);
 
-  // 5. Timed re-trigger: 3.5 minutes (210s) after guest session, prompt mandatory sign in / sign up
+  // 5. Timed guest access: 150 seconds (2m 30s) countdown starting upon "Stay logged out"
   useEffect(() => {
     if (user || token) return;
 
     try {
-      const isMandatoryStored = sessionStorage.getItem("rockgpt_guest_mandatory") === "true";
-      if (isMandatoryStored) return;
-
-      let timerStart = Number(sessionStorage.getItem("rockgpt_guest_timer_start"));
-      if (!timerStart) {
-        timerStart = Date.now();
-        sessionStorage.setItem("rockgpt_guest_timer_start", String(timerStart));
-      }
-
-      const TIMEOUT_MS = 3.5 * 60 * 1000; // 3.5 minutes (210 seconds)
-      const elapsed = Date.now() - timerStart;
-      const remaining = Math.max(0, TIMEOUT_MS - elapsed);
-
+      const isMandatoryStored =
+        localStorage.getItem(GUEST_MANDATORY_KEY) === "true" ||
+        sessionStorage.getItem(GUEST_MANDATORY_KEY) === "true";
       const triggerLock = () => {
         if (!user && !token) {
           try {
-            sessionStorage.setItem("rockgpt_guest_mandatory", "true");
+            localStorage.setItem(GUEST_MANDATORY_KEY, "true");
+            sessionStorage.setItem(GUEST_MANDATORY_KEY, "true");
           } catch (err) {
             void err;
           }
@@ -211,6 +259,27 @@ export default function App() {
           setAuthModalOpen(true);
         }
       };
+
+      if (isMandatoryStored) {
+        triggerLock();
+        return;
+      }
+
+      const timerStart = Number(
+        localStorage.getItem(GUEST_TIMER_START_KEY) ||
+        sessionStorage.getItem(GUEST_TIMER_START_KEY)
+      );
+
+      // Only run countdown if visitor clicked "Stay logged out"
+      if (!timerStart) return;
+
+      const elapsed = Date.now() - timerStart;
+      if (elapsed >= GUEST_ACCESS_DURATION_MS) {
+        triggerLock();
+        return;
+      }
+
+      const remaining = Math.max(0, GUEST_ACCESS_DURATION_MS - elapsed);
 
       const mandatoryTimer = setTimeout(() => {
         if (isWaiting || isStreaming) {
@@ -232,7 +301,40 @@ export default function App() {
     }
   }, [user, token, isWaiting, isStreaming]);
 
-  // 6. Load chats on mount and when user/token changes (preserving active guest conversation)
+  // 6. Multi-tab synchronization (tabs share localStorage state)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === GUEST_MANDATORY_KEY && e.newValue === "true") {
+        if (!user && !token) {
+          setIsAuthMandatory(true);
+          setAuthModalMode("in");
+          setAuthModalOpen(true);
+        }
+      } else if (e.key === TOKEN_KEY) {
+        if (e.newValue) {
+          setToken(e.newValue);
+          try {
+            const u = localStorage.getItem(USER_KEY);
+            if (u) setUser(JSON.parse(u));
+          } catch {
+            /* storage error */
+          }
+          setIsAuthMandatory(false);
+          setAuthModalOpen(false);
+        } else if (!e.newValue && (user || token)) {
+          setUser(null);
+          setToken(null);
+          setCurrentChat(null);
+          setChats([]);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [user, token]);
+
+  // 7. Load chats on mount and when user/token changes (preserving active guest conversation)
   useEffect(() => {
     async function loadUserChats() {
       if (token) {
@@ -434,11 +536,37 @@ export default function App() {
     if ((!text && !fileList.length) || isWaiting || isStreaming) return;
 
     // Guard: if guest session has expired, require sign in / sign up
-    if (isAuthMandatory || (!user && !token && sessionStorage.getItem("rockgpt_guest_mandatory") === "true")) {
+    const isGuestExpired =
+      isAuthMandatory ||
+      (!user && !token && (
+        localStorage.getItem(GUEST_MANDATORY_KEY) === "true" ||
+        sessionStorage.getItem(GUEST_MANDATORY_KEY) === "true"
+      ));
+
+    if (isGuestExpired) {
       setIsAuthMandatory(true);
       setAuthModalMode("in");
       setAuthModalOpen(true);
       return;
+    }
+
+    if (!user && !token) {
+      const startTime = Number(
+        localStorage.getItem(GUEST_TIMER_START_KEY) ||
+        sessionStorage.getItem(GUEST_TIMER_START_KEY)
+      );
+      if (startTime && (Date.now() - startTime >= GUEST_ACCESS_DURATION_MS)) {
+        try {
+          localStorage.setItem(GUEST_MANDATORY_KEY, "true");
+          sessionStorage.setItem(GUEST_MANDATORY_KEY, "true");
+        } catch {
+          /* storage error */
+        }
+        setIsAuthMandatory(true);
+        setAuthModalMode("in");
+        setAuthModalOpen(true);
+        return;
+      }
     }
 
     // 1. Instantly trigger optimistic AI waiting animation and show user message (0ms latency)
@@ -539,7 +667,18 @@ export default function App() {
         setCurrentStreamingText(targetTextRef.current);
       }
     } catch (err) {
-      if (err.name === "AbortError") {
+      if (err.guestExpired || err.status === 403) {
+        try {
+          localStorage.setItem(GUEST_MANDATORY_KEY, "true");
+          sessionStorage.setItem(GUEST_MANDATORY_KEY, "true");
+        } catch {
+          /* storage error */
+        }
+        setIsAuthMandatory(true);
+        setAuthModalMode("in");
+        setAuthModalOpen(true);
+        targetTextRef.current = "";
+      } else if (err.name === "AbortError") {
         targetTextRef.current = targetTextRef.current || "(Reply cancelled)";
       } else {
         targetTextRef.current =
@@ -553,27 +692,31 @@ export default function App() {
       setIsWaiting(false);
       setIsStreaming(false);
 
-      const finalAssistantMsg = {
-        role: "assistant",
-        content: targetTextRef.current || "(No response)",
-      };
+      if (targetTextRef.current) {
+        const finalAssistantMsg = {
+          role: "assistant",
+          content: targetTextRef.current,
+        };
 
-      const finalMessages = [...updatedMessages, finalAssistantMsg];
-      const completedChat = {
-        ...activeChat,
-        id: activeChat.id || activeChat._id,
-        _id: activeChat._id || activeChat.id,
-        messages: finalMessages,
-      };
-      setCurrentChat(completedChat);
-      setChats((prev) =>
-        prev.map((c) => {
-          const match =
-            (c.id && (c.id === completedChat.id || c.id === completedChat._id)) ||
-            (c._id && (c._id === completedChat.id || c._id === completedChat._id));
-          return match ? completedChat : c;
-        })
-      );
+        const finalMessages = [...updatedMessages, finalAssistantMsg];
+        const completedChat = {
+          ...activeChat,
+          id: activeChat.id || activeChat._id,
+          _id: activeChat._id || activeChat.id,
+          messages: finalMessages,
+        };
+        setCurrentChat(completedChat);
+        setChats((prev) =>
+          prev.map((c) => {
+            const match =
+              (c.id && (c.id === completedChat.id || c.id === completedChat._id)) ||
+              (c._id && (c._id === completedChat.id || c._id === completedChat._id));
+            return match ? completedChat : c;
+          })
+        );
+      } else {
+        setCurrentChat(activeChat);
+      }
       setCurrentStreamingText("");
     }
   };
@@ -609,9 +752,13 @@ export default function App() {
   const clearGuestSessionLock = () => {
     setIsAuthMandatory(false);
     try {
-      sessionStorage.removeItem("rockgpt_guest_mandatory");
-      sessionStorage.removeItem("rockgpt_guest_timer_start");
-      sessionStorage.removeItem("rockgpt_guest_prompted");
+      localStorage.removeItem(GUEST_MANDATORY_KEY);
+      localStorage.removeItem(GUEST_TIMER_START_KEY);
+      localStorage.removeItem(GUEST_TOKEN_KEY);
+      sessionStorage.removeItem(GUEST_MANDATORY_KEY);
+      sessionStorage.removeItem(GUEST_TIMER_START_KEY);
+      sessionStorage.removeItem(GUEST_TOKEN_KEY);
+      sessionStorage.removeItem(GUEST_PROMPTED_KEY);
     } catch {
       /* storage disabled */
     }
@@ -624,11 +771,23 @@ export default function App() {
     setMobileDrawerOpen(false);
   };
 
-  const handleStayLoggedOut = () => {
+  const handleStayLoggedOut = async () => {
     try {
-      sessionStorage.setItem("rockgpt_guest_prompted", "true");
-      if (!sessionStorage.getItem("rockgpt_guest_timer_start")) {
-        sessionStorage.setItem("rockgpt_guest_timer_start", String(Date.now()));
+      sessionStorage.setItem(GUEST_PROMPTED_KEY, "true");
+      localStorage.setItem(GUEST_PROMPTED_KEY, "true");
+      const now = Date.now();
+      localStorage.setItem(GUEST_TIMER_START_KEY, String(now));
+      sessionStorage.setItem(GUEST_TIMER_START_KEY, String(now));
+
+      // Fetch signed guest session token from backend
+      try {
+        const guestData = await apiInitGuestSession();
+        if (guestData?.guestToken) {
+          localStorage.setItem(GUEST_TOKEN_KEY, guestData.guestToken);
+          sessionStorage.setItem(GUEST_TOKEN_KEY, guestData.guestToken);
+        }
+      } catch (tokenErr) {
+        console.warn("Guest session token initialization warning:", tokenErr.message);
       }
     } catch {
       /* storage disabled */
@@ -709,16 +868,34 @@ export default function App() {
     setWelcomeUser(res.user);
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem(USER_KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
-    clearGuestSessionLock();
-    setCurrentChat(null);
-    setChats([]);
+  const handleOpenLogoutConfirm = () => {
+    setLogoutModalOpen(true);
+    setMobileDrawerOpen(false);
+  };
+
+  const handleConfirmLogout = () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(USER_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+      clearGuestSessionLock();
+      setCurrentChat(null);
+      setChats([]);
+      setToast({ message: "You have been logged out of your account." });
+      setTimeout(() => setToast(null), 3000);
+      setLogoutModalOpen(false);
+      // Open initial authentication popup
+      setAuthModalMode("in");
+      setIsAuthMandatory(false);
+      setAuthModalOpen(true);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const appClass = [
@@ -741,7 +918,7 @@ export default function App() {
           onDeleteChat={handleDeleteChat}
           onToggleTheme={handleToggleTheme}
           onOpenAuth={handleOpenAuth}
-          onLogout={handleLogout}
+          onLogout={handleOpenLogoutConfirm}
           busy={isWaiting || isStreaming}
         />
 
@@ -777,6 +954,12 @@ export default function App() {
             onStopStreaming={handleStopStreaming}
             isStreaming={isStreaming}
             isWaiting={isWaiting}
+            disabled={isAuthMandatory}
+            onDisabledClick={() => {
+              setIsAuthMandatory(true);
+              setAuthModalMode("in");
+              setAuthModalOpen(true);
+            }}
             inputRef={composerInputRef}
           />
         </div>
@@ -808,6 +991,15 @@ export default function App() {
             user={welcomeUser}
             isNewUser={isWelcomeNewUser}
             onClose={() => setWelcomeUser(null)}
+          />
+        )}
+
+        {logoutModalOpen && (
+          <LogoutConfirmModal
+            isOpen={logoutModalOpen}
+            isLoggingOut={isLoggingOut}
+            onClose={() => setLogoutModalOpen(false)}
+            onConfirm={handleConfirmLogout}
           />
         )}
       </React.Suspense>

@@ -7,6 +7,8 @@ export default function Composer({
   onStopStreaming,
   isStreaming = false,
   isWaiting = false,
+  disabled = false,
+  onDisabledClick,
   inputRef,
 }) {
   const [text, setText] = useState("");
@@ -126,6 +128,10 @@ export default function Composer({
   };
 
   const handleSubmit = () => {
+    if (disabled) {
+      if (onDisabledClick) onDisabledClick();
+      return;
+    }
     const trimmed = text.trim();
     if ((!trimmed && !files.length) || isWaiting || isStreaming) return;
 
@@ -142,6 +148,7 @@ export default function Composer({
   };
 
   const handlePaste = (e) => {
+    if (disabled) return;
     const clipboardFiles = e.clipboardData?.files;
     if (clipboardFiles && clipboardFiles.length > 0) {
       e.preventDefault();
@@ -155,14 +162,19 @@ export default function Composer({
   return (
     <footer>
       <div
-        className={`composer ${isDragOver ? "over" : ""}`}
+        className={`composer ${isDragOver ? "over" : ""} ${disabled ? "disabled" : ""}`}
         id="comp"
+        onClick={() => {
+          if (disabled && onDisabledClick) onDisabledClick();
+        }}
         onDragOver={(e) => {
+          if (disabled) return;
           e.preventDefault();
           setIsDragOver(true);
         }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={(e) => {
+          if (disabled) return;
           e.preventDefault();
           setIsDragOver(false);
           handleFileSelection(e.dataTransfer.files);
@@ -199,9 +211,16 @@ export default function Composer({
             className="ib"
             id="clip"
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (disabled) {
+                if (onDisabledClick) onDisabledClick();
+                return;
+              }
+              fileInputRef.current?.click();
+            }}
+            disabled={disabled}
             aria-label="Attach files"
-            title="Attach images, documents, or code"
+            title={disabled ? "Guest access ended" : "Attach images, documents, or code"}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14M5 12h14" />
@@ -226,13 +245,14 @@ export default function Composer({
             ref={textareaRef}
             id="input"
             rows="1"
-            placeholder="Ask RockGPT…"
+            placeholder={disabled ? "Guest access ended. Log in to continue..." : "Ask RockGPT…"}
             aria-label="Message prompt"
             enterKeyHint="send"
             value={text}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            disabled={disabled}
           />
 
           {/* Mic voice input */}
@@ -241,9 +261,16 @@ export default function Composer({
               className={`ib ${isRecording ? "rec" : ""}`}
               id="mic"
               type="button"
-              onClick={toggleRecording}
+              onClick={() => {
+                if (disabled) {
+                  if (onDisabledClick) onDisabledClick();
+                  return;
+                }
+                toggleRecording();
+              }}
+              disabled={disabled}
               aria-label="Voice input"
-              title={isRecording ? "Listening... tap to stop" : "Voice input"}
+              title={disabled ? "Guest access ended" : isRecording ? "Listening... tap to stop" : "Voice input"}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="3" width="6" height="11" rx="3" />
@@ -271,12 +298,12 @@ export default function Composer({
           ) : (
             <button
               id="send"
-              className={hasContent && !isBusy ? "on" : ""}
+              className={hasContent && !isBusy && !disabled ? "on" : ""}
               type="button"
               onClick={handleSubmit}
-              disabled={!hasContent || isBusy}
+              disabled={!hasContent || isBusy || disabled}
               aria-label="Send message"
-              title="Send"
+              title={disabled ? "Guest access ended" : "Send"}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M12 19V5M5 12l7-7 7 7" />

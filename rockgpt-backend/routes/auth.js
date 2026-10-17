@@ -925,4 +925,31 @@ router.get("/me", authMiddleware, async (req, res) => {
   });
 });
 
+// 8. Guest Session Initialization
+// Configurable guest access duration (default: 150 seconds / 2 minutes 30 seconds)
+const GUEST_ACCESS_DURATION_SEC = parseInt(process.env.GUEST_ACCESS_DURATION_SEC, 10) || 150;
+
+router.post("/guest-session", (req, res) => {
+  try {
+    const startedAt = Date.now();
+    const guestToken = jwt.sign(
+      {
+        isGuest: true,
+        startedAt,
+      },
+      JWT_SECRET,
+      { expiresIn: `${GUEST_ACCESS_DURATION_SEC}s` }
+    );
+
+    res.json({
+      success: true,
+      guestToken,
+      expiresInSeconds: GUEST_ACCESS_DURATION_SEC,
+      startedAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to initialize guest session." });
+  }
+});
+
 export default router;

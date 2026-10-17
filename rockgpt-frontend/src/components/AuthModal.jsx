@@ -198,8 +198,8 @@ export default function AuthModal({
           <div className="auth-mandatory-banner">
             <span className="amb-icon">🔒</span>
             <div className="amb-text">
-              <strong>Sign in to continue your conversation</strong>
-              <p>Your guest session has expired. Sign in or create a free account to continue chatting without losing your conversation.</p>
+              <strong>Continue with ROCKGPT</strong>
+              <p>Your guest access has ended. Log in or create an account to continue chatting with ROCKGPT.</p>
             </div>
           </div>
         )}
@@ -209,7 +209,7 @@ export default function AuthModal({
           <span className="lg">
             <Logo size={19} />
           </span>
-          ROCKGPT SECURITY AUTH
+          {isMandatory ? "CONTINUE WITH ROCKGPT" : "ROCKGPT SECURITY AUTH"}
           {!isMandatory && (
             <button
               className="ib"
