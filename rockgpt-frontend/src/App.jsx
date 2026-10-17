@@ -835,7 +835,7 @@ export default function App() {
   };
 
   const handleForgotPassword = async (email) => {
-    await apiForgotPassword(email);
+    return await apiForgotPassword(email);
   };
 
   const handleResetPassword = async (email, code, newPassword) => {

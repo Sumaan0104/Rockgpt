@@ -52,6 +52,55 @@ function checkLockout(user) {
   return { isLocked: false };
 }
 
+// ═══ GMAIL NORMALIZATION & DOT-INSENSITIVE EMAIL RESOLUTION ═══
+/**
+ * Normalizes email lookup for Gmail and Googlemail (where dots in username are ignored by Google)
+ * e.g., 'mansuri.suman52@gmail.com' and 'mansurisuman52@gmail.com' map to the exact same mailbox.
+ */
+export function getEmailSearchFilter(email) {
+  if (!email || typeof email !== "string") return { email: "" };
+  const cleanEmail = email.toLowerCase().trim();
+  const atIndex = cleanEmail.indexOf("@");
+  if (atIndex === -1) return { email: cleanEmail };
+
+  const localPart = cleanEmail.slice(0, atIndex);
+  const domain = cleanEmail.slice(atIndex + 1);
+
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    // Strip existing dots and any +alias tag to isolate root username
+    const baseLocal = localPart.replace(/\./g, "").split("+")[0];
+    const pattern =
+      "^" +
+      baseLocal
+        .split("")
+        .map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\.?")
+        .join("") +
+      "(\\+[a-zA-Z0-9._-]+)?@(gmail|googlemail)\\.com$";
+    return {
+      $or: [
+        { email: cleanEmail },
+        { email: { $regex: new RegExp(pattern, "i") } },
+      ],
+    };
+  }
+
+  return { email: cleanEmail };
+}
+
+export async function findUserByEmail(email) {
+  if (!email || typeof email !== "string") return null;
+  const cleanEmail = email.toLowerCase().trim();
+
+  // 1. Direct indexed match first (fastest O(1))
+  let user = await User.findOne({ email: cleanEmail });
+  if (user) return user;
+
+  // 2. Dot-insensitive Gmail pattern lookup
+  const filter = getEmailSearchFilter(cleanEmail);
+  user = await User.findOne(filter);
+  return user;
+}
+
 // ═══ UNIVERSAL EMAIL DISPATCH ENGINE (BREVO HTTPS + RESEND HTTPS + GMAIL MULTI-PORT SMTP) ═══
 async function sendEmail({ to, subject, html }) {
   const cleanUser = (process.env.EMAIL_USER || "").trim();
@@ -196,7 +245,7 @@ router.post("/signup", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 8 characters long." });
     }
 
-    const existing = await User.findOne({ email: cleanEmail });
+    const existing = await findUserByEmail(cleanEmail);
     if (existing) {
       const lockCheck = checkLockout(existing);
       if (lockCheck.isLocked) {
@@ -205,6 +254,12 @@ router.post("/signup", authLimiter, async (req, res) => {
       if (existing.passwordHash || existing.password) {
         return res.status(409).json({
           error: "An account with this email already exists. Please Sign In with your password.",
+        });
+      }
+      if (existing.googleId) {
+        return res.status(409).json({
+          error: "An account with this email was registered using Google Sign-In. Please sign in with 'Continue with Google', or use 'Forgot password?' to set a password.",
+          isGoogleAccount: true,
         });
       }
     }
@@ -240,7 +295,8 @@ router.post("/signup", authLimiter, async (req, res) => {
     const code = crypto.randomInt(100000, 999999).toString();
 
     // Store in MongoDB OtpVerification collection with 10-minute TTL
-    await OtpVerification.deleteMany({ email: cleanEmail });
+    const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
     await OtpVerification.create({
       email: cleanEmail,
       code,
@@ -298,7 +354,7 @@ router.post("/verify", authLimiter, async (req, res) => {
     const cleanCode = code.trim();
 
     // Check existing user lock
-    const existingUser = await User.findOne({ email: cleanEmail });
+    const existingUser = await findUserByEmail(cleanEmail);
     if (existingUser) {
       const lockCheck = checkLockout(existingUser);
       if (lockCheck.isLocked) {
@@ -306,7 +362,8 @@ router.post("/verify", authLimiter, async (req, res) => {
       }
     }
 
-    const otpDoc = await OtpVerification.findOne({ email: cleanEmail, type: "signup" });
+    const emailsToMatch = Array.from(new Set([cleanEmail, ...(existingUser ? [existingUser.email] : [])]));
+    const otpDoc = await OtpVerification.findOne({ email: { $in: emailsToMatch }, type: "signup" });
     if (!otpDoc) {
       // If user is already stored in database with valid credentials, complete verification
       if (existingUser && (existingUser.passwordHash || existingUser.password)) {
@@ -336,12 +393,18 @@ router.post("/verify", authLimiter, async (req, res) => {
     if (otpDoc.code !== cleanCode) {
       if (otpDoc.attempts >= 5) {
         const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
-        await User.findOneAndUpdate(
-          { email: cleanEmail },
-          { lockedUntil: lockUntil, failedOtpAttempts: 5 },
-          { upsert: false }
-        );
-        await OtpVerification.deleteMany({ email: cleanEmail });
+        if (existingUser) {
+          existingUser.lockedUntil = lockUntil;
+          existingUser.failedOtpAttempts = 5;
+          await existingUser.save();
+        } else {
+          await User.findOneAndUpdate(
+            { email: { $in: emailsToMatch } },
+            { lockedUntil: lockUntil, failedOtpAttempts: 5 },
+            { upsert: false }
+          );
+        }
+        await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
         return res.status(429).json({
           error: "Maximum attempts exceeded (5/5). Please wait 15 minutes before trying again.",
           locked: true,
@@ -357,10 +420,10 @@ router.post("/verify", authLimiter, async (req, res) => {
     }
 
     // Code is correct: single-use destruction
-    await OtpVerification.deleteMany({ email: cleanEmail });
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
 
     // Ensure user document exists and is active
-    let user = await User.findOne({ email: cleanEmail });
+    let user = existingUser || (await findUserByEmail(cleanEmail));
     if (!user) {
       user = await User.create({
         name: otpDoc.name || cleanEmail.split("@")[0],
@@ -407,9 +470,22 @@ async function handleSignIn(req, res) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: cleanEmail });
-    if (!user || (!user.passwordHash && !user.password)) {
+    const user = await findUserByEmail(cleanEmail);
+    if (!user) {
       return res.status(401).json({ error: "Invalid email or password. Please verify credentials or sign up." });
+    }
+
+    if (!user.passwordHash && !user.password) {
+      if (user.googleId) {
+        return res.status(401).json({
+          error: "This account was registered using Google Sign-In. Please sign in with 'Continue with Google', or click 'Forgot password?' below to set a password.",
+          isGoogleAccount: true,
+        });
+      }
+      return res.status(401).json({
+        error: "No password is set for this account. Please click 'Forgot password?' to set a password.",
+        noPassword: true,
+      });
     }
 
     const lockCheck = checkLockout(user);
@@ -489,7 +565,7 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
     const cleanEmail = email.toLowerCase().trim();
     const cleanType = type === "reset" ? "reset" : "signup";
 
-    const user = await User.findOne({ email: cleanEmail });
+    const user = await findUserByEmail(cleanEmail);
     if (!user) {
       return res.status(404).json({ error: "Account not found." });
     }
@@ -500,8 +576,9 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
     }
 
     const code = crypto.randomInt(100000, 999999).toString();
+    const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
 
-    await OtpVerification.deleteMany({ email: cleanEmail, type: cleanType });
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: cleanType });
     await OtpVerification.create({
       email: cleanEmail,
       code,
@@ -546,7 +623,7 @@ router.post("/forgot", authLimiter, async (req, res) => {
     if (!email) return res.status(400).json({ error: "Email is required." });
 
     const cleanEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: cleanEmail });
+    const user = await findUserByEmail(cleanEmail);
 
     if (!user) {
       return res.status(404).json({ error: "No account found with this email address." });
@@ -558,8 +635,9 @@ router.post("/forgot", authLimiter, async (req, res) => {
     }
 
     const code = crypto.randomInt(100000, 999999).toString();
+    const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
 
-    await OtpVerification.deleteMany({ email: cleanEmail, type: "reset" });
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
     await OtpVerification.create({
       email: cleanEmail,
       code,
@@ -611,7 +689,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
       return res.status(400).json({ error: "New password must be at least 8 characters long." });
     }
 
-    const user = await User.findOne({ email: cleanEmail });
+    const user = await findUserByEmail(cleanEmail);
     if (!user) {
       return res.status(404).json({ error: "Account not found." });
     }
@@ -621,7 +699,8 @@ router.post("/reset-password", authLimiter, async (req, res) => {
       return res.status(429).json({ error: lockCheck.message, locked: true });
     }
 
-    const otpDoc = await OtpVerification.findOne({ email: cleanEmail, type: "reset" });
+    const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
+    const otpDoc = await OtpVerification.findOne({ email: { $in: emailsToMatch }, type: "reset" });
     if (!otpDoc) {
       return res.status(400).json({
         error: "Reset code has expired or is invalid. Please request a new reset code.",
@@ -635,7 +714,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
         user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
         user.failedOtpAttempts = 5;
         await user.save();
-        await OtpVerification.deleteMany({ email: cleanEmail });
+        await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
 
         return res.status(429).json({
           error: "Maximum attempts exceeded (5/5). Please wait 15 minutes before trying again.",
@@ -652,7 +731,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     }
 
     // Code matches: single-use destruction
-    await OtpVerification.deleteMany({ email: cleanEmail });
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
 
     // Hash new password with 12 rounds
     const salt = await bcrypt.genSalt(12);
@@ -853,7 +932,7 @@ router.post("/google", authLimiter, async (req, res) => {
     }
 
     const cleanEmail = googleUser.email;
-    let user = await User.findOne({ email: cleanEmail });
+    let user = await findUserByEmail(cleanEmail);
 
     if (!user) {
       user = await User.create({
