@@ -14,13 +14,10 @@ import ErrorBoundary from './ErrorBoundary.jsx'
 import { isGoogleConfigured, rawGoogleClientId } from './config/googleAuth.js'
 import { registerSW } from 'virtual:pwa-register'
 
-// Instant Service Worker auto-update to ensure users never get stuck on stale versions
+// Service Worker registration with silent background cache updates (no disruptive auto-reloads)
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  const updateSW = registerSW({
+  registerSW({
     immediate: true,
-    onNeedRefresh() {
-      updateSW(true)
-    },
     onRegistered(registration) {
       if (registration) {
         setInterval(() => {
@@ -28,14 +25,6 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         }, 15 * 60 * 1000)
       }
     },
-  })
-
-  let refreshing = false
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
-      refreshing = true
-      window.location.reload()
-    }
   })
 }
 

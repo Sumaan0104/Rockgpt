@@ -62,30 +62,74 @@ export async function apiInitGuestSession() {
 export async function askRock(messages, onChunk, options = {}) {
   const { signal, chatId, fast = false } = options;
 
-  let res;
-  try {
-    res = await fetch(`${API_BASE}/chat`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        chatId,
-        messages,
-        fast,
-      }),
-      signal,
-    });
-  } catch (err) {
-    if (err.name === "AbortError") {
-      throw err;
+  // Ensure active guest token is present if unauthenticated
+  const activeToken =
+    (typeof localStorage !== "undefined" && localStorage.getItem("rockgpt_token")) ||
+    (typeof sessionStorage !== "undefined" && sessionStorage.getItem("rockgpt_token"));
+
+  if (!activeToken) {
+    const guestToken =
+      (typeof localStorage !== "undefined" && localStorage.getItem("rockgpt_guest_token")) ||
+      (typeof sessionStorage !== "undefined" && sessionStorage.getItem("rockgpt_guest_token"));
+    const isMandatory =
+      (typeof localStorage !== "undefined" && localStorage.getItem("rockgpt_guest_mandatory") === "true") ||
+      (typeof sessionStorage !== "undefined" && sessionStorage.getItem("rockgpt_guest_mandatory") === "true");
+
+    if (!guestToken && !isMandatory) {
+      try {
+        const guestData = await apiInitGuestSession();
+        if (guestData?.guestToken) {
+          try {
+            localStorage.setItem("rockgpt_guest_token", guestData.guestToken);
+            sessionStorage.setItem("rockgpt_guest_token", guestData.guestToken);
+          } catch {
+            /* storage quota exceeded */
+          }
+        }
+      } catch {
+        /* ignore guest token init error */
+      }
     }
-    // Attempt one quick retry in case of cold wake
-    await new Promise((r) => setTimeout(r, 1200));
-    res = await fetch(`${API_BASE}/chat`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ chatId, messages, fast }),
-      signal,
-    });
+  }
+
+  let res;
+  let lastErr;
+  const maxAttempts = 3;
+  const retryDelays = [1500, 3000];
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          chatId,
+          messages,
+          fast,
+        }),
+        signal,
+      });
+
+      // Stop retrying if we got a response (unless 502/503/504 gateway cold-start)
+      if (res && res.status !== 502 && res.status !== 503 && res.status !== 504) {
+        break;
+      }
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, retryDelays[attempt - 1] || 2000));
+      }
+    } catch (err) {
+      if (err.name === "AbortError") {
+        throw err;
+      }
+      lastErr = err;
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, retryDelays[attempt - 1] || 2000));
+      }
+    }
+  }
+
+  if (!res && lastErr) {
+    throw lastErr;
   }
 
   if (!res.ok) {

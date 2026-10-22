@@ -353,27 +353,50 @@ export default function App() {
           setChats(active ? [active] : []);
         }
       } else {
+        // Guests do NOT persist chats across reload. Clear any guest storage.
         try {
-          const local = localStorage.getItem(GUEST_STORAGE_KEY);
-          setChats(local ? JSON.parse(local) : []);
+          localStorage.removeItem(GUEST_STORAGE_KEY);
+          sessionStorage.removeItem(GUEST_STORAGE_KEY);
         } catch {
-          setChats([]);
+          /* storage unavailable */
         }
+        setChats([]);
+        setCurrentChat(null);
       }
     }
     loadUserChats();
   }, [token]);
 
-  // 5. Save guest chats to localStorage
+  // 5. Ensure guest chats are strictly ephemeral and never stored in device storage
   useEffect(() => {
-    if (!token && chats.length > 0) {
+    if (!token) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(chats.slice(0, 40)));
+        localStorage.removeItem(GUEST_STORAGE_KEY);
       } catch {
-        /* storage quota exceeded */
+        /* storage unavailable */
       }
     }
   }, [chats, token]);
+
+  // 6. Warn unauthenticated guest users before reload so they don't accidentally lose their active chat
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!token) {
+        const hasMessages =
+          (currentChat?.messages && currentChat.messages.length > 0) ||
+          (chats && chats.length > 0 && chats.some((c) => c.messages && c.messages.length > 0));
+
+        if (hasMessages) {
+          e.preventDefault();
+          e.returnValue = "Are you sure you want to refresh? Your guest conversation will be lost unless you log in or sign up.";
+          return e.returnValue;
+        }
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [token, currentChat, chats]);
 
   // Handlers
   const handleToggleTheme = (newTheme) => {
@@ -493,8 +516,7 @@ export default function App() {
       }
     } else {
       try {
-        const updated = chats.filter((c) => (c.id || c._id) !== chatId);
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(updated));
+        localStorage.removeItem(GUEST_STORAGE_KEY);
       } catch {
         /* storage unavailable */
       }
