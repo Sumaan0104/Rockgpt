@@ -345,9 +345,6 @@ export function RockGPTApp() {
       if (drawerRef.current) {
         drawerRef.current.style.transform = `translate3d(${offset}px, 0, 0)`;
       }
-      if (appRef.current) {
-        appRef.current.style.transform = `translate3d(${progress * touchStateRef.current.drawerW * 0.28}px, 0, 0)`;
-      }
       if (scrimRef.current) {
         scrimRef.current.style.opacity = String(progress);
       }
