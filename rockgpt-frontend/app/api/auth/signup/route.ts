@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit, hashPassword } from "@/lib/auth";
+import { checkRateLimit, hashPassword, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 
 const signupSchema = z.object({
@@ -57,12 +57,31 @@ export async function POST(request: Request) {
       }).catch(err => console.warn("[Brevo Warning]:", err));
     }
 
-    return NextResponse.json({
+    const otpToken = signToken({
+      email: normalizedEmail,
+      code,
+      type: "signup",
+      name,
+      password_hash: passwordHash,
+      exp: Date.now() + 10 * 60 * 1000,
+    });
+
+    const response = NextResponse.json({
       success: true,
       message: `Verification code sent to ${normalizedEmail}`,
       email: normalizedEmail,
       testCode: code, // Provides instant testing in dev/fallback
     });
+
+    response.cookies.set(OTP_COOKIE_NAME, otpToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    return response;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

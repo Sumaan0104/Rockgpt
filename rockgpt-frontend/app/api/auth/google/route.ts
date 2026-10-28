@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
 import { globalStore, type StoredUser } from "@/lib/store";
 import { generateUUID } from "@/lib/utils";
 
@@ -27,15 +27,16 @@ export async function GET(request: Request) {
       globalStore.saveUser(user);
     }
 
-    const session = globalStore.createSession(user.id);
+    const sessionToken = createSignedSessionTokenForUser(user);
+    globalStore.createSession(user.id);
     const response = NextResponse.redirect(`${appUrl}?auth=google_success`);
 
-    response.cookies.set(SESSION_COOKIE_NAME, session.id, {
+    response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      expires: session.expires_at,
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
     return response;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit, createSession, verifyPassword } from "@/lib/auth";
+import { checkRateLimit, createSession, verifyPassword, createSignedSessionTokenForUser, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 
 const loginSchema = z.object({
@@ -39,9 +39,10 @@ export async function POST(request: Request) {
       );
     }
 
-    await createSession(user.id);
+    const sessionToken = createSignedSessionTokenForUser(user);
+    globalStore.createSession(user.id);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
@@ -51,6 +52,16 @@ export async function POST(request: Request) {
         avatar_url: user.avatar_url,
       },
     });
+
+    response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+    return response;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

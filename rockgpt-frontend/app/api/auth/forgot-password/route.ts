@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit } from "@/lib/auth";
+import { checkRateLimit, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 
 const forgotSchema = z.object({
@@ -36,12 +36,29 @@ export async function POST(request: Request) {
 
     console.log(`[RockGPT Auth] Password reset 6-digit code for ${normalizedEmail}: ${resetCode}`);
 
-    return NextResponse.json({
+    const otpToken = signToken({
+      email: normalizedEmail,
+      code: resetCode,
+      type: "reset",
+      exp: Date.now() + 10 * 60 * 1000,
+    });
+
+    const response = NextResponse.json({
       success: true,
       message: `Recovery code sent to ${normalizedEmail}`,
       email: normalizedEmail,
       testCode: resetCode,
     });
+
+    response.cookies.set(OTP_COOKIE_NAME, otpToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    return response;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

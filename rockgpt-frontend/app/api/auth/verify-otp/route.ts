@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
-import { createSession } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser, verifyToken, signToken } from "@/lib/auth";
 import { globalStore, type StoredUser } from "@/lib/store";
 import { generateUUID } from "@/lib/utils";
 
@@ -16,22 +17,37 @@ export async function POST(request: Request) {
     const { email, code, type } = verifySchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
-    const otp = globalStore.getOtp(normalizedEmail, type);
+    // 1. Check in-memory store
+    let otp = globalStore.getOtp(normalizedEmail, type);
+    let otpTokenData: any = null;
+
+    // 2. Check signed cookie fallback for multi-lambda Vercel execution
     if (!otp) {
+      const cookieStore = await cookies();
+      const rawCookie = cookieStore.get(OTP_COOKIE_NAME)?.value;
+      if (rawCookie) {
+        const decoded = verifyToken<{ email: string; code: string; type: string; name?: string; password_hash?: string }>(rawCookie);
+        if (decoded && decoded.email === normalizedEmail && decoded.type === type) {
+          otpTokenData = decoded;
+        }
+      }
+    }
+
+    const targetCode = otp ? otp.code : (otpTokenData ? otpTokenData.code : null);
+
+    if (!targetCode) {
       return NextResponse.json(
         { error: { code: "otp_expired", message: "Verification code has expired or does not exist. Please request a new one." } },
         { status: 400 }
       );
     }
 
-    if (otp.code !== code.trim()) {
-      otp.attempts += 1;
-      if (otp.attempts >= 5) {
-        globalStore.deleteOtp(normalizedEmail, type);
-        return NextResponse.json(
-          { error: { code: "too_many_attempts", message: "Too many incorrect attempts. Please request a new code." } },
-          { status: 400 }
-        );
+    if (targetCode !== code.trim()) {
+      if (otp) {
+        otp.attempts += 1;
+        if (otp.attempts >= 5) {
+          globalStore.deleteOtp(normalizedEmail, type);
+        }
       }
       return NextResponse.json(
         { error: { code: "invalid_code", message: "Incorrect verification code. Please check and try again." } },
@@ -42,26 +58,29 @@ export async function POST(request: Request) {
     // Code matched!
     if (type === "signup") {
       let user = globalStore.getUserByEmail(normalizedEmail);
+      const name = (otp && otp.name) || (otpTokenData && otpTokenData.name) || "User";
+      const passwordHash = (otp && otp.password_hash) || (otpTokenData && otpTokenData.password_hash) || null;
+
       if (!user) {
         user = {
           id: generateUUID(),
           email: normalizedEmail,
-          name: otp.name || "User",
-          password_hash: otp.password_hash || null,
+          name,
+          password_hash: passwordHash,
           avatar_url: null,
           theme: "dark",
           created_at: new Date(),
         };
         globalStore.saveUser(user);
-      } else if (otp.password_hash) {
-        user.password_hash = otp.password_hash;
-        if (otp.name) user.name = otp.name;
+      } else if (passwordHash) {
+        user.password_hash = passwordHash;
+        if (name) user.name = name;
       }
 
       globalStore.deleteOtp(normalizedEmail, "signup");
-      await createSession(user.id);
+      const sessionToken = createSignedSessionTokenForUser(user);
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         message: "Account verified successfully",
         user: {
@@ -72,14 +91,43 @@ export async function POST(request: Request) {
           avatar_url: user.avatar_url,
         },
       });
+
+      response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+
+      response.cookies.delete(OTP_COOKIE_NAME);
+
+      return response;
     }
 
     // Type === "reset"
-    return NextResponse.json({
+    const resetVerifiedToken = signToken({
+      email: normalizedEmail,
+      exp: Date.now() + 15 * 60 * 1000,
+    });
+
+    const response = NextResponse.json({
       success: true,
       message: "Reset code verified",
       verified: true,
     });
+
+    response.cookies.set("rockgpt_reset_verified", resetVerifiedToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(Date.now() + 15 * 60 * 1000),
+    });
+
+    response.cookies.delete(OTP_COOKIE_NAME);
+
+    return response;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
