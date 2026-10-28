@@ -1,0 +1,2385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="dark light">
+<title>RockGPT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   1. DESIGN TOKENS & THEME VARIABLES
+   ============================================================ */
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --drawer-bg: #08080a;
+  --surface: #1e1e22;
+  --surface-2: #121215;
+  --card: #0e0e11;
+  --text: #f2f2f4;
+  --muted: #7e7e87;
+  --white: #ffffff;
+  --ink: #000000;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --W: min(82vw, 336px);
+  --vh: 100dvh;
+  --font: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --slide: cubic-bezier(0.22, 1, 0.36, 1);
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+body.light {
+  color-scheme: light;
+  --bg: #f7f7f9;
+  --drawer-bg: #ffffff;
+  --surface: #ececf1;
+  --surface-2: #e2e2e9;
+  --card: #f3f3f7;
+  --text: #111114;
+  --muted: #6c6c76;
+  --white: #111114;
+  --ink: #ffffff;
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+body {
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  overflow-x: hidden;
+  overflow-y: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.32s ease, color 0.32s ease;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+svg.i {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+/* ============================================================
+   2. INTRO SPLASH (FULL CAPITAL "R O C K" ORIGAMI WORDMARK)
+   ============================================================ */
+#intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  clip-path: inset(0);
+}
+#intro .stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.mark {
+  position: relative;
+  width: min(78vw, 296px);
+  aspect-ratio: 370 / 100;
+}
+.mark svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.p1 { animation: up 0.55s 0.12s cubic-bezier(0.7, 0, 0.2, 1) both; }
+.p2 { animation: right 0.6s 0.45s cubic-bezier(0.7, 0, 0.2, 1) both; }
+.p3 { animation: down 0.5s 0.88s cubic-bezier(0.7, 0, 0.2, 1) both; }
+.p4, .p5 {
+  animation: fold 0.45s 1.28s cubic-bezier(0.3, 1.4, 0.4, 1) both;
+  transform-origin: center;
+}
+@keyframes up { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0); } }
+@keyframes right { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes down { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0); } }
+@keyframes fold { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+
+.word {
+  display: flex;
+  gap: 0.42em;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  color: #ececec;
+}
+.word b { display: block; overflow: hidden; }
+.word i {
+  display: block;
+  font-style: normal;
+  animation: letter 0.5s calc(1.4s + var(--i) * 0.055s) cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+@keyframes letter { from { transform: translateY(110%); } to { transform: none; } }
+
+.ticker {
+  height: 1.6em;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.6em;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8c8c8c;
+  margin-top: -8px;
+}
+.ticker div { animation: tick 1.5s 1.9s cubic-bezier(0.6, 0, 0.2, 1) forwards; }
+@keyframes tick {
+  0%, 18% { transform: none; }
+  25%, 43% { transform: translateY(-1.6em); }
+  50%, 68% { transform: translateY(-3.2em); }
+  75%, 100% { transform: translateY(-4.8em); }
+}
+#intro.out { animation: shut 0.68s cubic-bezier(0.76, 0, 0.24, 1) forwards; pointer-events: none; }
+#intro.out .stage { animation: away 0.48s ease-in forwards; }
+@keyframes shut { to { clip-path: inset(50% 0 50% 0); } }
+@keyframes away { to { transform: scale(1.2); opacity: 0; } }
+
+/* ============================================================
+   3. VIDEO-ACCURATE SLIDE SIDEBAR & APP SHELL
+   ============================================================ */
+.drawer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--W);
+  background: var(--drawer-bg);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  z-index: 30;
+  transform: translate3d(-100%, 0, 0);
+  transition: transform 0.36s var(--slide), box-shadow 0.36s var(--slide);
+  will-change: transform;
+}
+
+body.open .drawer {
+  transform: translate3d(0, 0, 0);
+  box-shadow: 20px 0 60px rgba(0, 0, 0, 0.72);
+}
+
+.app {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 760px;
+  height: var(--vh);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  padding-top: env(safe-area-inset-top, 0px);
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.36s var(--slide), background-color 0.32s ease;
+  will-change: transform;
+}
+
+@media (min-width: 768px) {
+  html, body {
+    overflow-x: hidden !important;
+  }
+  .app {
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+  }
+  body.open .app {
+    transform: none; /* Keep app centered and stable on PC without horizontal shift or overflow */
+  }
+}
+
+@media (max-width: 767px) {
+  body.open .app {
+    transform: translate3d(calc(var(--W) * 0.28), 0, 0);
+  }
+}
+
+
+/* Dimmed scrim over the right-hand chat preview (tap to close sidebar) */
+.app-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(1.5px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.36s var(--slide);
+}
+body.open .app-scrim {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Disable CSS transitions during 1:1 finger drag */
+body.dragging .drawer,
+body.dragging .app,
+body.dragging .app-scrim {
+  transition: none !important;
+}
+
+/* Diagonal fresh-page sweep wave */
+.sheet-wave {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: 0 auto;
+  max-width: 760px;
+  z-index: 45;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(135deg, transparent 35%, rgba(255, 255, 255, 0.14) 50%, transparent 65%);
+  transform: translate3d(100%, -100%, 0);
+}
+.sheet-wave.run {
+  animation: pageSweep 0.56s var(--slide) forwards;
+}
+@keyframes pageSweep {
+  from { transform: translate3d(90%, -90%, 0); opacity: 1; }
+  to { transform: translate3d(-90%, 90%, 0); opacity: 0; }
+}
+
+/* ============================================================
+   4. SIDEBAR CONTENT (MATCHING YOUR REFERENCE SCREENSHOT)
+   ============================================================ */
+.s-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px 18px;
+}
+.s-brand-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.s-brand .logo-rock {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+body.light .s-brand .logo-rock {
+  filter: invert(1);
+}
+.s-brand .gpt-tag {
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text);
+}
+
+/* Wide "+ New chat" Pill Button */
+.new-chat-pill {
+  width: 100%;
+  height: 50px;
+  border-radius: 17px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  transition: transform 0.2s var(--bounce), border-color 0.22s ease, background 0.22s ease;
+}
+.new-chat-pill:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+.new-chat-pill:active {
+  transform: scale(0.97);
+}
+.new-chat-pill svg.i {
+  width: 19px;
+  height: 19px;
+  transition: transform 0.35s var(--bounce);
+}
+.new-chat-pill:hover svg.i {
+  transform: rotate(90deg);
+}
+
+/* "Recent" Section Label */
+.s-label {
+  padding: 22px 8px 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+/* Recent History List with Individual Delete (×) Buttons */
+#list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 2px 12px;
+  scrollbar-width: none;
+}
+#list::-webkit-scrollbar { display: none; }
+
+.hist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 13px;
+  padding: 3px 4px 3px 8px;
+  transition: background 0.18s ease, transform 0.22s var(--slide), opacity 0.22s ease;
+}
+.hist-row:hover,
+.hist-row.active {
+  background: var(--surface-2);
+}
+.hist-row.removing {
+  opacity: 0;
+  transform: translateX(-16px);
+}
+.hist-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 9px 6px 9px 0;
+  font-size: 15.5px;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hist-del {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.hist-del:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.hist-del:active {
+  transform: scale(0.88);
+}
+.hist-del svg.i {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+.empty-note {
+  padding: 12px 8px;
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+/* Bottom Footer Cards: Theme Toggle + User Profile */
+.s-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.theme-card {
+  height: 54px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 7px 0 14px;
+}
+.theme-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.theme-label svg.i {
+  width: 18px;
+  height: 18px;
+}
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.t-opt {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background 0.25s var(--slide), color 0.25s ease, transform 0.18s ease;
+}
+.t-opt:active {
+  transform: scale(0.94);
+}
+.t-opt svg.i {
+  width: 15px;
+  height: 15px;
+}
+.t-opt.active {
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.profile-card {
+  min-height: 64px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px 11px;
+  gap: 10px;
+}
+.p-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+}
+.p-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  font-weight: 700;
+  flex: none;
+}
+.p-info {
+  min-width: 0;
+  flex: 1;
+}
+.p-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.p-mail {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.p-auth-btn {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 7px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.p-auth-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* ============================================================
+   5. TOP HEADER & CREATIVE SYMBOL-ONLY "NEW CHAT" BUTTON
+   ============================================================ */
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  z-index: 5;
+}
+
+.pill {
+  height: 46px;
+  min-width: 46px;
+  border-radius: 23px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  padding: 0 18px;
+  font-weight: 500;
+  font-size: 15px;
+  transition: transform 0.2s var(--bounce), background 0.22s ease, border-color 0.22s ease;
+}
+.pill.round {
+  padding: 0;
+  width: 46px;
+}
+.pill:hover {
+  border-color: var(--line-strong);
+}
+.pill:active {
+  transform: scale(0.91);
+}
+
+/* Clean, Balanced Creative Symbol Button (#newt) */
+.sym-btn {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 23px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  transition: transform 0.24s var(--bounce), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.sym-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 72% 28%, rgba(255, 255, 255, 0.16), transparent 62%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.sym-btn:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.sym-btn:hover::before {
+  opacity: 1;
+}
+.sym-btn:active {
+  transform: scale(0.9);
+}
+
+.sym-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+.sym-btn .sym-sheet {
+  transition: transform 0.32s var(--bounce);
+}
+.sym-btn .sym-nib {
+  transform-origin: 14px 10px;
+  transition: transform 0.32s var(--bounce);
+}
+.sym-btn .sym-spark {
+  fill: currentColor;
+  stroke: none;
+  transform-origin: 18.5px 5.5px;
+  transition: transform 0.42s var(--bounce);
+}
+.sym-btn:hover .sym-nib {
+  transform: translate(1px, -1px) rotate(-6deg);
+}
+.sym-btn:hover .sym-spark {
+  transform: rotate(90deg) scale(1.18);
+}
+
+.sym-btn.flip {
+  animation: symPulse 0.48s var(--bounce);
+}
+.sym-btn.flip .sym-spark {
+  animation: sparkSpin 0.48s var(--bounce);
+}
+@keyframes symPulse {
+  0% { transform: scale(1); }
+  38% { transform: scale(0.86) rotate(-8deg); background: var(--white); color: var(--ink); }
+  100% { transform: scale(1); }
+}
+@keyframes sparkSpin {
+  0% { transform: scale(0.5) rotate(0deg); }
+  60% { transform: scale(1.35) rotate(180deg); }
+  100% { transform: scale(1) rotate(180deg); }
+}
+
+/* ============================================================
+   6. WELCOME HERO (FULL "R O C K" MARK + DYNAMIC USER GREETING)
+   ============================================================ */
+.hero {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 20px 16px;
+  transition: opacity 0.26s ease, transform 0.26s ease;
+  max-width: 460px;
+  width: 100%;
+  margin: 0 auto;
+}
+.hero.bye {
+  opacity: 0;
+  transform: translateY(-12px);
+}
+body.empty .hero {
+  display: flex;
+}
+body.empty #feed {
+  display: none;
+}
+
+.hero .logo-rock-hero {
+  height: 44px;
+  width: auto;
+  align-self: flex-start;
+  margin: 0 0 22px 4px;
+  filter: drop-shadow(0 8px 22px rgba(255, 255, 255, 0.08));
+}
+body.light .hero .logo-rock-hero {
+  filter: invert(1);
+}
+
+.hero h1 {
+  font-size: clamp(28px, 6vw, 36px);
+  line-height: 1.16;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0 0 26px 4px;
+  text-align: left;
+}
+.hero h1 b {
+  display: inline-block;
+  font-weight: inherit;
+  margin-right: 0.25em;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+.chip {
+  height: 52px;
+  padding: 0 clamp(16px, 4.6vw, 22px);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 26px;
+  color: var(--text);
+  font-size: clamp(14.5px, 4.1vw, 16.5px);
+  white-space: nowrap;
+  transition: transform 0.2s var(--bounce), border-color 0.22s ease, background 0.22s ease;
+}
+.chip:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+.chip:active {
+  transform: scale(0.95);
+  border-color: var(--white);
+}
+
+.ready .hi {
+  animation: rise 0.75s calc(var(--d, 0s) + var(--i, 0) * 0.07s) var(--slide) backwards;
+}
+.ready .chip.hi {
+  animation: chipin 0.68s calc(0.65s + var(--i, 0) * 0.09s) var(--bounce) backwards;
+}
+@keyframes chipin {
+  from { opacity: 0; transform: translateY(18px) scale(0.88); }
+}
+
+/* ============================================================
+   7. CHAT FEED, FLOATING SCROLL-DOWN PILL & 3D 3-DOT INDICATOR
+   ============================================================ */
+#feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+#feed::-webkit-scrollbar { display: none; }
+
+.m {
+  max-width: 86%;
+  font-size: 16.5px;
+  line-height: 1.56;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  user-select: text;
+  animation: pop 0.34s var(--slide) both;
+}
+.m.user {
+  align-self: flex-end;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  padding: 11px 17px;
+  border-radius: 22px 22px 6px 22px;
+}
+.m.bot {
+  align-self: flex-start;
+  padding: 2px 2px;
+  color: var(--text);
+}
+
+/* Unboxed 3D Sequential 3-Dot Wave (ChatGPT / Gemini Style) */
+.typing-3d {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 4px 6px;
+  perspective: 260px;
+  transform-style: preserve-3d;
+  transition: opacity 0.24s var(--slide), transform 0.24s var(--slide);
+}
+.typing-3d.gone {
+  opacity: 0;
+  transform: scale(0.72) translateY(6px);
+}
+.typing-3d .orb-wrap {
+  position: relative;
+  width: 10.5px;
+  height: 10.5px;
+  display: grid;
+  place-items: center;
+  transform-style: preserve-3d;
+}
+.typing-3d .orb {
+  width: 10.5px;
+  height: 10.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #dcdce6 45%, #8a8a98 100%);
+  box-shadow:
+    0 4px 10px rgba(255, 255, 255, 0.28),
+    inset -1.5px -2px 3px rgba(0, 0, 0, 0.45),
+    inset 1.5px 1.5px 2.5px rgba(255, 255, 255, 0.9);
+  animation: orb3dWave 1.32s cubic-bezier(0.42, 0, 0.2, 1) infinite;
+  will-change: transform, opacity, filter;
+}
+body.light .typing-3d .orb {
+  background: radial-gradient(circle at 32% 28%, #52525b 0%, #18181b 60%, #000000 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.22),
+    inset -1px -1.5px 3px rgba(0, 0, 0, 0.6),
+    inset 1px 1.5px 2px rgba(255, 255, 255, 0.45);
+}
+.typing-3d .orb-shadow {
+  position: absolute;
+  bottom: -6px;
+  width: 9px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.26);
+  filter: blur(1.5px);
+  animation: orbShadowWave 1.32s cubic-bezier(0.42, 0, 0.2, 1) infinite;
+}
+body.light .typing-3d .orb-shadow {
+  background: rgba(0, 0, 0, 0.24);
+}
+.typing-3d .orb-wrap:nth-child(1) .orb,
+.typing-3d .orb-wrap:nth-child(1) .orb-shadow { animation-delay: 0s; }
+.typing-3d .orb-wrap:nth-child(2) .orb,
+.typing-3d .orb-wrap:nth-child(2) .orb-shadow { animation-delay: 0.18s; }
+.typing-3d .orb-wrap:nth-child(3) .orb,
+.typing-3d .orb-wrap:nth-child(3) .orb-shadow { animation-delay: 0.36s; }
+
+@keyframes orb3dWave {
+  0%, 65%, 100% {
+    transform: translate3d(0, 0, 0) scale(0.74) rotateX(0deg);
+    opacity: 0.42;
+    filter: brightness(0.88);
+  }
+  32% {
+    transform: translate3d(0, -8px, 16px) scale(1.18) rotateX(18deg);
+    opacity: 1;
+    filter: brightness(1.22);
+  }
+}
+
+@keyframes orbShadowWave {
+  0%, 65%, 100% {
+    transform: scale(0.95);
+    opacity: 0.18;
+  }
+  32% {
+    transform: scale(0.45);
+    opacity: 0.55;
+  }
+}
+
+.w { animation: fadein 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes fadein { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+
+/* Floating Scroll-to-Bottom Pill */
+.scroll-down {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  transform: translate(-50%, 12px) scale(0.85);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+   opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.22s ease, transform 0.22s var(--bounce);
+  z-index: 8;
+}
+.scroll-down.on {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+.scroll-down svg.i {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================
+   8. MESSAGE COMPOSER BAR
+   ============================================================ */
+.comp {
+  padding: 6px 12px calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+.box {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 58px;
+  padding: 9px;
+  background: var(--surface);
+  border-radius: 29px;
+  border: 1px solid var(--line);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.box:focus-within {
+  border-color: var(--line-strong);
+  box-shadow: 0 6px 26px rgba(0, 0, 0, 0.26);
+}
+.box button.ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  opacity: 0.85;
+  transition: transform 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+}
+.box button.ic:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+.box button.ic:active {
+  transform: scale(0.9);
+}
+
+#in {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  resize: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 16.5px;
+  line-height: 24px;
+  padding: 8px 6px;
+  max-height: 132px;
+  user-select: text;
+}
+#in::placeholder {
+  color: var(--muted);
+}
+
+.go {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transition: transform 0.18s var(--bounce);
+}
+.go:active {
+  transform: scale(0.9);
+}
+.go svg {
+  position: absolute;
+  transition: opacity 0.2s ease, transform 0.25s var(--bounce);
+}
+.go .snd {
+  opacity: 0;
+  transform: translateY(10px) scale(0.6);
+}
+.has .go .snd {
+  opacity: 1;
+  transform: none;
+}
+.has .go .wav {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.6);
+}
+.has #mic {
+  display: none;
+}
+
+/* ============================================================
+   9. AUTHENTICATION MODAL & TOAST UTILITIES
+   ============================================================ */
+.auth-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s var(--slide);
+}
+.auth-modal.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+.auth-box {
+  width: min(92vw, 370px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  transform: translateY(16px) scale(0.95);
+  transition: transform 0.32s var(--bounce);
+}
+.auth-modal.on .auth-box {
+  transform: none;
+}
+.auth-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.auth-head h2 {
+  font-size: 19px;
+  font-weight: 600;
+}
+.auth-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+}
+.auth-sub {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.auth-field input {
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 14px;
+  font: inherit;
+  font-size: 15.5px;
+  outline: none;
+}
+.auth-field input:focus {
+  border-color: var(--white);
+}
+.auth-submit {
+  height: 48px;
+  margin-top: 4px;
+  border-radius: 16px;
+  background: var(--white);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 16px;
+  transition: transform 0.2s var(--bounce);
+}
+.auth-submit:active {
+  transform: scale(0.96);
+}
+
+.toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 74px);
+  left: 50%;
+  transform: translate(-50%, -12px) scale(0.95);
+  background: var(--white);
+  color: var(--ink);
+  padding: 10px 18px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.28s var(--bounce);
+  z-index: 110;
+  white-space: nowrap;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.38);
+}
+.toast.on {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.rise { opacity: 0; }
+.ready .rise { animation: rise 0.7s var(--d, 0s) var(--slide) both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+
+/* ============================================================
+   9. TOOLS NAV (PROJECTS / DEEP RESEARCH / CANVAS) + SHEETS + MOTION
+   ============================================================ */
+.nav { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.nav-item {
+  position: relative; overflow: hidden; width: 100%; height: 50px;
+  display: flex; align-items: center; gap: 12px; padding: 0 14px 0 8px;
+  border-radius: 16px; border: 1px solid transparent; background: transparent;
+  font-size: 15.5px; font-weight: 500; color: var(--text); text-align: left;
+  transition: background .22s ease, border-color .22s ease, transform .22s var(--bounce);
+}
+.nav-item:hover { background: var(--surface-2); border-color: var(--line); }
+.nav-item:active { transform: scale(.965); }
+.nav-item::after { /* origami corner fold */
+  content: ""; position: absolute; top: 0; right: 0; width: 0; height: 0;
+  background: var(--line-strong); clip-path: polygon(0 0, 100% 0, 100% 100%);
+  transition: width .32s var(--slide), height .32s var(--slide);
+}
+.nav-item:hover::after, .nav-item.on::after { width: 22px; height: 22px; }
+.nav-item.on { background: var(--surface-2); border-color: var(--line-strong); }
+.nav-item.on::after { background: var(--white); }
+.ni-ico {
+  width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: var(--card); border: 1px solid var(--line);
+  transition: transform .4s var(--bounce), background .25s ease;
+}
+.nav-item:hover .ni-ico { transform: rotate(-6deg) scale(1.06); }
+.nav-item.on .ni-ico { background: var(--white); color: var(--ink); }
+.ni-ico svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ni-t { flex: 1; }
+.ni-tag { font-size: 12px; font-weight: 600; color: var(--muted); padding-right: 10px; transition: opacity .2s; }
+.ni-tag:empty { display: none; }
+.ni-ico .lid { transform-origin: 3px 8px; transition: transform .35s var(--bounce); }
+.nav-item:hover .lid { transform: translateY(-1.6px) rotate(-5deg); }
+.ni-ico .sweep { transform-origin: 12px 12px; }
+.nav-item:hover .sweep, .nav-item.on .sweep { animation: spin 1.6s linear infinite; }
+.ni-ico .pen { transition: transform .35s var(--bounce); }
+.nav-item:hover .pen { transform: translate(1.5px, -1.5px) rotate(4deg); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* staggered drawer entrance */
+.drawer .s-brand, .drawer .new-chat-pill, .drawer .nav-item, .drawer .s-label, .drawer .hist-row, .drawer .s-foot > * { transition-property: opacity, transform, background, border-color; }
+body.open .drawer .new-chat-pill { animation: navIn .5s .08s var(--slide) backwards; }
+body.open .drawer .nav-item { animation: navIn .55s calc(.14s + var(--i, 0) * .07s) var(--slide) backwards; }
+body.open .drawer .s-label { animation: navIn .5s .38s var(--slide) backwards; }
+body.open .drawer .hist-row { animation: navIn .5s calc(.42s + var(--i, 1) * .045s) var(--slide) backwards; }
+body.open .drawer .s-foot > * { animation: navIn .55s calc(.3s + var(--i, 0) * .08s) var(--slide) backwards; }
+@keyframes navIn { from { opacity: 0; transform: translateX(-22px); } }
+
+/* ripple */
+.rip { position: absolute; border-radius: 50%; pointer-events: none; background: currentColor; opacity: .16;
+  transform: scale(0); animation: rip .6s ease-out forwards; }
+@keyframes rip { to { transform: scale(1); opacity: 0; } }
+.new-chat-pill { position: relative; overflow: hidden; }
+
+/* composer mode chips */
+.mode-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 6px; }
+.mode-row:not(:empty) { padding-bottom: 8px; }
+.mchip {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 6px 0 12px;
+  border-radius: 16px; border: 1px solid var(--line-strong); background: var(--surface);
+  font-size: 13.5px; font-weight: 600; color: var(--text);
+  animation: chipPop .5s var(--bounce) backwards;
+}
+.mchip.deep { background: var(--white); color: var(--ink); border-color: transparent; }
+.mchip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
+.mchip button { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; opacity: .6; transition: opacity .2s, transform .25s var(--bounce); }
+.mchip button:hover { opacity: 1; transform: rotate(90deg); }
+.mchip svg.i { width: 13px; height: 13px; stroke-width: 2.2; }
+.mchip.out { animation: chipOut .22s ease forwards; }
+@keyframes chipPop { from { opacity: 0; transform: translateY(10px) scale(.8); } }
+@keyframes chipOut { to { opacity: 0; transform: scale(.8); } }
+@keyframes pulse { 50% { opacity: .3; transform: scale(.7); } }
+
+/* full-screen sheets */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 760px;
+  z-index: 60;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px);
+  transform: translate3d(0, 100%, 0);
+  border-radius: 28px 28px 0 0;
+  visibility: hidden;
+  transition: transform .55s var(--slide), border-radius .55s var(--slide), visibility 0s .55s;
+}
+.sheet.on { transform: none; border-radius: 0; visibility: visible; transition-delay: 0s; }
+@media (min-width: 768px) {
+  .sheet {
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.4);
+  }
+}
+.sh-top { display: flex; align-items: center; gap: 12px; padding: 14px 16px 10px; }
+.sh-top h2 { flex: 1; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.sh-back { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); display: grid; place-items: center; transition: transform .25s var(--bounce), background .2s; }
+.sh-back:active { transform: scale(.88); }
+.sh-act { height: 40px; padding: 0 16px; border-radius: 20px; background: var(--white); color: var(--ink); font-weight: 600; font-size: 14.5px; transition: transform .25s var(--bounce); }
+.sh-act:active { transform: scale(.93); }
+.sh-body { flex: 1; overflow-y: auto; padding: 8px 16px calc(env(safe-area-inset-bottom, 0px) + 24px); display: flex; flex-direction: column; gap: 10px; scrollbar-width: none; }
+.sh-body::-webkit-scrollbar { display: none; }
+.sheet.on .sh-body > * { animation: cardIn .6s calc(.18s + var(--i, 0) * .06s) var(--slide) backwards; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(.97); } }
+
+.pf { display: none; gap: 10px; flex-direction: column; padding: 14px; border-radius: 20px; border: 1px solid var(--line-strong); background: var(--card); }
+.pf.on { display: flex; animation: cardIn .45s var(--slide) backwards; }
+.pf input, .cv-title, .cv-text { font: inherit; color: var(--text); background: transparent; border: 0; outline: 0; user-select: text; }
+.pf input { height: 44px; padding: 0 14px; border-radius: 14px; background: var(--surface); font-size: 16px; }
+.pf .row { display: flex; gap: 8px; }
+.pf .row button { flex: 1; height: 42px; border-radius: 14px; font-weight: 600; background: var(--surface); transition: transform .2s var(--bounce); }
+.pf .row button.pri { background: var(--white); color: var(--ink); }
+.pf .row button:active { transform: scale(.95); }
+
+.proj { border-radius: 20px; border: 1px solid var(--line); background: var(--card); overflow: hidden; transition: border-color .25s, transform .25s var(--bounce); }
+.proj.act { border-color: var(--white); }
+.proj-h { width: 100%; display: flex; align-items: center; gap: 13px; padding: 14px; text-align: left; }
+.proj-tile { width: 44px; height: 44px; border-radius: 14px; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 19px; background: var(--surface); position: relative; overflow: hidden; }
+.proj-tile::after { content: ""; position: absolute; top: 0; right: 0; width: 15px; height: 15px; background: var(--line-strong); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.proj.act .proj-tile { background: var(--white); color: var(--ink); }
+.proj-n { flex: 1; min-width: 0; }
+.proj-n b { display: block; font-size: 16.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-n span { font-size: 13px; color: var(--muted); }
+.proj-chev { transition: transform .4s var(--bounce); color: var(--muted); }
+.proj.open .proj-chev { transform: rotate(180deg); }
+.proj-more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--slide); }
+.proj.open .proj-more { grid-template-rows: 1fr; }
+.proj-more > div { overflow: hidden; }
+.proj-in { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.proj-chat { text-align: left; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: transform .2s var(--bounce), background .2s; }
+.proj-chat:active { transform: scale(.97); }
+.proj-btns { display: flex; gap: 8px; margin-top: 6px; }
+.proj-btns button { flex: 1; height: 40px; border-radius: 13px; font-weight: 600; font-size: 14px; background: var(--surface); transition: transform .2s var(--bounce); }
+.proj-btns button.pri { background: var(--white); color: var(--ink); }
+.proj-btns button:active { transform: scale(.94); }
+.proj-empty-note { font-size: 13.5px; color: var(--muted); padding: 2px 2px 4px; }
+.empty-art { margin: 8vh auto 0; text-align: center; color: var(--muted); font-size: 15px; line-height: 1.5; max-width: 260px; }
+.empty-art svg { width: 84px; height: 84px; fill: none; stroke: var(--text); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 14px; animation: floaty 3.4s ease-in-out infinite; }
+@keyframes floaty { 50% { transform: translateY(-8px) rotate(-2deg); } }
+
+/* canvas */
+.cv-title { font-size: 26px; font-weight: 600; letter-spacing: -.015em; padding: 4px 2px; width: 100%; }
+.cv-text { flex: 1; min-height: 40vh; resize: none; font-size: 17px; line-height: 1.65; padding: 6px 2px; width: 100%; }
+.cv-bar { display: flex; align-items: center; gap: 10px; padding: 10px 2px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.cv-bar .sp { flex: 1; }
+.cv-saved { transition: opacity .3s, transform .4s var(--bounce); opacity: 0; transform: translateY(4px); }
+.cv-saved.on { opacity: 1; transform: none; }
+.cv-bar button { height: 36px; padding: 0 14px; border-radius: 12px; background: var(--surface); color: var(--text); font-weight: 600; font-size: 13.5px; transition: transform .2s var(--bounce); }
+.cv-bar button.pri { background: var(--white); color: var(--ink); }
+.cv-bar button:active { transform: scale(.92); }
+
+/* deep research card */
+.m.rcard { white-space: normal; max-width: 100%; padding: 16px; align-self: stretch; border-radius: 22px; border: 1px solid var(--line-strong); background: var(--card); padding: 16px; position: relative; overflow: hidden; animation: pop .5s var(--slide) both; }
+.rcard::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.07) 50%, transparent 70%); transform: translateX(-100%); animation: sheen 2.2s ease-in-out infinite; }
+.m.rcard.done::before { animation: none; opacity: 0; }
+@keyframes sheen { to { transform: translateX(100%); } }
+.rc-h { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15.5px; margin-bottom: 12px; }
+.rc-h svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.rc-h .sweep { transform-origin: 12px 12px; animation: spin 1.4s linear infinite; }
+.rcard.done .sweep { animation: none; }
+.rc-h small { margin-left: auto; font-weight: 500; color: var(--muted); font-size: 12px; }
+.rc-bar { height: 4px; border-radius: 2px; background: var(--surface); overflow: hidden; margin-bottom: 14px; }
+.rc-bar i { display: block; height: 100%; width: 0; background: var(--white); border-radius: 2px; transition: width .7s var(--slide); }
+.rc-steps { display: flex; flex-direction: column; gap: 9px; }
+.rc-step { display: flex; align-items: center; gap: 11px; font-size: 14.5px; color: var(--muted); transition: color .3s, transform .4s var(--slide); }
+.rc-step .d { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line-strong); display: grid; place-items: center; flex: none; transition: all .35s var(--bounce); }
+.rc-step.run { color: var(--text); transform: translateX(3px); }
+.rc-step.run .d { border-color: var(--white); border-top-color: transparent; animation: spin .8s linear infinite; }
+.rc-step.ok { color: var(--text); }
+.rc-step.ok .d { background: var(--white); border-color: var(--white); }
+.rc-step.ok .d::after { content: ""; width: 5px; height: 9px; border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.rc-q { margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 1.4em; transition: opacity .25s; }
+
+.hist-row, .chip, .pill, .sym-btn, .go, .t-opt { will-change: transform; }
+.chip:active, .go:active, .box button.ic:active { transform: scale(.9); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01s !important; animation-delay: 0s !important; }
+  .typing-3d .orb, .typing-3d .orb-shadow { animation-duration: 1.5s !important; }
+}
+</style>
+</head>
+<body class="empty">
+
+<!-- ============================================================
+     SVG SPRITE (SEAMLESS SOLID ORIGAMI "R O C K" WORDMARK + ICONS)
+     ============================================================ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- ROCK wordmark v2: R untouched; O, C, K rebuilt in R's language (18u ribbon, 45deg folds, matched radii) -->
+    <path id="ringO" fill-rule="evenodd" d="M134 10h20a30 30 0 0 1 30 30v20a30 30 0 0 1-30 30h-20a30 30 0 0 1-30-30V40a30 30 0 0 1 30-30zM140 28a12 12 0 0 0-12 12v20a12 12 0 0 0 12 12h8a12 12 0 0 0 12-12V40a12 12 0 0 0-12-12z"/>
+    <path id="ringC" fill-rule="evenodd" d="M232 10h20a30 30 0 0 1 30 30v20a30 30 0 0 1-30 30h-20a30 30 0 0 1-30-30V40a30 30 0 0 1 30-30zM238 28a12 12 0 0 0-12 12v20a12 12 0 0 0 12 12h8a12 12 0 0 0 12-12V40a12 12 0 0 0-12-12z"/>
+    <clipPath id="oL"><rect x="0" y="0" width="144.5" height="100"/></clipPath>
+    <clipPath id="oT"><rect x="143.5" y="0" width="60" height="50.5"/></clipPath>
+    <clipPath id="oB"><rect x="143.5" y="49.5" width="60" height="60"/></clipPath>
+    <clipPath id="cL"><rect x="0" y="0" width="242.5" height="100"/></clipPath>
+    <clipPath id="cT"><polygon points="241.5,0 300,0 300,22 262,50 241.5,50"/></clipPath>
+    <clipPath id="cB"><polygon points="241.5,100 300,100 300,78 262,50 241.5,50"/></clipPath>
+    <clipPath id="oIn"><use href="#ringO" clip-rule="evenodd"/></clipPath>
+    <clipPath id="cIn"><use href="#ringC" clip-rule="evenodd"/></clipPath>
+
+    <g id="a" fill="#fff">
+      <path d="M12 10h20v80H12z"/>
+      <use href="#ringO" clip-path="url(#oL)"/>
+      <use href="#ringC" clip-path="url(#cL)"/>
+      <path d="M298 10h20v80h-20z"/>
+    </g>
+    <g id="b" fill="#fff">
+      <path d="M32 10h22c20 0 28 12 28 26s-8 24-28 24H32V44h20c8 0 12-3 12-8s-4-10-12-10H32z"/>
+      <use href="#ringO" clip-path="url(#oT)"/>
+      <use href="#ringC" clip-path="url(#cT)"/>
+      <path d="M318 50L346 10h23l-28 40z"/>
+    </g>
+    <g id="c" fill="#fff">
+      <path d="M44 60h22l20 30H62z"/>
+      <use href="#ringO" clip-path="url(#oB)"/>
+      <use href="#ringC" clip-path="url(#cB)"/>
+      <path d="M318 50L346 90h23l-28-40z"/>
+    </g>
+
+    <!-- Primary folds: light-grey 45deg creases, clipped to each ribbon so they never spill -->
+    <g id="d" fill="#a8a8a8">
+      <path d="M32 44h20L32 60z"/>
+      <g clip-path="url(#oIn)"><path d="M104 10h32L104 42z"/></g>
+      <g clip-path="url(#cIn)"><path d="M202 10h32L202 42z"/></g>
+      <path d="M318 50h23L329.5 34z"/>
+    </g>
+    <!-- Secondary folds: deeper shadow on the opposite corner (gives the 3D paper turn) -->
+    <g id="e" fill="#a8a8a8">
+      <path d="M44 60h22L54 76z"/>
+      <g clip-path="url(#oIn)"><path d="M184 90h-32l32-32z"/></g>
+      <g clip-path="url(#cIn)"><path d="M202 90h32l-32-32z"/></g>
+      <path d="M318 50h23l-11.500 16z"/>
+    </g>
+
+    <!-- Complete Seamless "R O C K" Origami Wordmark (viewBox 0 0 370 100) -->
+    <g id="R">
+      <use href="#a"/>
+      <use href="#b"/>
+      <use href="#c"/>
+      <use href="#d"/>
+      <use href="#e"/>
+    </g>
+
+    <!-- Core UI Icons -->
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 9h16M4 15h10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+    </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============================================================
+     INTRO SPLASH (SYNCHRONIZED "R O C K" ORIGAMI BUILD)
+     ============================================================ -->
+<div id="intro">
+  <div class="stage">
+    <div class="mark">
+      <svg class="p1" viewBox="0 0 370 100"><use href="#a"/></svg>
+      <svg class="p2" viewBox="0 0 370 100"><use href="#b"/></svg>
+      <svg class="p3" viewBox="0 0 370 100"><use href="#c"/></svg>
+      <svg class="p4" viewBox="0 0 370 100"><use href="#d"/></svg>
+      <svg class="p5" viewBox="0 0 370 100"><use href="#e"/></svg>
+    </div>
+    <div class="word" id="word" aria-label="RockGPT"></div>
+    <div class="ticker">
+      <div><p>Chat</p><p>Create</p><p>Code</p><p>Explore</p><p>Anything</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SIDEBAR DRAWER (SLIDES OVER LIKE VIDEO + SCREENSHOT LAYOUT)
+     ============================================================ -->
+<aside class="drawer" id="drawer" aria-label="Sidebar navigation">
+  <!-- Brand Header with Full "R O C K" Origami Mark + GPT -->
+  <div class="s-brand">
+    <div class="s-brand-left">
+      <svg class="logo-rock" viewBox="0 0 370 100" aria-label="ROCK"><use href="#R"/></svg>
+      <span class="gpt-tag">GPT</span>
+    </div>
+  </div>
+
+  <!-- "+ New chat" Wide Pill -->
+  <button class="new-chat-pill" id="newd">
+    <svg class="i"><use href="#i-plus"/></svg>
+    <span>New chat</span>
+  </button>
+
+  <!-- Tools: Projects / Deep Research / Canvas -->
+  <nav class="nav" aria-label="Tools">
+    <button class="nav-item" id="navProj" style="--i:0" type="button">
+      <span class="ni-ico"><svg viewBox="0 0 24 24"><path class="lid" d="M3 8V6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v1"/><path d="M3 10.5h18l-1.4 8a1.5 1.5 0 0 1-1.5 1.2H5.9a1.5 1.5 0 0 1-1.5-1.2z"/></svg></span>
+      <span class="ni-t">Projects</span><span class="ni-tag" id="projTag"></span>
+    </button>
+    <button class="nav-item" id="navDeep" style="--i:1" type="button">
+      <span class="ni-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path class="sweep" d="M12 12V3.5"/></svg></span>
+      <span class="ni-t">Deep Research</span><span class="ni-tag" id="deepTag"></span>
+    </button>
+    <button class="nav-item" id="navCanvas" style="--i:2" type="button">
+      <span class="ni-ico"><svg viewBox="0 0 24 24"><path d="M5 4h9l5 5v11H5z"/><path d="M14 4v5h5"/><path class="pen" d="M8.5 15.5l5-5 1.8 1.8-5 5-2.3.5z"/></svg></span>
+      <span class="ni-t">Canvas</span>
+    </button>
+  </nav>
+
+  <!-- Recent Chats Section -->
+  <div class="s-label">Recent</div>
+  <div id="list"></div>
+
+  <!-- Footer: Theme Switcher + Dynamic Account Card -->
+  <div class="s-foot">
+    <div class="theme-card">
+      <div class="theme-label">
+        <svg class="i"><use href="#i-moon"/></svg>
+        <span>Theme</span>
+      </div>
+      <div class="theme-switch">
+        <button class="t-opt" id="themeLight" type="button">
+          <svg class="i"><use href="#i-sun"/></svg>
+          <span>Light</span>
+        </button>
+        <button class="t-opt active" id="themeDark" type="button">
+          <svg class="i"><use href="#i-moon"/></svg>
+          <span>Dark</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="profile-card">
+      <div class="p-left" id="profileTrigger" title="Click to register or edit profile">
+        <div class="p-avatar" id="userAvatar">G</div>
+        <div class="p-info">
+          <div class="p-name" id="userName">Guest User</div>
+          <div class="p-mail" id="userMail">Sign in to personalize</div>
+        </div>
+      </div>
+      <button class="p-auth-btn" id="authActionBtn" type="button">Sign in</button>
+    </div>
+  </div>
+</aside>
+
+<!-- Dimmed Right-Side Scrim when Sidebar is Open -->
+<div class="app-scrim" id="scrim"></div>
+<div class="sheet-wave" id="sheetWave"></div>
+
+<!-- ============================================================
+     MAIN APPLICATION SHELL
+     ============================================================ -->
+<main class="app" id="app">
+  <header class="top rise">
+    <button class="pill round" id="menu" aria-label="Open sidebar">
+      <svg class="i"><use href="#i-menu"/></svg>
+    </button>
+
+    <!-- Creative Symbol-Only New Chat / Compose Button -->
+    <button class="sym-btn" id="newt" aria-label="New chat" title="Start new chat">
+      <svg viewBox="0 0 24 24">
+        <path class="sym-sheet" d="M11 4H6.8A2.8 2.8 0 0 0 4 6.8v10.4A2.8 2.8 0 0 0 6.8 20h10.4a2.8 2.8 0 0 0 2.8-2.8V13"/>
+        <path class="sym-nib" d="M13.5 10.5L19.2 4.8"/>
+        <path class="sym-spark" d="M18.5 2.2L19.4 4.6L21.8 5.5L19.4 6.4L18.5 8.8L17.6 6.4L15.2 5.5L17.6 4.6Z"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Welcome Hero with Full "R O C K" Mark & Dynamic User Name -->
+  <section class="hero" id="hero">
+    <svg class="logo-rock-hero hi" style="--d:.1s" viewBox="0 0 370 100" aria-label="ROCK"><use href="#R"/></svg>
+    <h1 id="heroGreeting">
+      <b class="hi" style="--d:.2s;--i:0">Welcome</b><b class="hi" style="--d:.2s;--i:1" id="greetBackWord">back</b><b class="hi" style="--d:.2s;--i:2" id="greetUserName"></b>
+    </h1>
+    <div class="chips">
+      <button class="chip hi" style="--i:0">Plan my day</button>
+      <button class="chip hi" style="--i:1">Help me learn coding</button>
+      <button class="chip hi" style="--i:2">Give me a study tip</button>
+    </div>
+  </section>
+
+  <!-- Active Conversation Feed -->
+  <div id="feed"></div>
+
+  <!-- Floating Scroll-to-Bottom Button -->
+  <button class="scroll-down" id="scrollDownBtn" aria-label="Scroll to bottom">
+    <svg class="i"><use href="#i-down"/></svg>
+  </button>
+
+  <!-- Message Composer -->
+  <div class="comp rise" style="--d:.35s">
+    <div class="mode-row" id="modeRow"></div>
+    <div class="box" id="box">
+      <button class="ic" id="plus" aria-label="Attach file">
+        <svg class="i"><use href="#i-plus"/></svg>
+      </button>
+      <textarea id="in" rows="1" placeholder="Reply to RockGPT"></textarea>
+      <button class="ic" id="mic" aria-label="Voice input">
+        <svg class="i"><use href="#i-mic"/></svg>
+      </button>
+      <button class="go" id="go" aria-label="Send message">
+        <svg class="i wav"><use href="#i-wave"/></svg>
+        <svg class="i snd"><use href="#i-up"/></svg>
+      </button>
+    </div>
+  </div>
+  <input type="file" id="file" hidden>
+</main>
+
+<!-- ============================================================
+     AUTHENTICATION MODAL (SETS USER NAME FOR WELCOME & SIDEBAR)
+     ============================================================ -->
+<div class="auth-modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <form class="auth-box" id="authForm">
+    <div class="auth-head">
+      <h2 id="authTitle">Account Registration</h2>
+      <button type="button" class="auth-close" id="authClose" aria-label="Close">
+        <svg class="i"><use href="#i-close"/></svg>
+      </button>
+    </div>
+    <p class="auth-sub">Enter your name and email to personalize your RockGPT welcome screen and sidebar profile.</p>
+    <div class="auth-field">
+      <label for="authNameInput">Your Name</label>
+      <input id="authNameInput" type="text" placeholder="e.g. Sumaan Mansuri" required autocomplete="name">
+    </div>
+    <div class="auth-field">
+      <label for="authEmailInput">Email Address</label>
+      <input id="authEmailInput" type="email" placeholder="e.g. name@example.com" required autocomplete="email">
+    </div>
+    <button type="submit" class="auth-submit">Save &amp; Continue</button>
+  </form>
+</div>
+
+
+<section class="sheet" id="shProj" aria-hidden="true" aria-label="Projects">
+  <header class="sh-top">
+    <button class="sh-back" data-close type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+    <h2>Projects</h2>
+    <button class="sh-act" id="projAdd" type="button">+ New</button>
+  </header>
+  <div class="sh-body">
+    <div class="pf" id="pf">
+      <input id="pfName" type="text" maxlength="28" placeholder="Project name" autocomplete="off">
+      <div class="row"><button type="button" id="pfCancel">Cancel</button><button type="button" class="pri" id="pfSave">Create</button></div>
+    </div>
+    <div id="projList" style="display:contents"></div>
+  </div>
+</section>
+
+<section class="sheet" id="shCanvas" aria-hidden="true" aria-label="Canvas">
+  <header class="sh-top">
+    <button class="sh-back" data-close type="button" aria-label="Back"><svg class="i"><use href="#i-back"/></svg></button>
+    <h2>Canvas</h2>
+    <button class="sh-act" id="cvClear" type="button">Clear</button>
+  </header>
+  <div class="sh-body" style="gap:6px">
+    <input class="cv-title" id="cvTitle" placeholder="Untitled" maxlength="60" autocomplete="off">
+    <textarea class="cv-text" id="cvText" placeholder="Write, outline or draft anything. It saves as you type."></textarea>
+    <div class="cv-bar">
+      <span id="cvCount">0 words</span><span class="cv-saved" id="cvSaved">Saved</span><span class="sp"></span>
+      <button type="button" id="cvCopy">Copy</button>
+      <button type="button" class="pri" id="cvSend">Send to chat</button>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============================================================
+     APPLICATION JAVASCRIPT
+     ============================================================ -->
+<script>
+const $ = s => document.querySelector(s);
+const B = document.body;
+const inp = $('#in');
+const feed = $('#feed');
+const drawer = $('#drawer');
+const appEl = $('#app');
+const scrim = $('#scrim');
+
+/* ---------- 1. Intro Splash ---------- */
+$('#word').innerHTML = 'ROCKGPT'.split('').map((c, i) => `<b><i style="--i:${i}">${c}</i></b>`).join('');
+let introDone = false;
+function endIntro() {
+  if (introDone) return;
+  introDone = true;
+  const el = $('#intro');
+  if (el) {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 700);
+  }
+  B.classList.add('ready');
+}
+setTimeout(endIntro, 3400);
+$('#intro').addEventListener('click', endIntro);
+
+/* ---------- 2. Viewport Height Sync ---------- */
+const vv = window.visualViewport;
+function fitViewport() {
+  document.documentElement.style.setProperty('--vh', (vv ? vv.height : innerHeight) + 'px');
+  scrollTo(0, 0);
+}
+if (vv) {
+  vv.addEventListener('resize', fitViewport);
+  vv.addEventListener('scroll', fitViewport);
+}
+addEventListener('resize', fitViewport);
+fitViewport();
+
+/* ---------- 3. Toast Notification ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 1900);
+}
+
+/* ---------- 4. Reliable Video-Style Sidebar Open/Close + 1:1 Touch Drag ---------- */
+function setDrawer(isOpen) {
+  B.classList.remove('dragging');
+  drawer.style.transform = '';
+  appEl.style.transform = '';
+  scrim.style.opacity = '';
+  B.classList.toggle('open', isOpen);
+}
+
+$('#menu').onclick = () => setDrawer(true);
+scrim.onclick = () => setDrawer(false);
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if ($('#authModal').classList.contains('on')) closeAuthModal();
+    else if (B.classList.contains('open')) setDrawer(false);
+  }
+});
+
+// Interactive 1:1 finger-tracking edge swipe & close drag
+let dragState = null;
+addEventListener('touchstart', e => {
+  if (e.touches.length !== 1 || $('#authModal').classList.contains('on')) return;
+  const t = e.touches[0];
+  const isOpen = B.classList.contains('open');
+  const drawerW = drawer.offsetWidth || 320;
+  // Trigger when swiping from left 32px edge (closed) or anywhere when open
+  if (!isOpen && t.clientX > 32) return;
+  dragState = {
+    startX: t.clientX,
+    startY: t.clientY,
+    lastX: t.clientX,
+    lastTime: performance.now(),
+    vx: 0,
+    isOpen,
+    drawerW,
+    active: false
+  };
+}, { passive: true });
+
+addEventListener('touchmove', e => {
+  if (!dragState) return;
+  const t = e.touches[0];
+  const dx = t.clientX - dragState.startX;
+  const dy = t.clientY - dragState.startY;
+
+  if (!dragState.active) {
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      dragState = null;
+      return;
+    }
+    if (Math.abs(dx) > 8) {
+      dragState.active = true;
+      B.classList.add('dragging');
+    } else {
+      return;
+    }
+  }
+
+  const now = performance.now();
+  const dt = Math.max(1, now - dragState.lastTime);
+  dragState.vx = (t.clientX - dragState.lastX) / dt;
+  dragState.lastX = t.clientX;
+  dragState.lastTime = now;
+
+  const base = dragState.isOpen ? 0 : -dragState.drawerW;
+  const offset = Math.min(0, Math.max(-dragState.drawerW, base + dx));
+  const progress = 1 + offset / dragState.drawerW; // 0 (closed) -> 1 (open)
+
+  drawer.style.transform = `translate3d(${offset}px, 0, 0)`;
+  appEl.style.transform = `translate3d(${progress * dragState.drawerW * 0.28}px, 0, 0)`;
+  scrim.style.opacity = String(progress);
+}, { passive: true });
+
+addEventListener('touchend', () => {
+  if (!dragState) return;
+  if (!dragState.active) {
+    dragState = null;
+    return;
+  }
+  const dx = dragState.lastX - dragState.startX;
+  const base = dragState.isOpen ? 0 : -dragState.drawerW;
+  const finalOffset = Math.min(0, Math.max(-dragState.drawerW, base + dx));
+  const progress = 1 + finalOffset / dragState.drawerW;
+
+  let shouldOpen = progress > 0.45;
+  if (Math.abs(dragState.vx) > 0.35) {
+    shouldOpen = dragState.vx > 0;
+  }
+  dragState = null;
+  setDrawer(shouldOpen);
+});
+
+/* ---------- 5. Live Theme Switcher (Light / Dark) ---------- */
+const themeLightBtn = $('#themeLight');
+const themeDarkBtn = $('#themeDark');
+
+function applyTheme(mode) {
+  const isLight = mode === 'light';
+  B.classList.toggle('light', isLight);
+  themeLightBtn.classList.toggle('active', isLight);
+  themeDarkBtn.classList.toggle('active', !isLight);
+  try { localStorage.setItem('rockgpt_theme', mode); } catch (_) {}
+}
+themeLightBtn.onclick = () => applyTheme('light');
+themeDarkBtn.onclick = () => applyTheme('dark');
+try {
+  const savedTheme = localStorage.getItem('rockgpt_theme');
+  if (savedTheme === 'light') applyTheme('light');
+} catch (_) {}
+
+/* ---------- 6. Dynamic Authentication & Welcome Greeting ---------- */
+let currentUser = null;
+try {
+  const rawUser = localStorage.getItem('rockgpt_user');
+  if (rawUser) currentUser = JSON.parse(rawUser);
+} catch (_) {}
+
+function syncUserUI() {
+  const greetBackWord = $('#greetBackWord');
+  const greetUserName = $('#greetUserName');
+  const avatarEl = $('#userAvatar');
+  const nameEl = $('#userName');
+  const mailEl = $('#userMail');
+  const authBtn = $('#authActionBtn');
+
+  if (currentUser && currentUser.name) {
+    const cleanName = currentUser.name.trim();
+    const firstName = cleanName.split(/\s+/)[0];
+    greetBackWord.textContent = 'back,';
+    greetUserName.textContent = firstName;
+    avatarEl.textContent = cleanName.charAt(0).toUpperCase();
+    nameEl.textContent = cleanName;
+    mailEl.textContent = currentUser.email || 'Signed in';
+    authBtn.textContent = 'Log out';
+  } else {
+    greetBackWord.textContent = 'back';
+    greetUserName.textContent = '';
+    avatarEl.textContent = 'G';
+    nameEl.textContent = 'Guest User';
+    mailEl.textContent = 'Sign in to personalize';
+    authBtn.textContent = 'Sign in';
+  }
+}
+
+function openAuthModal() {
+  $('#authNameInput').value = currentUser?.name || '';
+  $('#authEmailInput').value = currentUser?.email || '';
+  $('#authModal').classList.add('on');
+  setTimeout(() => $('#authNameInput').focus(), 80);
+}
+
+function closeAuthModal() {
+  $('#authModal').classList.remove('on');
+}
+
+$('#profileTrigger').onclick = openAuthModal;
+$('#authClose').onclick = closeAuthModal;
+$('#authModal').onclick = e => { if (e.target.id === 'authModal') closeAuthModal(); };
+
+$('#authActionBtn').onclick = () => {
+  if (currentUser && currentUser.name) {
+    currentUser = null;
+    try { localStorage.removeItem('rockgpt_user'); } catch (_) {}
+    syncUserUI();
+    toast('Logged out');
+  } else {
+    openAuthModal();
+  }
+};
+
+$('#authForm').onsubmit = e => {
+  e.preventDefault();
+  const name = $('#authNameInput').value.trim();
+  const email = $('#authEmailInput').value.trim();
+  if (!name) return;
+  currentUser = { name, email };
+  try { localStorage.setItem('rockgpt_user', JSON.stringify(currentUser)); } catch (_) {}
+  syncUserUI();
+  closeAuthModal();
+  setDrawer(false);
+  toast(`Welcome back, ${name.split(/\s+/)[0]}!`);
+};
+
+// Expose global hook for external authentication providers
+window.setRockGPTUser = function(userObj) {
+  currentUser = userObj && userObj.name ? userObj : null;
+  try {
+    if (currentUser) localStorage.setItem('rockgpt_user', JSON.stringify(currentUser));
+    else localStorage.removeItem('rockgpt_user');
+  } catch (_) {}
+  syncUserUI();
+};
+
+syncUserUI();
+
+/* ---------- 7. Multi-Session Chat History with Individual Delete (×) ---------- */
+let sessions = [];
+let activeSessionId = null;
+
+function renderDrawerList() {
+  const listEl = $('#list');
+  listEl.innerHTML = '';
+  if (!sessions.length) {
+    listEl.innerHTML = '<p class="empty-note">Your chats will appear here</p>';
+    return;
+  }
+  sessions.forEach(sess => {
+    const row = document.createElement('div');
+    row.className = 'hist-row' + (sess.id === activeSessionId ? ' active' : '');
+
+    const titleBtn = document.createElement('button');
+    titleBtn.className = 'hist-title';
+    titleBtn.type = 'button';
+    titleBtn.textContent = sess.title;
+    titleBtn.onclick = () => loadSession(sess.id);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'hist-del';
+    delBtn.type = 'button';
+    delBtn.setAttribute('aria-label', 'Delete chat');
+    delBtn.innerHTML = '<svg class="i"><use href="#i-close"/></svg>';
+    delBtn.onclick = e => {
+      e.stopPropagation();
+      row.classList.add('removing');
+      setTimeout(() => deleteSession(sess.id), 200);
+    };
+
+    row.appendChild(titleBtn);
+    row.appendChild(delBtn);
+    row.style.setProperty('--i', Math.min(listEl.children.length, 9));
+    listEl.appendChild(row);
+  });
+  if (typeof refreshProjectTag === 'function') refreshProjectTag();
+}
+
+function loadSession(id) {
+  const sess = sessions.find(s => s.id === id);
+  if (!sess) return;
+  activeSessionId = sess.id;
+  feed.innerHTML = '';
+  if (sess.messages.length === 0) {
+    B.classList.add('empty');
+  } else {
+    B.classList.remove('empty');
+    sess.messages.forEach(m => add(m.role, m.text));
+  }
+  renderDrawerList();
+  setDrawer(false);
+}
+
+function deleteSession(id) {
+  sessions = sessions.filter(s => s.id !== id);
+  if (activeSessionId === id) {
+    activeSessionId = null;
+    feed.innerHTML = '';
+    B.classList.add('empty');
+  }
+  renderDrawerList();
+}
+
+renderDrawerList();
+
+/* ---------- 8. Composer & Voice Dictation ---------- */
+const box = $('#box');
+function grow() {
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 132) + 'px';
+  box.classList.toggle('has', !!inp.value.trim());
+}
+inp.addEventListener('input', grow);
+
+document.querySelectorAll('.chip').forEach(b => {
+  b.onclick = () => {
+    inp.value = b.textContent;
+    grow();
+    send();
+  };
+});
+
+$('#plus').onclick = () => $('#file').click();
+$('#file').onchange = e => {
+  if (e.target.files[0]) toast('Attached: ' + e.target.files[0].name);
+};
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function dictate() {
+  if (!SR) return toast('Voice input not supported in this browser');
+  try {
+    const r = new SR();
+    r.onresult = e => {
+      inp.value += (inp.value ? ' ' : '') + e.results[0][0].transcript;
+      grow();
+    };
+    r.start();
+    toast('Listening…');
+  } catch (_) {
+    toast('Microphone permission needed');
+  }
+}
+$('#mic').onclick = dictate;
+
+/* ---------- 9. Scroll-to-Bottom Floating Button ---------- */
+const scrollDownBtn = $('#scrollDownBtn');
+feed.addEventListener('scroll', () => {
+  const dist = feed.scrollHeight - feed.scrollTop - feed.clientHeight;
+  scrollDownBtn.classList.toggle('on', dist > 110);
+});
+scrollDownBtn.onclick = () => {
+  feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
+};
+
+/* ---------- 10. Chat Engine + Unboxed 3D Sequential 3-Dot Wave ---------- */
+let busy = false;
+
+function add(role, text) {
+  const d = document.createElement('div');
+  d.className = 'm ' + role;
+  d.textContent = text;
+  feed.appendChild(d);
+  feed.scrollTop = 1e9;
+  return d;
+}
+
+const apiKey = "";
+async function reply(promptText, historyArr) {
+  if (apiKey) {
+    try {
+      const contents = historyArr.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.text }]
+      }));
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: {
+            parts: [{ text: "You are RockGPT, a sleek, intelligent, concise, and helpful AI assistant." }]
+          }
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const out = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (out) return out.trim();
+      }
+    } catch (_) {}
+  }
+
+  const q = promptText.toLowerCase();
+  const userPrefix = currentUser?.name ? `${currentUser.name.split(/\s+/)[0]}, ` : '';
+  if (q.includes('plan my day')) {
+    return `Here is a focused high-momentum day plan:\n\n1. Deep Work Block (90 mins): Tackle your single most important task before checking messages.\n2. Midday Recharge (30 mins): Step away from screens, hydrate, and take a brisk walk.\n3. Creative Sprint (60 mins): Build, code, or prototype without perfectionism.\n4. Evening Wrap (15 mins): Write down tomorrow's top 3 priorities so you start effortlessly.`;
+  }
+  if (q.includes('coding')) {
+    return `The fastest way to master coding is through tight build loops:\n\n• Pick one core concept (e.g., DOM events, async/await, or state management).\n• Build a tiny interactive tool from scratch in 30 minutes without copy-pasting.\n• Break it intentionally, inspect the console, and fix it.\n\nTell me which language you want to start with and we'll write your first mini-project right now.`;
+  }
+  if (q.includes('study tip')) {
+    return `Use the Feynman Active Recall Loop:\n\nAfter reading a topic for 20 minutes, close your notes and explain the concept out loud as if teaching a 12-year-old. Every spot where you hesitate reveals the exact gap in your understanding—review only those gaps to cut study time in half.`;
+  }
+  return `RockGPT is ready, ${userPrefix}with smooth 60fps animations, your full ROCK origami wordmark, and 3D wave response indicators. Ask me anything or tap the compose symbol in the top right to start a fresh chat!`;
+}
+
+async function send() {
+  const t = inp.value.trim();
+  if (!t) return dictate();
+  if (busy) return;
+  busy = true;
+
+  if (B.classList.contains('empty')) {
+    const h = $('#hero');
+    h.classList.add('bye');
+    await new Promise(r => setTimeout(r, 250));
+    B.classList.remove('empty');
+    h.classList.remove('bye');
+  }
+
+  let sess = sessions.find(s => s.id === activeSessionId);
+  if (!sess) {
+    sess = { id: 'chat-' + Date.now(), title: t.slice(0, 42), messages: [], project: activeProject };
+    sessions.unshift(sess);
+    activeSessionId = sess.id;
+  }
+  sess.messages.push({ role: 'user', text: t });
+  renderDrawerList();
+
+  add('user', t);
+  inp.value = '';
+  grow();
+
+  // Unboxed 3D Sequential 3-Dot Wave Indicator (ChatGPT / Gemini style)
+  const typingWrapper = document.createElement('div');
+  typingWrapper.className = 'm bot';
+  typingWrapper.innerHTML = `
+    <div class="typing-3d" role="status" aria-label="RockGPT is thinking">
+      <span class="orb-wrap"><i class="orb"></i><span class="orb-shadow"></span></span>
+      <span class="orb-wrap"><i class="orb"></i><span class="orb-shadow"></span></span>
+      <span class="orb-wrap"><i class="orb"></i><span class="orb-shadow"></span></span>
+    </div>`;
+  feed.appendChild(typingWrapper);
+  feed.scrollTop = 1e9;
+
+  let txt;
+  if (deepMode) {
+    typingWrapper.remove();
+    await runResearch(t);
+    txt = apiKey
+      ? await reply('Write a well-structured, deep research style report with headings and clear takeaways on: ' + t, sess.messages)
+      : researchBrief(t);
+  } else {
+    [txt] = await Promise.all([
+      reply(t, sess.messages),
+      new Promise(r => setTimeout(r, 1150))
+    ]);
+  }
+
+  const typingBoxEl = typingWrapper.querySelector('.typing-3d');
+  if (typingBoxEl) {
+    typingBoxEl.classList.add('gone');
+    await new Promise(r => setTimeout(r, 220));
+  }
+  typingWrapper.remove();
+
+  const out = add('bot', '');
+  sess.messages.push({ role: 'bot', text: txt });
+
+  for (const part of txt.split(/(\s+)/)) {
+    const s = document.createElement('span');
+    s.className = 'w';
+    s.textContent = part;
+    out.appendChild(s);
+    feed.scrollTop = 1e9;
+    await new Promise(r => setTimeout(r, 26));
+  }
+  busy = false;
+}
+
+$('#go').onclick = send;
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !/Mobi|Android/i.test(navigator.userAgent)) {
+    e.preventDefault();
+    send();
+  }
+});
+
+/* ---------- 11. Fresh Chat / Symbol Compose Trigger ---------- */
+function fresh() {
+  if (busy) return;
+  const wave = $('#sheetWave');
+  wave.classList.remove('run');
+  void wave.offsetWidth;
+  wave.classList.add('run');
+
+  activeSessionId = null;
+  feed.innerHTML = '';
+  B.classList.add('empty');
+  renderDrawerList();
+  setDrawer(false);
+}
+
+$('#newt').onclick = () => {
+  const b = $('#newt');
+  b.classList.remove('flip');
+  void b.offsetWidth;
+  b.classList.add('flip');
+  setTimeout(() => b.classList.remove('flip'), 500);
+  fresh();
+};
+
+$('#newd').onclick = fresh;
+
+
+/* ============================================================
+   12. TOOLS: PROJECTS · DEEP RESEARCH · CANVAS
+   ============================================================ */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (_) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* Ripple on press */
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest('.nav-item, .new-chat-pill');
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const size = Math.max(r.width, r.height) * 2;
+  const s = document.createElement('span');
+  s.className = 'rip';
+  s.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+  el.appendChild(s);
+  setTimeout(() => s.remove(), 620);
+});
+
+/* Sheets */
+function openSheet(id) {
+  setDrawer(false);
+  const sh = $(id);
+  sh.classList.add('on');
+  sh.setAttribute('aria-hidden', 'false');
+}
+function closeSheets() {
+  document.querySelectorAll('.sheet.on').forEach(s => { s.classList.remove('on'); s.setAttribute('aria-hidden', 'true'); });
+}
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheets));
+addEventListener('keydown', e => { if (e.key === 'Escape') closeSheets(); });
+
+/* ---- Composer mode chips ---- */
+let deepMode = false;
+let projects = store.get('rockgpt_projects', []);
+let activeProject = null;
+
+function renderModes() {
+  const row = $('#modeRow');
+  const want = [];
+  if (activeProject) {
+    const p = projects.find(x => x.id === activeProject);
+    if (p) want.push({ k: 'proj', html: `<svg class="i" viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2.5h8.5A1.5 1.5 0 0 1 21 10v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/></svg>${esc(p.name)}`, cls: '' });
+  }
+  if (deepMode) want.push({ k: 'deep', html: `<span class="dot"></span>Deep Research`, cls: 'deep' });
+  const have = [...row.children].map(c => c.dataset.k);
+  if (have.join() !== want.map(w => w.k).join()) {
+    row.innerHTML = '';
+    want.forEach(w => {
+      const c = document.createElement('div');
+      c.className = 'mchip ' + w.cls;
+      c.dataset.k = w.k;
+      c.innerHTML = w.html + `<button type="button" aria-label="Remove">${'<svg class="i"><use href="#i-close"/></svg>'}</button>`;
+      c.querySelector('button').onclick = () => {
+        c.classList.add('out');
+        setTimeout(() => { if (w.k === 'deep') setDeep(false); else setProject(null); }, 200);
+      };
+      row.appendChild(c);
+    });
+  }
+  inp.placeholder = deepMode ? 'What should I research?' : 'Reply to RockGPT';
+  $('#navDeep').classList.toggle('on', deepMode);
+  $('#deepTag').textContent = deepMode ? 'On' : '';
+  $('#navProj').classList.toggle('on', !!activeProject);
+}
+function setDeep(on, silent) {
+  deepMode = on;
+  renderModes();
+  if (!silent) toast(on ? 'Deep Research on' : 'Deep Research off');
+}
+function setProject(id, silent) {
+  activeProject = id;
+  renderModes();
+  renderProjects();
+  if (!silent) toast(id ? 'Project active: ' + projects.find(p => p.id === id).name : 'Left project');
+}
+function refreshProjectTag() {
+  try { $('#projTag').textContent = projects.length ? projects.length : ''; } catch (_) {}
+}
+
+$('#navDeep').onclick = () => {
+  setDeep(!deepMode);
+  if (deepMode && B.classList.contains('empty')) inp.focus({ preventScroll: true });
+  setTimeout(() => setDrawer(false), 180);
+};
+
+/* ---- Projects ---- */
+function renderProjects() {
+  const list = $('#projList');
+  const openIds = new Set([...list.querySelectorAll('.proj.open')].map(e => e.dataset.id));
+  list.innerHTML = '';
+  refreshProjectTag();
+  if (!projects.length) {
+    list.innerHTML = `<div class="empty-art" style="--i:0"><svg viewBox="0 0 24 24"><path d="M3 8V6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v1"/><path d="M3 10.5h18l-1.4 8a1.5 1.5 0 0 1-1.5 1.2H5.9a1.5 1.5 0 0 1-1.5-1.2z"/></svg><br>Group related chats into a project, then start any new chat inside it.</div>`;
+    return;
+  }
+  projects.forEach((p, i) => {
+    const chats = sessions.filter(s => s.project === p.id);
+    const el = document.createElement('div');
+    el.className = 'proj' + (p.id === activeProject ? ' act' : '') + (openIds.has(p.id) ? ' open' : '');
+    el.dataset.id = p.id;
+    el.style.setProperty('--i', i);
+    el.innerHTML = `
+      <button class="proj-h" type="button">
+        <span class="proj-tile">${esc(p.name.trim()[0] || 'P').toUpperCase()}</span>
+        <span class="proj-n"><b>${esc(p.name)}</b><span>${chats.length} chat${chats.length === 1 ? '' : 's'}${p.id === activeProject ? ' · active' : ''}</span></span>
+        <svg class="i proj-chev"><use href="#i-chev"/></svg>
+      </button>
+      <div class="proj-more"><div><div class="proj-in">
+        ${chats.length ? '' : '<div class="proj-empty-note">No chats yet. Make this the active project and send a message.</div>'}
+        <div class="proj-btns">
+          <button type="button" class="pri" data-a="use">${p.id === activeProject ? 'Leave project' : 'Use project'}</button>
+          <button type="button" data-a="del">Delete</button>
+        </div>
+      </div></div></div>`;
+    const inner = el.querySelector('.proj-in');
+    chats.slice().reverse().forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'proj-chat'; b.type = 'button'; b.textContent = s.title;
+      b.onclick = () => { closeSheets(); loadSession(s.id); };
+      inner.insertBefore(b, inner.querySelector('.proj-btns'));
+    });
+    el.querySelector('.proj-h').onclick = () => el.classList.toggle('open');
+    el.querySelector('[data-a=use]').onclick = () => { setProject(p.id === activeProject ? null : p.id); if (activeProject) setTimeout(closeSheets, 260); };
+    el.querySelector('[data-a=del]').onclick = () => {
+      el.style.transition = 'opacity .25s, transform .3s var(--slide)';
+      el.style.opacity = '0'; el.style.transform = 'translateX(-30px)';
+      setTimeout(() => {
+        projects = projects.filter(x => x.id !== p.id);
+        sessions.forEach(s => { if (s.project === p.id) s.project = null; });
+        store.set('rockgpt_projects', projects);
+        if (activeProject === p.id) setProject(null, true);
+        renderProjects();
+      }, 260);
+    };
+    list.appendChild(el);
+  });
+}
+$('#navProj').onclick = () => { renderProjects(); openSheet('#shProj'); };
+$('#projAdd').onclick = () => {
+  const f = $('#pf');
+  f.classList.toggle('on');
+  if (f.classList.contains('on')) setTimeout(() => $('#pfName').focus(), 120);
+};
+$('#pfCancel').onclick = () => { $('#pf').classList.remove('on'); $('#pfName').value = ''; };
+function saveProject() {
+  const name = $('#pfName').value.trim();
+  if (!name) { toast('Give it a name'); return; }
+  const p = { id: 'proj-' + Date.now(), name };
+  projects.unshift(p);
+  store.set('rockgpt_projects', projects);
+  $('#pfName').value = '';
+  $('#pf').classList.remove('on');
+  renderProjects();
+  toast('Project created');
+}
+$('#pfSave').onclick = saveProject;
+$('#pfName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveProject(); } });
+refreshProjectTag();
+
+/* ---- Canvas ---- */
+const cvT = $('#cvTitle'), cvX = $('#cvText');
+const cvSaved = store.get('rockgpt_canvas', { title: '', text: '' });
+cvT.value = cvSaved.title; cvX.value = cvSaved.text;
+let cvTimer;
+function cvUpdate() {
+  const words = (cvX.value.trim().match(/\S+/g) || []).length;
+  $('#cvCount').textContent = words + (words === 1 ? ' word' : ' words');
+  clearTimeout(cvTimer);
+  cvTimer = setTimeout(() => {
+    store.set('rockgpt_canvas', { title: cvT.value, text: cvX.value });
+    const s = $('#cvSaved'); s.classList.add('on');
+    setTimeout(() => s.classList.remove('on'), 1100);
+  }, 450);
+}
+cvT.addEventListener('input', cvUpdate);
+cvX.addEventListener('input', cvUpdate);
+cvUpdate();
+$('#navCanvas').onclick = () => { openSheet('#shCanvas'); };
+$('#cvClear').onclick = () => { cvT.value = ''; cvX.value = ''; cvUpdate(); toast('Canvas cleared'); };
+$('#cvCopy').onclick = async () => {
+  const txt = (cvT.value ? cvT.value + '\n\n' : '') + cvX.value;
+  try { await navigator.clipboard.writeText(txt); toast('Copied'); } catch (_) { cvX.select(); toast('Select and copy'); }
+};
+$('#cvSend').onclick = () => {
+  const txt = (cvT.value ? cvT.value + '\n\n' : '') + cvX.value;
+  if (!txt.trim()) { toast('Canvas is empty'); return; }
+  inp.value = txt; grow(); closeSheets();
+  setTimeout(() => inp.focus({ preventScroll: true }), 450);
+  toast('Added to composer');
+};
+
+/* ---- Deep Research ---- */
+const RSTEPS = ['Understanding the question', 'Breaking it into sub-questions', 'Exploring angles', 'Cross-checking the reasoning', 'Writing the report'];
+function subQuestions(topic) {
+  const k = topic.replace(/[?.!]+$/, '').slice(0, 60);
+  return [`What exactly is "${k}"?`, `Why does it matter right now?`, `What are the main viewpoints?`, `What could be wrong or missing?`, `What should happen next?`];
+}
+async function runResearch(topic) {
+  const card = document.createElement('div');
+  card.className = 'm bot rcard';
+    card.innerHTML = `
+    <div class="rc-h"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path class="sweep" d="M12 12V3.5"/></svg><span class="rc-t">Researching</span><small>${apiKey ? 'live' : 'demo mode'}</small></div>
+    <div class="rc-bar"><i></i></div>
+    <div class="rc-steps">${RSTEPS.map(s => `<div class="rc-step"><span class="d"></span><span>${s}</span></div>`).join('')}</div>
+    <div class="rc-q"></div>`;
+  feed.appendChild(card);
+  feed.scrollTop = 1e9;
+  const steps = [...card.querySelectorAll('.rc-step')];
+  const bar = card.querySelector('.rc-bar i');
+  const q = card.querySelector('.rc-q');
+  const subs = subQuestions(topic);
+  for (let i = 0; i < steps.length; i++) {
+    steps[i].classList.add('run');
+    bar.style.width = (i / steps.length * 100 + 8) + '%';
+    if (i >= 1 && i <= 3) { q.style.opacity = 0; await new Promise(r => setTimeout(r, 160)); q.textContent = 'Asking: ' + subs[i - 1]; q.style.opacity = 1; }
+    await new Promise(r => setTimeout(r, 900 + Math.random() * 500));
+    steps[i].classList.remove('run');
+    steps[i].classList.add('ok');
+    feed.scrollTop = 1e9;
+  }
+  bar.style.width = '100%';
+  q.textContent = '';
+  card.classList.add('done');
+  card.querySelector('.rc-t').textContent = 'Research complete';
+  await new Promise(r => setTimeout(r, 450));
+  card.style.transition = 'opacity .35s ease';
+  card.style.opacity = '.55';
+}
+function researchBrief(topic) {
+  const k = topic.replace(/[?.!]+$/, '');
+  const subs = subQuestions(topic);
+  return `Deep Research brief: ${k}\n\nThis is the offline demo, so it builds a research plan rather than quoting live sources. Add your API key in the code (apiKey) and the same flow writes a full report.\n\nKey questions\n` +
+    subs.map((s, i) => `${i + 1}. ${s}`).join('\n') +
+    `\n\nHow to investigate\n• Start with primary sources: official documents, papers, original data.\n• Compare at least two independent viewpoints before concluding.\n• Note dates; anything older than a year may be stale.\n\nNext step\nTell me which question to go deeper on and I will break it down further.`;
+}
+
+/* sync project state when switching chats */
+const _loadSession = loadSession;
+loadSession = function (id) {
+  _loadSession(id);
+  const s = sessions.find(x => x.id === id);
+  if (s && s.project && projects.some(p => p.id === s.project)) { activeProject = s.project; renderModes(); }
+};
+renderModes();
+</script>
+</body>
+</html>
