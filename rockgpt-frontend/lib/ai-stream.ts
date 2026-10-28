@@ -1,11 +1,38 @@
-import { streamText } from "ai";
-import { getLanguageModel } from "./ai/providers";
-import { DEFAULT_CHAT_MODEL } from "./ai/models";
 import { generateStructuredResponse, type ModelMessage } from "./ai-knowledge";
 
 export const SYSTEM_PROMPT = "You are RockGPT, a sleek, intelligent, concise and helpful AI assistant.";
-
 export { type ModelMessage };
+
+const BACKEND_URL = process.env.VITE_BACKEND_URL || process.env.BACKEND_URL || "https://rockgpt.onrender.com";
+
+let cachedBackendToken: { token: string; expiresAt: number } | null = null;
+
+async function getBackendToken(): Promise<string | null> {
+  if (cachedBackendToken && cachedBackendToken.expiresAt > Date.now()) {
+    return cachedBackendToken.token;
+  }
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/auth/guest-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.guestToken) {
+        cachedBackendToken = {
+          token: data.guestToken,
+          expiresAt: Date.now() + ((data.expiresInSeconds || 150) - 20) * 1000,
+        };
+        return data.guestToken;
+      }
+    }
+  } catch (err) {
+    console.warn("[Backend Token Fetch Error]:", err);
+  }
+  return null;
+}
 
 export async function createChatStream({
   messages,
@@ -14,22 +41,10 @@ export async function createChatStream({
   messages: ModelMessage[];
   projectName?: string | null;
 }) {
-  const fullSystemPrompt = projectName
-    ? `${SYSTEM_PROMPT}\nActive Project Context: ${projectName}`
-    : SYSTEM_PROMPT;
-
-  // Trim conversation history: keep system prompt and last 20 messages
-  const recentMessages = messages.slice(-20);
-  const formattedMessages = [
-    { role: "system" as const, content: fullSystemPrompt },
-    ...recentMessages.filter(m => m.role !== "system"),
-  ];
-
   async function* fallbackGenerator() {
     const lastUser = messages.filter(m => m.role === "user").pop()?.content || "";
     const structuredReply = generateStructuredResponse(lastUser, messages, projectName);
 
-    // High-momentum instant streaming (~140 words/second) with zero initial delay
     const parts = structuredReply.split(/(\s+)/);
     for (let i = 0; i < parts.length; i++) {
       yield parts[i];
@@ -39,40 +54,67 @@ export async function createChatStream({
     }
   }
 
-  // If AI Gateway is unverified/requires card, use instant intelligent stream
-  const hasVerifiedGateway = process.env.ENABLE_AI_GATEWAY === "true";
-
-  if (!hasVerifiedGateway) {
-    return fallbackGenerator();
-  }
-
+  // 1. Direct Live AI Streaming from connected Neural Backend (Render / Gemini / Groq)
   try {
-    const model = getLanguageModel(DEFAULT_CHAT_MODEL);
-    const result = streamText({
-      model,
-      messages: formattedMessages,
-      abortSignal: AbortSignal.timeout(1800),
-    });
+    const token = await getBackendToken();
+    if (token) {
+      const resp = await fetch(`${BACKEND_URL}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-guest-token": token,
+        },
+        body: JSON.stringify({
+          messages: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
 
-    async function* guardedStream() {
-      try {
-        let produced = false;
-        for await (const chunk of result.textStream) {
-          produced = true;
-          yield chunk;
+      if (resp.ok && resp.body) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+
+        async function* streamFromBackend() {
+          let buffer = "";
+          let streamedAny = false;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data:")) continue;
+              const dataStr = trimmed.slice(5).trim();
+              if (!dataStr) continue;
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.token) {
+                  streamedAny = true;
+                  yield parsed.token;
+                }
+              } catch {}
+            }
+          }
+
+          if (!streamedAny) {
+            yield* fallbackGenerator();
+          }
         }
-        if (!produced) {
-          yield* fallbackGenerator();
-        }
-      } catch (err) {
-        console.warn("AI Gateway stream error, activating instant fallback:", err);
-        yield* fallbackGenerator();
+
+        return streamFromBackend();
       }
     }
-
-    return guardedStream();
   } catch (err) {
-    console.warn("AI Gateway streaming fallback activated immediately:", err);
-    return fallbackGenerator();
+    console.warn("[Backend Live Stream Error]: Switching to intelligent fallback:", err);
   }
+
+  // 2. Resilient fallback generator
+  return fallbackGenerator();
 }

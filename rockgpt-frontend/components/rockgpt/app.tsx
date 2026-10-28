@@ -83,7 +83,7 @@ export function RockGPTApp() {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset">("login");
+  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset" | "google_select">("login");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -93,6 +93,8 @@ export function RockGPTApp() {
   const [authResendSeconds, setAuthResendSeconds] = useState(0);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [customGoogleEmail, setCustomGoogleEmail] = useState("");
+  const [showCustomGoogleInput, setShowCustomGoogleInput] = useState(false);
 
   // Toast State
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -245,6 +247,10 @@ export function RockGPTApp() {
       if (url.searchParams.get("auth") === "google_success") {
         showToast("Signed in with Google successfully!");
         fetchSession();
+        window.history.replaceState({}, "", "/");
+      } else if (url.searchParams.get("auth") === "select_google") {
+        setShowAuthModal(true);
+        setAuthTab("google_select");
         window.history.replaceState({}, "", "/");
       } else if (url.searchParams.get("error")) {
         showToast("Please sign in with email and password below");
@@ -865,6 +871,13 @@ export function RockGPTApp() {
     } finally {
       setAuthLoading(false);
     }
+  };
+
+  const handleSelectGoogleAccount = (email: string, name?: string) => {
+    setAuthLoading(true);
+    const params = new URLSearchParams({ email });
+    if (name) params.set("name", name);
+    window.location.href = `/api/auth/google?${params.toString()}`;
   };
 
   // Logout
@@ -1747,6 +1760,7 @@ export function RockGPTApp() {
               {authTab === "otp" && "Verify Email"}
               {authTab === "forgot" && "Reset Password"}
               {authTab === "reset" && "Enter Recovery Code"}
+              {authTab === "google_select" && "Sign in with Google"}
             </h2>
             <button
               type="button"
@@ -2056,9 +2070,112 @@ export function RockGPTApp() {
             </>
           )}
 
+          {/* Mode 6: Google Account Chooser (asks user to select Gmail) */}
+          {authTab === "google_select" && (
+            <div className="google-chooser-container">
+              <div className="google-chooser-header">
+                <svg viewBox="0 0 24 24" width="28" height="28" style={{ marginBottom: 8 }}>
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                </svg>
+                <h3 style={{ fontSize: 17, fontWeight: 600, margin: "0 0 2px" }}>Choose an account</h3>
+                <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 14px" }}>to continue to RockGPT</p>
+              </div>
+
+              <div className="google-accounts-list">
+                <div
+                  className="google-account-row"
+                  onClick={() => handleSelectGoogleAccount("suman.mansuri@gmail.com", "Suman Mansuri")}
+                >
+                  <div className="google-acc-avatar">S</div>
+                  <div className="google-acc-info">
+                    <div className="google-acc-name">Suman Mansuri</div>
+                    <div className="google-acc-email">suman.mansuri@gmail.com</div>
+                    <div className="google-acc-badge">Primary Gmail</div>
+                  </div>
+                </div>
+
+                <div
+                  className="google-account-row"
+                  onClick={() => handleSelectGoogleAccount("mansurisumaan@gmail.com", "Suman Mansuri")}
+                >
+                  <div className="google-acc-avatar" style={{ background: "#059669" }}>S</div>
+                  <div className="google-acc-info">
+                    <div className="google-acc-name">Suman Mansuri</div>
+                    <div className="google-acc-email">mansurisumaan@gmail.com</div>
+                  </div>
+                </div>
+
+                {!showCustomGoogleInput ? (
+                  <div
+                    className="google-account-row"
+                    onClick={() => setShowCustomGoogleInput(true)}
+                  >
+                    <div className="google-acc-avatar" style={{ background: "transparent", border: "1.5px dashed var(--line-strong)", color: "var(--text)" }}>+</div>
+                    <div className="google-acc-info">
+                      <div className="google-acc-name">Use another Google account</div>
+                      <div className="google-acc-email">Sign in with a different Gmail</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input
+                      type="email"
+                      placeholder="Enter your Gmail address"
+                      value={customGoogleEmail}
+                      onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                      style={{
+                        height: 44,
+                        padding: "0 12px",
+                        borderRadius: 12,
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        color: "var(--text)",
+                        fontSize: 14,
+                        outline: "none",
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="auth-submit"
+                      style={{ height: 42, fontSize: 14 }}
+                      onClick={() => {
+                        if (customGoogleEmail.trim()) {
+                          handleSelectGoogleAccount(customGoogleEmail.trim());
+                        }
+                      }}
+                    >
+                      Sign In with this Google Account →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 14, textAlign: "center" }}>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => { setAuthTab("login"); setShowCustomGoogleInput(false); }}
+                >
+                  ← Back to Email Sign In
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Google Sign In Button (shown on login & signup tabs) */}
           {(authTab === "login" || authTab === "signup") && (
-            <a href="/api/auth/google" className="google-btn">
+            <button
+              type="button"
+              className="google-btn"
+              onClick={() => {
+                setAuthTab("google_select");
+                setAuthError(null);
+              }}
+            >
               <svg viewBox="0 0 24 24" width="18" height="18">
                 <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
                 <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
@@ -2066,7 +2183,7 @@ export function RockGPTApp() {
                 <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
               </svg>
               <span>Continue with Google</span>
-            </a>
+            </button>
           )}
         </form>
       </div>

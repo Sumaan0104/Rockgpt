@@ -8,8 +8,17 @@ export async function GET(request: Request) {
   const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
   const appUrl = process.env.APP_URL || (host ? `${proto}://${host}` : "https://rockgpt-ten.vercel.app");
 
-  const googleEmail = "suman.mansuri@gmail.com";
-  const googleName = "Suman Mansuri";
+  const { searchParams } = new URL(request.url);
+  const emailParam = searchParams.get("email");
+  const nameParam = searchParams.get("name");
+
+  // If user has not selected an account yet, prompt account selector in UI
+  if (!emailParam) {
+    return NextResponse.redirect(`${appUrl}?auth=select_google`);
+  }
+
+  const googleEmail = emailParam.toLowerCase().trim();
+  const googleName = nameParam?.trim() || (googleEmail.includes("@") ? googleEmail.split("@")[0].replace(/\./g, " ") : "Google User");
   const googleAvatar = "https://lh3.googleusercontent.com/a/default-user";
 
   try {
@@ -25,6 +34,8 @@ export async function GET(request: Request) {
         created_at: new Date(),
       };
       globalStore.saveUser(user);
+    } else if (nameParam && user.name !== nameParam) {
+      user.name = nameParam;
     }
 
     const sessionToken = createSignedSessionTokenForUser(user);
@@ -42,7 +53,6 @@ export async function GET(request: Request) {
     return response;
   } catch (err) {
     console.error("Google auth handler error:", err);
-    // Even on error, smoothly redirect to home without breaking
     return NextResponse.redirect(`${appUrl}?auth=google_success`);
   }
 }
