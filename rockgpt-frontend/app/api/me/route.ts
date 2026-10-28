@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
 import { getSessionUser } from "@/lib/auth";
-import { users } from "@/lib/db/schema";
-
-const client = postgres(process.env.POSTGRES_URL ?? "");
-const db = drizzle(client);
+import { globalStore } from "@/lib/store";
 
 const patchMeSchema = z.object({
   name: z.string().trim().min(1).max(64).optional(),
@@ -48,27 +42,19 @@ export async function PATCH(request: Request) {
     const json = await request.json();
     const parsed = patchMeSchema.parse(json);
 
-    const updateData: Partial<typeof users.$inferInsert> = {};
-    if (parsed.name !== undefined) updateData.name = parsed.name;
-    if (parsed.theme !== undefined) updateData.theme = parsed.theme;
-
-    if (Object.keys(updateData).length > 0) {
-      await db.update(users).set(updateData).where(eq(users.id, user.id));
+    const userInStore = globalStore.getUserById(user.id);
+    if (userInStore) {
+      if (parsed.name !== undefined) userInStore.name = parsed.name;
+      if (parsed.theme !== undefined) userInStore.theme = parsed.theme;
     }
-
-    const [updatedUser] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, user.id))
-      .limit(1);
 
     return NextResponse.json({
       user: {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        theme: updatedUser.theme,
-        avatar_url: updatedUser.avatar_url,
+        id: user.id,
+        email: user.email,
+        name: userInStore?.name || user.name,
+        theme: userInStore?.theme || user.theme,
+        avatar_url: userInStore?.avatar_url || user.avatar_url,
       },
     });
   } catch (err) {

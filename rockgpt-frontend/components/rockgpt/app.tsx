@@ -83,10 +83,14 @@ export function RockGPTApp() {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup">("login");
+  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset">("login");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
+  const [authOtpCode, setAuthOtpCode] = useState("");
+  const [authShowPassword, setAuthShowPassword] = useState(false);
+  const [authResendSeconds, setAuthResendSeconds] = useState(0);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -240,13 +244,24 @@ export function RockGPTApp() {
       const url = new URL(window.location.href);
       if (url.searchParams.get("auth") === "google_success") {
         showToast("Signed in with Google successfully!");
+        fetchSession();
         window.history.replaceState({}, "", "/");
       } else if (url.searchParams.get("error")) {
-        showToast("Sign-in issue encountered");
+        showToast("Please sign in with email and password below");
+        setShowAuthModal(true);
         window.history.replaceState({}, "", "/");
       }
     }
   }, [fetchSession, fetchChats, fetchProjects, fetchCanvas, showToast]);
+
+  // OTP resend countdown effect
+  useEffect(() => {
+    if (authResendSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setAuthResendSeconds(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [authResendSeconds]);
 
   // Autosave Canvas with 450ms Debounce
   const handleCanvasChange = (newTitle: string, newText: string) => {
@@ -724,34 +739,126 @@ export function RockGPTApp() {
     }
   };
 
-  // Auth Submit (Signup / Login)
+  // Resend OTP Code
+  const handleResendOtp = async () => {
+    if (authResendSeconds > 0 || authLoading) return;
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail, type: authTab === "reset" ? "reset" : "signup" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAuthResendSeconds(60);
+        showToast("New 6-digit code sent!");
+      } else {
+        setAuthError(data.error?.message || "Failed to resend code");
+      }
+    } catch {
+      setAuthError("Network error. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Auth Submit (Signup with OTP / Login / Verify OTP / Forgot / Reset)
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setAuthLoading(true);
 
-    const endpoint = authTab === "signup" ? "/api/auth/signup" : "/api/auth/login";
-    const payload = authTab === "signup"
-      ? { name: authName, email: authEmail, password: authPassword }
-      : { email: authEmail, password: authPassword };
-
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.user) {
-        setCurrentUser(data.user);
-        setShowAuthModal(false);
-        setAuthPassword("");
-        fetchChats();
-        fetchProjects();
-        showToast(`Welcome, ${data.user.name.split(" ")[0]}!`);
+      if (authTab === "signup") {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: authName, email: authEmail, password: authPassword }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setAuthTab("otp");
+          setAuthResendSeconds(60);
+          showToast("Verification code sent to your email!");
+        } else {
+          setAuthError(data.error?.message || "Failed to create account");
+        }
+      } else if (authTab === "otp") {
+        const res = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail, code: authOtpCode, type: "signup" }),
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setCurrentUser(data.user);
+          setShowAuthModal(false);
+          setAuthPassword("");
+          setAuthOtpCode("");
+          fetchChats();
+          fetchProjects();
+          showToast(`Welcome, ${data.user.name.split(" ")[0]}!`);
+        } else {
+          setAuthError(data.error?.message || "Invalid verification code");
+        }
+      } else if (authTab === "forgot") {
+        const res = await fetch("/api/auth/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setAuthTab("reset");
+          setAuthResendSeconds(60);
+          showToast("Password recovery code sent!");
+        } else {
+          setAuthError(data.error?.message || "Failed to process request");
+        }
+      } else if (authTab === "reset") {
+        if (authPassword !== authPasswordConfirm) {
+          setAuthError("Passwords do not match");
+          setAuthLoading(false);
+          return;
+        }
+        const res = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail, code: authOtpCode, newPassword: authPassword }),
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setCurrentUser(data.user);
+          setShowAuthModal(false);
+          setAuthPassword("");
+          setAuthPasswordConfirm("");
+          setAuthOtpCode("");
+          fetchChats();
+          fetchProjects();
+          showToast("Password reset successfully! You are signed in.");
+        } else {
+          setAuthError(data.error?.message || "Failed to reset password");
+        }
       } else {
-        setAuthError(data.error?.message || "Authentication failed");
+        // Login
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail, password: authPassword }),
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setCurrentUser(data.user);
+          setShowAuthModal(false);
+          setAuthPassword("");
+          fetchChats();
+          fetchProjects();
+          showToast(`Welcome back, ${data.user.name.split(" ")[0]}!`);
+        } else {
+          setAuthError(data.error?.message || "Invalid email or password");
+        }
       }
     } catch {
       setAuthError("Network error. Please try again.");
@@ -1634,87 +1741,333 @@ export function RockGPTApp() {
       >
         <form className="auth-box" onSubmit={handleAuthSubmit}>
           <div className="auth-head">
-            <h2>{authTab === "signup" ? "Create Account" : "Sign in to RockGPT"}</h2>
+            <h2>
+              {authTab === "signup" && "Create Account"}
+              {authTab === "login" && "Sign in to RockGPT"}
+              {authTab === "otp" && "Verify Email"}
+              {authTab === "forgot" && "Reset Password"}
+              {authTab === "reset" && "Enter Recovery Code"}
+            </h2>
             <button
               type="button"
               className="auth-close"
               aria-label="Close"
-              onClick={() => setShowAuthModal(false)}
+              onClick={() => { setShowAuthModal(false); setAuthError(null); }}
             >
               <svg className="i"><use href="#i-close"/></svg>
             </button>
           </div>
 
-          <div className="auth-tabs">
-            <button
-              type="button"
-              className={`auth-tab ${authTab === "login" ? "active" : ""}`}
-              onClick={() => { setAuthTab("login"); setAuthError(null); }}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              className={`auth-tab ${authTab === "signup" ? "active" : ""}`}
-              onClick={() => { setAuthTab("signup"); setAuthError(null); }}
-            >
-              Create Account
-            </button>
-          </div>
-
-          {authError && (
-            <p style={{ color: "#ef4444", fontSize: 13.5 }}>{authError}</p>
-          )}
-
-          {authTab === "signup" && (
-            <div className="auth-field">
-              <label>Your Name</label>
-              <input
-                type="text"
-                placeholder="e.g. Suman Mansuri"
-                required
-                value={authName}
-                onChange={(e) => setAuthName(e.target.value)}
-              />
+          {(authTab === "login" || authTab === "signup") && (
+            <div className="auth-tabs">
+              <button
+                type="button"
+                className={`auth-tab ${authTab === "login" ? "active" : ""}`}
+                onClick={() => { setAuthTab("login"); setAuthError(null); }}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                className={`auth-tab ${authTab === "signup" ? "active" : ""}`}
+                onClick={() => { setAuthTab("signup"); setAuthError(null); }}
+              >
+                Create Account
+              </button>
             </div>
           )}
 
-          <div className="auth-field">
-            <label>Email Address</label>
-            <input
-              type="email"
-              placeholder="name@example.com"
-              required
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-            />
-          </div>
+          {authError && (
+            <p style={{ color: "#ef4444", fontSize: 13.5, margin: "2px 0" }}>{authError}</p>
+          )}
 
-          <div className="auth-field">
-            <label>Password (min 8 chars)</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              required
-              minLength={8}
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-            />
-          </div>
+          {/* Mode 1: Sign Up */}
+          {authTab === "signup" && (
+            <>
+              <div className="auth-field">
+                <label>Your Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Suman Mansuri"
+                  required
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                />
+              </div>
+              <div className="auth-field">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                />
+              </div>
+              <div className="auth-field">
+                <label>Password (min 8 chars)</label>
+                <div className="auth-input-wrap">
+                  <input
+                    type={authShowPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="auth-eye"
+                    onClick={() => setAuthShowPassword(!authShowPassword)}
+                    aria-label="Toggle password"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button type="submit" className="auth-submit" disabled={authLoading}>
+                {authLoading ? "Sending Verification Code…" : "Send Verification Code →"}
+              </button>
+            </>
+          )}
 
-          <button type="submit" className="auth-submit" disabled={authLoading}>
-            {authLoading ? "Processing…" : authTab === "signup" ? "Create Account" : "Sign in"}
-          </button>
+          {/* Mode 2: Sign In */}
+          {authTab === "login" && (
+            <>
+              <div className="auth-field">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                />
+              </div>
+              <div className="auth-field">
+                <label>Password</label>
+                <div className="auth-input-wrap">
+                  <input
+                    type={authShowPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="auth-eye"
+                    onClick={() => setAuthShowPassword(!authShowPassword)}
+                    aria-label="Toggle password"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="auth-links">
+                <span />
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => { setAuthTab("forgot"); setAuthError(null); }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <button type="submit" className="auth-submit" disabled={authLoading}>
+                {authLoading ? "Signing in…" : "Sign in"}
+              </button>
+            </>
+          )}
 
-          <a href="/api/auth/google" className="google-btn">
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-            </svg>
-            <span>Continue with Google</span>
-          </a>
+          {/* Mode 3: OTP Verification */}
+          {authTab === "otp" && (
+            <>
+              <div className="auth-badge">
+                <div className="shield-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                  </svg>
+                </div>
+                <h3>Check your inbox</h3>
+                <p>We sent a 6-digit verification code to <b>{authEmail}</b>.</p>
+              </div>
+              <div className="auth-field">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  className="auth-otp-input"
+                  required
+                  autoFocus
+                  value={authOtpCode}
+                  onChange={(e) => setAuthOtpCode(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              <button type="submit" className="auth-submit" disabled={authLoading || authOtpCode.length < 6}>
+                {authLoading ? "Verifying…" : "Verify Code & Sign In →"}
+              </button>
+              <div className="auth-links">
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={handleResendOtp}
+                  disabled={authResendSeconds > 0 || authLoading}
+                >
+                  {authResendSeconds > 0 ? `Resend code in ${authResendSeconds}s` : "Resend code"}
+                </button>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => { setAuthTab("signup"); setAuthError(null); }}
+                >
+                  Change email
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Mode 4: Forgot Password */}
+          {authTab === "forgot" && (
+            <>
+              <div className="auth-badge">
+                <div className="shield-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="8" cy="15" r="4" />
+                    <path d="M11 12l9-9M16 7l3 3" />
+                  </svg>
+                </div>
+                <h3>Forgot password?</h3>
+                <p>Enter your email to receive a 6-digit recovery code.</p>
+              </div>
+              <div className="auth-field">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="auth-submit" disabled={authLoading}>
+                {authLoading ? "Sending Recovery Code…" : "Send Recovery Code →"}
+              </button>
+              <div className="auth-links" style={{ justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => { setAuthTab("login"); setAuthError(null); }}
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Mode 5: Reset Password */}
+          {authTab === "reset" && (
+            <>
+              <div className="auth-badge">
+                <div className="shield-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                  </svg>
+                </div>
+                <h3>Create New Password</h3>
+                <p>Enter the 6-digit code sent to <b>{authEmail}</b>.</p>
+              </div>
+              <div className="auth-field">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  className="auth-otp-input"
+                  required
+                  value={authOtpCode}
+                  onChange={(e) => setAuthOtpCode(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              <div className="auth-field">
+                <label>New Password (min 8 chars)</label>
+                <div className="auth-input-wrap">
+                  <input
+                    type={authShowPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="auth-eye"
+                    onClick={() => setAuthShowPassword(!authShowPassword)}
+                    aria-label="Toggle password"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="auth-field">
+                <label>Confirm Password</label>
+                <div className="auth-input-wrap">
+                  <input
+                    type={authShowPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    value={authPasswordConfirm}
+                    onChange={(e) => setAuthPasswordConfirm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <button type="submit" className="auth-submit" disabled={authLoading || authOtpCode.length < 6}>
+                {authLoading ? "Resetting…" : "Reset Password & Log In →"}
+              </button>
+              <div className="auth-links">
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={handleResendOtp}
+                  disabled={authResendSeconds > 0 || authLoading}
+                >
+                  {authResendSeconds > 0 ? `Resend in ${authResendSeconds}s` : "Resend code"}
+                </button>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => { setAuthTab("login"); setAuthError(null); }}
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Google Sign In Button (shown on login & signup tabs) */}
+          {(authTab === "login" || authTab === "signup") && (
+            <a href="/api/auth/google" className="google-btn">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+              <span>Continue with Google</span>
+            </a>
+          )}
         </form>
       </div>
 

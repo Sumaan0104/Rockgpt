@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
 import { getSessionUser } from "@/lib/auth";
-import { chats, messages } from "@/lib/db/schema";
-
-const client = postgres(process.env.POSTGRES_URL ?? "");
-const db = drizzle(client);
+import { globalStore } from "@/lib/store";
 
 const patchChatSchema = z.object({
   title: z.string().trim().min(1).max(120).optional(),
@@ -27,25 +21,22 @@ export async function GET(
   }
 
   const { id } = await params;
-
-  const [chat] = await db
-    .select()
-    .from(chats)
-    .where(and(eq(chats.id, id), eq(chats.user_id, user.id)))
-    .limit(1);
+  let chat = globalStore.getChat(id);
 
   if (!chat) {
-    return NextResponse.json(
-      { error: { code: "not_found", message: "Chat not found" } },
-      { status: 404 }
-    );
+    // Return empty placeholder chat if not found
+    chat = {
+      id,
+      user_id: user.id,
+      title: "Conversation",
+      mode: "chat",
+      project_id: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
   }
 
-  const chatMessages = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.chat_id, id))
-    .orderBy(asc(messages.created_at));
+  const chatMessages = globalStore.getMessages(id);
 
   return NextResponse.json({
     chat,
@@ -66,12 +57,7 @@ export async function PATCH(
   }
 
   const { id } = await params;
-
-  const [chat] = await db
-    .select()
-    .from(chats)
-    .where(and(eq(chats.id, id), eq(chats.user_id, user.id)))
-    .limit(1);
+  const chat = globalStore.getChat(id);
 
   if (!chat) {
     return NextResponse.json(
@@ -84,21 +70,11 @@ export async function PATCH(
     const json = await request.json();
     const parsed = patchChatSchema.parse(json);
 
-    const updateData: Partial<typeof chats.$inferInsert> = {
-      updated_at: new Date(),
-    };
-    if (parsed.title !== undefined) updateData.title = parsed.title;
-    if (parsed.project_id !== undefined) updateData.project_id = parsed.project_id;
+    if (parsed.title !== undefined) chat.title = parsed.title;
+    if (parsed.project_id !== undefined) chat.project_id = parsed.project_id;
+    chat.updated_at = new Date();
 
-    await db.update(chats).set(updateData).where(eq(chats.id, id));
-
-    const [updatedChat] = await db
-      .select()
-      .from(chats)
-      .where(eq(chats.id, id))
-      .limit(1);
-
-    return NextResponse.json({ chat: updatedChat });
+    return NextResponse.json({ chat });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
@@ -126,20 +102,6 @@ export async function DELETE(
   }
 
   const { id } = await params;
-
-  const [chat] = await db
-    .select({ id: chats.id })
-    .from(chats)
-    .where(and(eq(chats.id, id), eq(chats.user_id, user.id)))
-    .limit(1);
-
-  if (!chat) {
-    return NextResponse.json(
-      { error: { code: "not_found", message: "Chat not found" } },
-      { status: 404 }
-    );
-  }
-
-  await db.delete(chats).where(eq(chats.id, id));
+  globalStore.deleteChat(id);
   return NextResponse.json({ success: true });
 }

@@ -1279,6 +1279,87 @@ body.light .typing-3d .orb-shadow {
   background: var(--surface-2);
 }
 
+.auth-otp-input {
+  height: 52px !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: 10px !important;
+  text-align: center !important;
+  font-family: monospace, inherit !important;
+}
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.auth-input-wrap input {
+  width: 100%;
+  padding-right: 44px !important;
+}
+.auth-eye {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+}
+.auth-eye:hover {
+  color: var(--text);
+}
+.auth-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: -4px;
+}
+.auth-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+.auth-link:hover {
+  color: var(--text);
+}
+.auth-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.auth-badge .shield-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+  color: var(--white);
+}
+.auth-badge h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+.auth-badge p {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
 .toast {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 74px);

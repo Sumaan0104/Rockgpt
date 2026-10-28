@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { checkRateLimit, createSession, hashPassword } from "@/lib/auth";
-import { users } from "@/lib/db/schema";
-
-const client = postgres(process.env.POSTGRES_URL ?? "");
-const db = drizzle(client);
+import { checkRateLimit, hashPassword } from "@/lib/auth";
+import { globalStore } from "@/lib/store";
 
 const signupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(64),
@@ -17,7 +11,7 @@ const signupSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for") || "local";
-  const rateLimit = checkRateLimit(`auth:${ip}`, 10, 60_000);
+  const rateLimit = checkRateLimit(`signup:${ip}`, 15, 60_000);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: { code: "rate_limited", message: "Too many attempts. Please try again later." } },
@@ -28,15 +22,10 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     const { name, email, password } = signupSchema.parse(json);
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const [existing] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, normalizedEmail))
-      .limit(1);
-
-    if (existing) {
+    const existing = globalStore.getUserByEmail(normalizedEmail);
+    if (existing && existing.password_hash) {
       return NextResponse.json(
         { error: { code: "duplicate_email", message: "An account with this email already exists" } },
         { status: 400 }
@@ -44,26 +33,35 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await hashPassword(password);
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        name,
-        email: normalizedEmail,
-        password_hash: passwordHash,
-        theme: "dark",
-      })
-      .returning();
+    // Generate secure 6-digit OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await createSession(newUser.id);
+    globalStore.saveOtp(normalizedEmail, code, "signup", name, passwordHash);
+    console.log(`[RockGPT Auth] 6-digit verification OTP for ${normalizedEmail}: ${code}`);
+
+    // If Brevo or Resend keys are in environment, attempt dispatch
+    const brevoKey = process.env.BREVO_API_KEY;
+    if (brevoKey) {
+      fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": brevoKey.trim(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: "RockGPT Security", email: "noreply@rockgpt.ai" },
+          to: [{ email: normalizedEmail }],
+          subject: `${code} is your RockGPT verification code`,
+          htmlContent: `<p>Your verification code for RockGPT is: <b>${code}</b>. Valid for 10 minutes.</p>`,
+        }),
+      }).catch(err => console.warn("[Brevo Warning]:", err));
+    }
 
     return NextResponse.json({
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        theme: newUser.theme,
-        avatar_url: newUser.avatar_url,
-      },
+      success: true,
+      message: `Verification code sent to ${normalizedEmail}`,
+      email: normalizedEmail,
+      testCode: code, // Provides instant testing in dev/fallback
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -74,7 +72,7 @@ export async function POST(request: Request) {
     }
     console.error("Signup error:", err);
     return NextResponse.json(
-      { error: { code: "server_error", message: "Failed to create account" } },
+      { error: { code: "server_error", message: "Failed to initiate signup" } },
       { status: 500 }
     );
   }

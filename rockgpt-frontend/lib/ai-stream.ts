@@ -29,12 +29,12 @@ export async function createChatStream({
     const lastUser = messages.filter(m => m.role === "user").pop()?.content || "";
     const structuredReply = generateStructuredResponse(lastUser, messages, projectName);
 
-    // Natural, silky-smooth typing cadence (18ms per word, ~55 wps)
+    // High-momentum instant streaming (~140 words/second) with zero initial delay
     const parts = structuredReply.split(/(\s+)/);
     for (let i = 0; i < parts.length; i++) {
       yield parts[i];
       if (parts[i].trim()) {
-        await new Promise(r => setTimeout(r, 18));
+        await new Promise(r => setTimeout(r, 6));
       }
     }
   }

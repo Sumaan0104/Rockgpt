@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
 import { checkRateLimit, createSession, verifyPassword } from "@/lib/auth";
-import { users } from "@/lib/db/schema";
-
-const client = postgres(process.env.POSTGRES_URL ?? "");
-const db = drizzle(client);
-
-// Dummy hash for constant-time comparison when user doesn't exist
-const DUMMY_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+import { globalStore } from "@/lib/store";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -19,7 +10,7 @@ const loginSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for") || "local";
-  const rateLimit = checkRateLimit(`auth:${ip}`, 10, 60_000);
+  const rateLimit = checkRateLimit(`login:${ip}`, 20, 60_000);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: { code: "rate_limited", message: "Too many attempts. Please try again later." } },
@@ -30,17 +21,10 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     const { email, password } = loginSchema.parse(json);
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, normalizedEmail))
-      .limit(1);
-
+    const user = globalStore.getUserByEmail(normalizedEmail);
     if (!user || !user.password_hash) {
-      // Fake verify to prevent timing attacks
-      await verifyPassword(password, DUMMY_HASH);
       return NextResponse.json(
         { error: { code: "invalid_credentials", message: "Invalid email or password" } },
         { status: 401 }
@@ -58,6 +42,7 @@ export async function POST(request: Request) {
     await createSession(user.id);
 
     return NextResponse.json({
+      success: true,
       user: {
         id: user.id,
         email: user.email,

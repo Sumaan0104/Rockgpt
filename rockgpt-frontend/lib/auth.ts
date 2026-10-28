@@ -1,13 +1,8 @@
 import { cookies } from "next/headers";
 import { compare, hash } from "bcrypt-ts";
-import { and, eq, gt } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { authSessions, users, type User } from "./db/schema";
 import { generateUUID } from "./utils";
-
-const client = postgres(process.env.POSTGRES_URL ?? "");
-const db = drizzle(client);
+import { globalStore, type StoredUser } from "./store";
+import type { User } from "./db/schema";
 
 export const SESSION_COOKIE_NAME = "rockgpt_session";
 const SESSION_DURATION_DAYS = 30;
@@ -15,15 +10,7 @@ const SESSION_DURATION_DAYS = 30;
 // In-memory rate limiter per IP / identifier
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
 
-// In-memory session user cache to avoid transatlantic database round-trips on every request
-const sessionUserCache = new Map<string, { user: User; expires: number }>();
-
-export function invalidateSessionUserCache(sessionId?: string) {
-  if (sessionId) sessionUserCache.delete(sessionId);
-  else sessionUserCache.clear();
-}
-
-export function checkRateLimit(key: string, maxRequests = 10, windowMs = 60_000): { allowed: boolean; retryAfter?: number } {
+export function checkRateLimit(key: string, maxRequests = 30, windowMs = 60_000): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const entry = rateLimits.get(key);
 
@@ -46,27 +33,31 @@ export async function hashPassword(plainText: string): Promise<string> {
 }
 
 export async function verifyPassword(plainText: string, hashString: string): Promise<boolean> {
-  return compare(plainText, hashString);
+  try {
+    return await compare(plainText, hashString);
+  } catch {
+    return false;
+  }
 }
 
 export async function createSession(userId: string): Promise<string> {
-  const sessionId = generateUUID();
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  const session = globalStore.createSession(userId);
+  const sessionId = session.id;
+  const expiresAt = session.expires_at;
 
-  await db.insert(authSessions).values({
-    id: sessionId,
-    user_id: userId,
-    expires_at: expiresAt,
-  });
-
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires: expiresAt,
-  });
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: expiresAt,
+    });
+  } catch (err) {
+    // If called in a context where cookies() cannot be directly mutated,
+    // the caller sets cookies on the NextResponse object directly.
+  }
 
   return sessionId;
 }
@@ -75,54 +66,51 @@ export async function getSessionUser(createIfMissing = true): Promise<User | nul
   try {
     const cookieStore = await cookies();
     const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+
     if (sessionId) {
-      // 1. Check in-memory cache for instant zero-latency response
-      const cached = sessionUserCache.get(sessionId);
-      if (cached && cached.expires > Date.now()) {
-        return cached.user;
-      }
-
-      const [session] = await db
-        .select({
-          id: authSessions.id,
-          user_id: authSessions.user_id,
-          expires_at: authSessions.expires_at,
-        })
-        .from(authSessions)
-        .where(and(eq(authSessions.id, sessionId), gt(authSessions.expires_at, new Date())))
-        .limit(1);
-
+      const session = globalStore.getSession(sessionId);
       if (session) {
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, session.user_id))
-          .limit(1);
-
+        const user = globalStore.getUserById(session.user_id);
         if (user) {
-          // Cache for 5 minutes
-          sessionUserCache.set(sessionId, { user, expires: Date.now() + 300_000 });
-          return user;
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            password_hash: user.password_hash,
+            avatar_url: user.avatar_url,
+            theme: user.theme || "dark",
+            created_at: user.created_at,
+          };
         }
       }
     }
 
     if (!createIfMissing) return null;
 
-    // Automatically create guest user so interactions are saved to database
+    // Automatically provision guest user with zero latency
     const guestId = generateUUID().slice(0, 8);
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        email: `guest-${guestId}@rockgpt.local`,
-        name: "Suman",
-        theme: "dark",
-      })
-      .returning();
+    const guestUser: StoredUser = {
+      id: generateUUID(),
+      email: `guest-${guestId}@rockgpt.local`,
+      name: "Suman",
+      password_hash: null,
+      avatar_url: null,
+      theme: "dark",
+      created_at: new Date(),
+    };
 
-    const newSessionId = await createSession(newUser.id);
-    sessionUserCache.set(newSessionId, { user: newUser, expires: Date.now() + 300_000 });
-    return newUser;
+    globalStore.saveUser(guestUser);
+    await createSession(guestUser.id);
+
+    return {
+      id: guestUser.id,
+      email: guestUser.email,
+      name: guestUser.name,
+      password_hash: guestUser.password_hash,
+      avatar_url: guestUser.avatar_url,
+      theme: guestUser.theme,
+      created_at: guestUser.created_at,
+    };
   } catch (err) {
     console.error("Error retrieving session user:", err);
     return null;
@@ -134,8 +122,7 @@ export async function destroySession(): Promise<void> {
     const cookieStore = await cookies();
     const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     if (sessionId) {
-      sessionUserCache.delete(sessionId);
-      await db.delete(authSessions).where(eq(authSessions.id, sessionId));
+      globalStore.deleteSession(sessionId);
     }
     cookieStore.delete(SESSION_COOKIE_NAME);
   } catch (err) {

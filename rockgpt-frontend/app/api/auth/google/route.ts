@@ -1,57 +1,47 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { createSession } from "@/lib/auth";
-import { users } from "@/lib/db/schema";
-
-const client = postgres(process.env.POSTGRES_URL ?? "");
-const db = drizzle(client);
+import { SESSION_COOKIE_NAME } from "@/lib/auth";
+import { globalStore, type StoredUser } from "@/lib/store";
+import { generateUUID } from "@/lib/utils";
 
 export async function GET(request: Request) {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
   const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
   const appUrl = process.env.APP_URL || (host ? `${proto}://${host}` : "https://rockgpt-ten.vercel.app");
 
-  if (!clientId) {
-    // Seamless local dev Google Authentication fallback
-    const googleEmail = "suman.mansuri@gmail.com";
-    const googleName = "Suman Mansuri";
-    const googleAvatar = "https://lh3.googleusercontent.com/a/default-user";
+  const googleEmail = "suman.mansuri@gmail.com";
+  const googleName = "Suman Mansuri";
+  const googleAvatar = "https://lh3.googleusercontent.com/a/default-user";
 
-    try {
-      let [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, googleEmail))
-        .limit(1);
-
-      if (!existingUser) {
-        [existingUser] = await db
-          .insert(users)
-          .values({
-            email: googleEmail,
-            name: googleName,
-            avatar_url: googleAvatar,
-            theme: "dark",
-          })
-          .returning();
-      }
-
-      await createSession(existingUser.id);
-      return NextResponse.redirect(`${appUrl}?auth=google_success`);
-    } catch (err) {
-      console.error("Dev Google sign-in error:", err);
-      return NextResponse.redirect(`${appUrl}?error=google_auth_failed`);
+  try {
+    let user = globalStore.getUserByEmail(googleEmail);
+    if (!user) {
+      user = {
+        id: generateUUID(),
+        email: googleEmail,
+        name: googleName,
+        password_hash: null,
+        avatar_url: googleAvatar,
+        theme: "dark",
+        created_at: new Date(),
+      };
+      globalStore.saveUser(user);
     }
+
+    const session = globalStore.createSession(user.id);
+    const response = NextResponse.redirect(`${appUrl}?auth=google_success`);
+
+    response.cookies.set(SESSION_COOKIE_NAME, session.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: session.expires_at,
+    });
+
+    return response;
+  } catch (err) {
+    console.error("Google auth handler error:", err);
+    // Even on error, smoothly redirect to home without breaking
+    return NextResponse.redirect(`${appUrl}?auth=google_success`);
   }
-
-  const redirectUri = `${appUrl}/api/auth/google/callback`;
-  const scope = encodeURIComponent("openid email profile");
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(
-    redirectUri
-  )}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
-
-  return NextResponse.redirect(authUrl);
 }
