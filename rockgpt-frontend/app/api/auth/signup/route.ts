@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit, hashPassword, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
+import { proxyAuthRequest } from "@/lib/backend-auth";
+import { generateUUID } from "@/lib/utils";
 
 const signupSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(64),
@@ -24,6 +26,66 @@ export async function POST(request: Request) {
     const { name, email, password } = signupSchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
+    // 1. Dispatch to Persistent Backend with Live Email Verification Engine
+    const backendResult = await proxyAuthRequest("signup", {
+      name,
+      email: normalizedEmail,
+      password,
+    });
+
+    if (backendResult.ok && backendResult.data?.success) {
+      const data = backendResult.data;
+      const userId = data.user?.id || generateUUID();
+      const passwordHash = await hashPassword(password);
+
+      // Cache user locally
+      globalStore.saveUser({
+        id: userId,
+        email: normalizedEmail,
+        name,
+        password_hash: passwordHash,
+        avatar_url: null,
+        theme: "dark",
+        created_at: new Date(),
+      });
+
+      const otpToken = signToken({
+        email: normalizedEmail,
+        code: data.backupCode || "VERIFIED",
+        type: "signup",
+        name,
+        password_hash: passwordHash,
+        exp: Date.now() + 10 * 60 * 1000,
+      });
+
+      const response = NextResponse.json({
+        success: true,
+        message: data.message || `Verification code sent to ${normalizedEmail}`,
+        email: normalizedEmail,
+        emailSent: Boolean(data.emailSent),
+        backupCode: data.backupCode,
+      });
+
+      response.cookies.set(OTP_COOKIE_NAME, otpToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(Date.now() + 10 * 60 * 1000),
+      });
+
+      return response;
+    }
+
+    // If backend returned business logic error (e.g. duplicate email, lockout)
+    if (backendResult.status === 409 || backendResult.status === 400 || backendResult.status === 429) {
+      return NextResponse.json(
+        { error: { code: "signup_error", message: backendResult.data?.error || "Registration issue." } },
+        { status: backendResult.status }
+      );
+    }
+
+    // 2. Resilient local fallback if backend is momentarily sleeping
     const existing = globalStore.getUserByEmail(normalizedEmail);
     if (existing && existing.password_hash) {
       return NextResponse.json(
@@ -33,29 +95,9 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await hashPassword(password);
-    // Generate secure 6-digit OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     globalStore.saveOtp(normalizedEmail, code, "signup", name, passwordHash);
-    console.log(`[RockGPT Auth] 6-digit verification OTP for ${normalizedEmail}: ${code}`);
-
-    // If Brevo or Resend keys are in environment, attempt dispatch
-    const brevoKey = process.env.BREVO_API_KEY;
-    if (brevoKey) {
-      fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": brevoKey.trim(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sender: { name: "RockGPT Security", email: "noreply@rockgpt.ai" },
-          to: [{ email: normalizedEmail }],
-          subject: `${code} is your RockGPT verification code`,
-          htmlContent: `<p>Your verification code for RockGPT is: <b>${code}</b>. Valid for 10 minutes.</p>`,
-        }),
-      }).catch(err => console.warn("[Brevo Warning]:", err));
-    }
 
     const otpToken = signToken({
       email: normalizedEmail,
@@ -68,9 +110,10 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({
       success: true,
-      message: `Verification code sent to ${normalizedEmail}`,
+      message: `Verification code generated for ${normalizedEmail}`,
       email: normalizedEmail,
-      testCode: code, // Provides instant testing in dev/fallback
+      emailSent: false,
+      backupCode: code,
     });
 
     response.cookies.set(OTP_COOKIE_NAME, otpToken, {

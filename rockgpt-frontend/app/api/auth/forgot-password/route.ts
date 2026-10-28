@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
+import { proxyAuthRequest } from "@/lib/backend-auth";
 
 const forgotSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -22,9 +23,49 @@ export async function POST(request: Request) {
     const { email } = forgotSchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
+    // 1. Dispatch through Backend Live Email Engine
+    const backendResult = await proxyAuthRequest("forgot", {
+      email: normalizedEmail,
+    });
+
+    if (backendResult.ok && backendResult.data?.success) {
+      const data = backendResult.data;
+      const otpToken = signToken({
+        email: normalizedEmail,
+        code: data.backupCode || "RECOVERY_SENT",
+        type: "reset",
+        exp: Date.now() + 10 * 60 * 1000,
+      });
+
+      const response = NextResponse.json({
+        success: true,
+        message: data.message || `Recovery code sent to ${normalizedEmail}`,
+        email: normalizedEmail,
+        emailSent: Boolean(data.emailSent),
+        backupCode: data.backupCode,
+      });
+
+      response.cookies.set(OTP_COOKIE_NAME, otpToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(Date.now() + 10 * 60 * 1000),
+      });
+
+      return response;
+    }
+
+    if (backendResult.status === 404 || backendResult.status === 400) {
+      return NextResponse.json(
+        { error: { code: "user_not_found", message: backendResult.data?.error || "No account found with this email." } },
+        { status: backendResult.status }
+      );
+    }
+
+    // 2. Resilient local fallback
     const user = globalStore.getUserByEmail(normalizedEmail);
     if (!user) {
-      // Return helpful message
       return NextResponse.json(
         { error: { code: "user_not_found", message: "No account found with this email address." } },
         { status: 404 }
@@ -33,8 +74,6 @@ export async function POST(request: Request) {
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
     globalStore.saveOtp(normalizedEmail, resetCode, "reset");
-
-    console.log(`[RockGPT Auth] Password reset 6-digit code for ${normalizedEmail}: ${resetCode}`);
 
     const otpToken = signToken({
       email: normalizedEmail,
@@ -47,7 +86,7 @@ export async function POST(request: Request) {
       success: true,
       message: `Recovery code sent to ${normalizedEmail}`,
       email: normalizedEmail,
-      testCode: resetCode,
+      backupCode: resetCode,
     });
 
     response.cookies.set(OTP_COOKIE_NAME, otpToken, {

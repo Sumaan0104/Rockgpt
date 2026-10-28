@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser, hashPassword, verifyToken } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
+import { proxyAuthRequest } from "@/lib/backend-auth";
+import { generateUUID } from "@/lib/utils";
 
 const resetPasswordSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -16,6 +18,61 @@ export async function POST(request: Request) {
     const { email, code, newPassword } = resetPasswordSchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
+    // 1. Dispatch to Backend Database
+    const backendResult = await proxyAuthRequest("reset-password", {
+      email: normalizedEmail,
+      code,
+      newPassword,
+    });
+
+    if (backendResult.ok && backendResult.data?.success) {
+      const bUser = backendResult.data.user;
+      const userRecord = {
+        id: bUser?.id || generateUUID(),
+        email: bUser?.email || normalizedEmail,
+        name: bUser?.name || "User",
+        password_hash: null,
+        avatar_url: bUser?.avatar_url || null,
+        theme: "dark",
+        created_at: new Date(),
+      };
+
+      globalStore.saveUser(userRecord);
+      const sessionToken = createSignedSessionTokenForUser(userRecord);
+
+      const response = NextResponse.json({
+        success: true,
+        message: "Password reset successful! You are now logged in.",
+        user: {
+          id: userRecord.id,
+          email: userRecord.email,
+          name: userRecord.name,
+          theme: userRecord.theme,
+          avatar_url: userRecord.avatar_url,
+        },
+      });
+
+      response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+
+      response.cookies.delete("rockgpt_reset_verified");
+      response.cookies.delete(OTP_COOKIE_NAME);
+      return response;
+    }
+
+    if (backendResult.status === 400 || backendResult.status === 404 || backendResult.status === 429) {
+      return NextResponse.json(
+        { error: { code: "reset_error", message: backendResult.data?.error || "Password reset failed." } },
+        { status: backendResult.status }
+      );
+    }
+
+    // 2. Resilient local fallback
     let otp = globalStore.getOtp(normalizedEmail, "reset");
     let isResetCookieVerified = false;
 
@@ -28,32 +85,6 @@ export async function POST(request: Request) {
           isResetCookieVerified = true;
         }
       }
-
-      const pendingOtpCookie = cookieStore.get(OTP_COOKIE_NAME)?.value;
-      if (pendingOtpCookie) {
-        const decoded = verifyToken<{ email: string; code: string; type: string }>(pendingOtpCookie);
-        if (decoded && decoded.email === normalizedEmail && decoded.type === "reset" && decoded.code === code.trim()) {
-          isResetCookieVerified = true;
-        }
-      }
-    }
-
-    if (!otp && !isResetCookieVerified) {
-      return NextResponse.json(
-        { error: { code: "otp_expired", message: "Recovery code has expired or was not requested. Please request a new one." } },
-        { status: 400 }
-      );
-    }
-
-    if (otp && !isResetCookieVerified && otp.code !== code.trim()) {
-      otp.attempts += 1;
-      if (otp.attempts >= 5) {
-        globalStore.deleteOtp(normalizedEmail, "reset");
-      }
-      return NextResponse.json(
-        { error: { code: "invalid_code", message: "Incorrect recovery code. Please check and try again." } },
-        { status: 400 }
-      );
     }
 
     let user = globalStore.getUserByEmail(normalizedEmail);

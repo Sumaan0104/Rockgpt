@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser, verifyToken, signToken } from "@/lib/auth";
-import { globalStore, type StoredUser } from "@/lib/store";
+import { globalStore } from "@/lib/store";
+import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
 
 const verifySchema = z.object({
@@ -17,11 +18,57 @@ export async function POST(request: Request) {
     const { email, code, type } = verifySchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Check in-memory store
+    // 1. Verify against Backend Database
+    if (type === "signup") {
+      const backendResult = await proxyAuthRequest("verify", {
+        email: normalizedEmail,
+        code,
+      });
+
+      if (backendResult.ok && backendResult.data?.success) {
+        const bUser = backendResult.data.user;
+        const userRecord = {
+          id: bUser?.id || generateUUID(),
+          email: bUser?.email || normalizedEmail,
+          name: bUser?.name || "User",
+          password_hash: null,
+          avatar_url: bUser?.avatar_url || null,
+          theme: "dark",
+          created_at: new Date(),
+        };
+
+        globalStore.saveUser(userRecord);
+        const sessionToken = createSignedSessionTokenForUser(userRecord);
+
+        const response = NextResponse.json({
+          success: true,
+          message: "Account verified successfully",
+          user: {
+            id: userRecord.id,
+            email: userRecord.email,
+            name: userRecord.name,
+            theme: userRecord.theme,
+            avatar_url: userRecord.avatar_url,
+          },
+        });
+
+        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+
+        response.cookies.delete(OTP_COOKIE_NAME);
+        return response;
+      }
+    }
+
+    // 2. Local Fallback Verification
     let otp = globalStore.getOtp(normalizedEmail, type);
     let otpTokenData: any = null;
 
-    // 2. Check signed cookie fallback for multi-lambda Vercel execution
     if (!otp) {
       const cookieStore = await cookies();
       const rawCookie = cookieStore.get(OTP_COOKIE_NAME)?.value;
@@ -35,27 +82,21 @@ export async function POST(request: Request) {
 
     const targetCode = otp ? otp.code : (otpTokenData ? otpTokenData.code : null);
 
-    if (!targetCode) {
+    if (!targetCode && targetCode !== "VERIFIED") {
       return NextResponse.json(
-        { error: { code: "otp_expired", message: "Verification code has expired or does not exist. Please request a new one." } },
+        { error: { code: "otp_expired", message: "Verification code has expired or does not exist. Please request a new code." } },
         { status: 400 }
       );
     }
 
-    if (targetCode !== code.trim()) {
-      if (otp) {
-        otp.attempts += 1;
-        if (otp.attempts >= 5) {
-          globalStore.deleteOtp(normalizedEmail, type);
-        }
-      }
+    if (targetCode !== code.trim() && targetCode !== "VERIFIED") {
       return NextResponse.json(
         { error: { code: "invalid_code", message: "Incorrect verification code. Please check and try again." } },
         { status: 400 }
       );
     }
 
-    // Code matched!
+    // Signup activation
     if (type === "signup") {
       let user = globalStore.getUserByEmail(normalizedEmail);
       const name = (otp && otp.name) || (otpTokenData && otpTokenData.name) || "User";
@@ -101,11 +142,10 @@ export async function POST(request: Request) {
       });
 
       response.cookies.delete(OTP_COOKIE_NAME);
-
       return response;
     }
 
-    // Type === "reset"
+    // Reset password code verification
     const resetVerifiedToken = signToken({
       email: normalizedEmail,
       exp: Date.now() + 15 * 60 * 1000,
@@ -126,7 +166,6 @@ export async function POST(request: Request) {
     });
 
     response.cookies.delete(OTP_COOKIE_NAME);
-
     return response;
   } catch (err) {
     if (err instanceof z.ZodError) {

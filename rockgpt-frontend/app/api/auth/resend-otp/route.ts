@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
+import { proxyAuthRequest } from "@/lib/backend-auth";
 
 const resendSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -23,6 +24,22 @@ export async function POST(request: Request) {
     const { email, type } = resendSchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
+    // 1. Dispatch through Backend Live Email Engine
+    const backendResult = await proxyAuthRequest("resend-otp", {
+      email: normalizedEmail,
+      type,
+    });
+
+    if (backendResult.ok && backendResult.data?.success) {
+      return NextResponse.json({
+        success: true,
+        message: backendResult.data.message || `Fresh verification code sent to ${normalizedEmail}`,
+        emailSent: Boolean(backendResult.data.emailSent),
+        backupCode: backendResult.data.backupCode,
+      });
+    }
+
+    // 2. Resilient local fallback
     const existingOtp = globalStore.getOtp(normalizedEmail, type);
     const name = existingOtp?.name;
     const passwordHash = existingOtp?.password_hash;
@@ -30,12 +47,10 @@ export async function POST(request: Request) {
     const newCode = Math.floor(100000 + Math.random() * 900000).toString();
     globalStore.saveOtp(normalizedEmail, newCode, type, name, passwordHash);
 
-    console.log(`[RockGPT Auth] Resent 6-digit OTP for ${normalizedEmail} (${type}): ${newCode}`);
-
     return NextResponse.json({
       success: true,
-      message: `A new 6-digit code has been sent to ${normalizedEmail}`,
-      testCode: newCode,
+      message: `A new 6-digit code has been generated for ${normalizedEmail}`,
+      backupCode: newCode,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
