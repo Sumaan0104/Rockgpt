@@ -52,8 +52,15 @@ export async function POST(
     );
   }
 
-  // 1. Instant zero-latency local store persistence
+  // 1. Instant zero-latency local store persistence & authorization check
   let chat = globalStore.getChat(chatId);
+  if (chat && chat.user_id !== user.id) {
+    return NextResponse.json(
+      { error: { code: "forbidden", message: "You do not have permission to post to this chat" } },
+      { status: 403 }
+    );
+  }
+
   if (!chat) {
     chat = globalStore.saveChat({
       id: chatId,

@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   name: text("name"),
   password_hash: text("password_hash"),
   avatar_url: text("avatar_url"),
+  google_id: varchar("google_id", { length: 128 }),
   theme: varchar("theme", { length: 16 }).notNull().default("dark"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

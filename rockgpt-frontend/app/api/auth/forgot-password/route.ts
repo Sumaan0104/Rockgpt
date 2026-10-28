@@ -32,17 +32,15 @@ export async function POST(request: Request) {
       const data = backendResult.data;
       const otpToken = signToken({
         email: normalizedEmail,
-        code: data.backupCode || "RECOVERY_SENT",
         type: "reset",
         exp: Date.now() + 10 * 60 * 1000,
       });
 
       const response = NextResponse.json({
         success: true,
-        message: data.message || `Recovery code sent to ${normalizedEmail}`,
+        message: data.message || `Password recovery code dispatched to ${normalizedEmail}. Please check your inbox.`,
         email: normalizedEmail,
         emailSent: Boolean(data.emailSent),
-        backupCode: data.backupCode,
       });
 
       response.cookies.set(OTP_COOKIE_NAME, otpToken, {
@@ -77,16 +75,14 @@ export async function POST(request: Request) {
 
     const otpToken = signToken({
       email: normalizedEmail,
-      code: resetCode,
       type: "reset",
       exp: Date.now() + 10 * 60 * 1000,
     });
 
     const response = NextResponse.json({
       success: true,
-      message: `Recovery code sent to ${normalizedEmail}`,
+      message: `Password recovery code dispatched to ${normalizedEmail}. Please check your inbox.`,
       email: normalizedEmail,
-      backupCode: resetCode,
     });
 
     response.cookies.set(OTP_COOKIE_NAME, otpToken, {

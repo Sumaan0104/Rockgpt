@@ -114,7 +114,7 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function getSessionUser(createIfMissing = true): Promise<User | null> {
+export async function getSessionUser(createIfMissing = false): Promise<User | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;

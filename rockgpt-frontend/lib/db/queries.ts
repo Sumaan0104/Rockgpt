@@ -48,7 +48,7 @@ export async function createUser(email: string, password: string) {
   const hashedPassword = generateHashedPassword(password);
 
   try {
-    return await db.insert(user).values({ email, password: hashedPassword });
+    return await db.insert(user).values({ email, password_hash: hashedPassword });
   } catch (error) {
     throw new ChatbotError("bad_request:database", {
       cause: error,

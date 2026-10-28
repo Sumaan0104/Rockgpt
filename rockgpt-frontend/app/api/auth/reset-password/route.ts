@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Resilient local fallback
-    let otp = globalStore.getOtp(normalizedEmail, "reset");
+    const otp = globalStore.getOtp(normalizedEmail, "reset");
     let isResetCookieVerified = false;
 
     if (!otp) {
@@ -85,6 +85,14 @@ export async function POST(request: Request) {
           isResetCookieVerified = true;
         }
       }
+    }
+
+    const isCodeValid = (otp && otp.code === code) || isResetCookieVerified;
+    if (!isCodeValid) {
+      return NextResponse.json(
+        { error: { code: "invalid_code", message: "Invalid or expired recovery code. Please check your email." } },
+        { status: 400 }
+      );
     }
 
     let user = globalStore.getUserByEmail(normalizedEmail);

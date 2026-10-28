@@ -12,7 +12,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(false);
   if (!user) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
@@ -21,19 +21,19 @@ export async function GET(
   }
 
   const { id } = await params;
-  let chat = globalStore.getChat(id);
-
+  const chat = globalStore.getChat(id);
   if (!chat) {
-    // Return empty placeholder chat if not found
-    chat = {
-      id,
-      user_id: user.id,
-      title: "Conversation",
-      mode: "chat",
-      project_id: null,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
+    return NextResponse.json(
+      { error: { code: "not_found", message: "Chat not found" } },
+      { status: 404 }
+    );
+  }
+
+  if (chat.user_id !== user.id) {
+    return NextResponse.json(
+      { error: { code: "forbidden", message: "You do not have permission to access this chat" } },
+      { status: 403 }
+    );
   }
 
   const chatMessages = globalStore.getMessages(id);
@@ -48,7 +48,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(false);
   if (!user) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
@@ -63,6 +63,13 @@ export async function PATCH(
     return NextResponse.json(
       { error: { code: "not_found", message: "Chat not found" } },
       { status: 404 }
+    );
+  }
+
+  if (chat.user_id !== user.id) {
+    return NextResponse.json(
+      { error: { code: "forbidden", message: "You do not have permission to modify this chat" } },
+      { status: 403 }
     );
   }
 
@@ -93,7 +100,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(false);
   if (!user) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
@@ -102,6 +109,15 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  const chat = globalStore.getChat(id);
+
+  if (chat && chat.user_id !== user.id) {
+    return NextResponse.json(
+      { error: { code: "forbidden", message: "You do not have permission to delete this chat" } },
+      { status: 403 }
+    );
+  }
+
   globalStore.deleteChat(id);
   return NextResponse.json({ success: true });
 }

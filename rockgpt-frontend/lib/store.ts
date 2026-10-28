@@ -59,22 +59,7 @@ class MemoryStore {
   dbFailed = false;
 
   constructor() {
-    // Pre-seed owner / primary account
-    const ownerId = "00000000-0000-0000-0000-000000000001";
-    const defaultOwner: StoredUser = {
-      id: ownerId,
-      email: "suman.mansuri@gmail.com",
-      name: "Suman Mansuri",
-      password_hash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
-      avatar_url: "https://lh3.googleusercontent.com/a/default-user",
-      theme: "dark",
-      created_at: new Date(),
-    };
-    this.users.set(ownerId, defaultOwner);
-    this.usersByEmail.set(defaultOwner.email.toLowerCase(), defaultOwner);
-
-    // Also pre-seed dotted version of owner email for seamless Gmail matching
-    this.usersByEmail.set("mansurisumaan@gmail.com", defaultOwner);
+    // Dynamic production store initialized without hardcoded or demo credentials
   }
 
   // OTP Management

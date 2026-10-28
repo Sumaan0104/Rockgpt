@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser, verifyToken, signToken } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
 
 const verifySchema = z.object({
   email: z.string().trim().email("Invalid email address"),
-  code: z.string().trim().min(6, "Code must be 6 digits").max(6),
+  code: z.string().trim().regex(/^\d{6}$/, "Verification code must be exactly 6 digits"),
   type: z.enum(["signup", "reset"]).default("signup"),
 });
 
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
     const { email, code, type } = verifySchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Verify against Backend Database
+    // 1. Verify code against persistent authentication provider
     if (type === "signup") {
       const backendResult = await proxyAuthRequest("verify", {
         email: normalizedEmail,
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
 
         const response = NextResponse.json({
           success: true,
-          message: "Account verified successfully",
+          message: "Account verified successfully! Welcome to RockGPT.",
           user: {
             id: userRecord.id,
             email: userRecord.email,
@@ -63,120 +62,33 @@ export async function POST(request: Request) {
         response.cookies.delete(OTP_COOKIE_NAME);
         return response;
       }
-    }
 
-    // 2. Local Fallback Verification
-    let otp = globalStore.getOtp(normalizedEmail, type);
-    let otpTokenData: any = null;
-
-    if (!otp) {
-      const cookieStore = await cookies();
-      const rawCookie = cookieStore.get(OTP_COOKIE_NAME)?.value;
-      if (rawCookie) {
-        const decoded = verifyToken<{ email: string; code: string; type: string; name?: string; password_hash?: string }>(rawCookie);
-        if (decoded && decoded.email === normalizedEmail && decoded.type === type) {
-          otpTokenData = decoded;
-        }
-      }
-    }
-
-    const targetCode = otp ? otp.code : (otpTokenData ? otpTokenData.code : null);
-
-    if (!targetCode && targetCode !== "VERIFIED") {
       return NextResponse.json(
-        { error: { code: "otp_expired", message: "Verification code has expired or does not exist. Please request a new code." } },
-        { status: 400 }
+        { error: { code: "verification_failed", message: backendResult.data?.error || "Incorrect or expired verification code." } },
+        { status: backendResult.status || 400 }
       );
-    }
-
-    if (targetCode !== code.trim() && targetCode !== "VERIFIED") {
-      return NextResponse.json(
-        { error: { code: "invalid_code", message: "Incorrect verification code. Please check and try again." } },
-        { status: 400 }
-      );
-    }
-
-    // Signup activation
-    if (type === "signup") {
-      let user = globalStore.getUserByEmail(normalizedEmail);
-      const name = (otp && otp.name) || (otpTokenData && otpTokenData.name) || "User";
-      const passwordHash = (otp && otp.password_hash) || (otpTokenData && otpTokenData.password_hash) || null;
-
-      if (!user) {
-        user = {
-          id: generateUUID(),
-          email: normalizedEmail,
-          name,
-          password_hash: passwordHash,
-          avatar_url: null,
-          theme: "dark",
-          created_at: new Date(),
-        };
-        globalStore.saveUser(user);
-      } else if (passwordHash) {
-        user.password_hash = passwordHash;
-        if (name) user.name = name;
-      }
-
-      globalStore.deleteOtp(normalizedEmail, "signup");
-      const sessionToken = createSignedSessionTokenForUser(user);
-
-      const response = NextResponse.json({
-        success: true,
-        message: "Account verified successfully",
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          theme: user.theme,
-          avatar_url: user.avatar_url,
-        },
-      });
-
-      response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      });
-
-      response.cookies.delete(OTP_COOKIE_NAME);
-      return response;
     }
 
     // Reset password code verification
-    const resetVerifiedToken = signToken({
+    const resetResult = await proxyAuthRequest("resend-otp", {
       email: normalizedEmail,
-      exp: Date.now() + 15 * 60 * 1000,
+      type: "reset",
     });
 
-    const response = NextResponse.json({
-      success: true,
-      message: "Reset code verified",
-      verified: true,
-    });
-
-    response.cookies.set("rockgpt_reset_verified", resetVerifiedToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      expires: new Date(Date.now() + 15 * 60 * 1000),
-    });
-
-    response.cookies.delete(OTP_COOKIE_NAME);
-    return response;
+    return NextResponse.json(
+      { error: { code: "invalid_request", message: "Invalid verification type." } },
+      { status: 400 }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
-        { error: { code: "invalid_input", message: err.issues[0]?.message ?? "Invalid code" } },
+        { error: { code: "invalid_input", message: err.issues[0]?.message ?? "Invalid verification code" } },
         { status: 400 }
       );
     }
     console.error("OTP verification error:", err);
     return NextResponse.json(
-      { error: { code: "server_error", message: "Verification failed" } },
+      { error: { code: "server_error", message: "Verification failed. Please try again." } },
       { status: 500 }
     );
   }

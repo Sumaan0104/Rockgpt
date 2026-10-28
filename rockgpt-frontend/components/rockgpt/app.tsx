@@ -83,7 +83,7 @@ export function RockGPTApp() {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset" | "google_select">("login");
+  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset">("login");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -93,8 +93,6 @@ export function RockGPTApp() {
   const [authResendSeconds, setAuthResendSeconds] = useState(0);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-  const [customGoogleEmail, setCustomGoogleEmail] = useState("");
-  const [showCustomGoogleInput, setShowCustomGoogleInput] = useState(false);
 
   // Toast State
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -248,12 +246,19 @@ export function RockGPTApp() {
         showToast("Signed in with Google successfully!");
         fetchSession();
         window.history.replaceState({}, "", "/");
-      } else if (url.searchParams.get("auth") === "select_google") {
-        setShowAuthModal(true);
-        setAuthTab("google_select");
-        window.history.replaceState({}, "", "/");
       } else if (url.searchParams.get("error")) {
-        showToast("Please sign in with email and password below");
+        const errorParam = url.searchParams.get("error");
+        if (errorParam === "google_cancelled") {
+          showToast("Google sign-in was cancelled.");
+        } else if (errorParam === "google_not_configured") {
+          showToast("Google OAuth is not configured in Google Cloud Console.");
+        } else if (errorParam === "invalid_oauth_state") {
+          showToast("Authentication security check failed (CSRF mismatch).");
+        } else if (errorParam === "unverified_google_email") {
+          showToast("Your Google account email is not verified.");
+        } else {
+          showToast("Google authentication failed. Please try again.");
+        }
         setShowAuthModal(true);
         window.history.replaceState({}, "", "/");
       }
@@ -873,34 +878,10 @@ export function RockGPTApp() {
     }
   };
 
-  const handleSelectGoogleAccount = async (email: string, name?: string) => {
+  const handleContinueWithGoogle = () => {
     setAuthLoading(true);
     setAuthError(null);
-    try {
-      const res = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.user) {
-        setCurrentUser(data.user);
-        setShowAuthModal(false);
-        fetchChats();
-        fetchProjects();
-        showToast(`Signed in as ${data.user.email}`);
-      } else {
-        const params = new URLSearchParams({ email });
-        if (name) params.set("name", name);
-        window.location.href = `/api/auth/google?${params.toString()}`;
-      }
-    } catch {
-      const params = new URLSearchParams({ email });
-      if (name) params.set("name", name);
-      window.location.href = `/api/auth/google?${params.toString()}`;
-    } finally {
-      setAuthLoading(false);
-    }
+    window.location.href = "/api/auth/google";
   };
 
   // Logout
@@ -2094,100 +2075,13 @@ export function RockGPTApp() {
             </>
           )}
 
-          {/* Mode 6: Authentic Google Account Authentication */}
-          {authTab === "google_select" && (
-            <div className="google-chooser-container">
-              <div className="google-chooser-header">
-                <svg viewBox="0 0 24 24" width="32" height="32" style={{ marginBottom: 8 }}>
-                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-                </svg>
-                <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Sign in with Google</h3>
-                <p style={{ fontSize: 13, color: "var(--muted)", margin: "0 0 16px" }}>Choose or enter your Google account to continue</p>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {/* Quick Google Account Shortcut */}
-                <div
-                  className="google-account-row"
-                  onClick={() => handleSelectGoogleAccount("suman.mansuri@gmail.com", "Suman Mansuri")}
-                  style={{ cursor: "pointer" }}
-                >
-                  <div className="google-acc-avatar" style={{ background: "#4285F4" }}>S</div>
-                  <div className="google-acc-info">
-                    <div className="google-acc-name">Suman Mansuri</div>
-                    <div className="google-acc-email">suman.mansuri@gmail.com</div>
-                    <div className="google-acc-badge">Verified Google Account</div>
-                  </div>
-                </div>
-
-                {/* Custom Google Email Input */}
-                <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <input
-                    type="email"
-                    placeholder="Or enter any Gmail address (e.g. name@gmail.com)"
-                    value={customGoogleEmail}
-                    onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                    style={{
-                      height: 44,
-                      padding: "0 14px",
-                      borderRadius: 12,
-                      background: "var(--surface)",
-                      border: "1px solid var(--line)",
-                      color: "var(--text)",
-                      fontSize: 14,
-                      outline: "none",
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="google-btn"
-                    style={{
-                      background: "#ffffff",
-                      color: "#18181b",
-                      fontWeight: 600,
-                      justifyContent: "center",
-                      height: 44,
-                    }}
-                    onClick={() => {
-                      const emailToUse = customGoogleEmail.trim() || "suman.mansuri@gmail.com";
-                      handleSelectGoogleAccount(emailToUse);
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" width="18" height="18">
-                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                      <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-                    </svg>
-                    <span>Continue with Google</span>
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 14, textAlign: "center" }}>
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={() => { setAuthTab("login"); }}
-                >
-                  ← Back to Email Sign In
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Google Sign In Button (shown on login & signup tabs) */}
           {(authTab === "login" || authTab === "signup") && (
             <button
               type="button"
               className="google-btn"
-              onClick={() => {
-                setAuthTab("google_select");
-                setAuthError(null);
-              }}
+              onClick={handleContinueWithGoogle}
+              disabled={authLoading}
             >
               <svg viewBox="0 0 24 24" width="18" height="18">
                 <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
