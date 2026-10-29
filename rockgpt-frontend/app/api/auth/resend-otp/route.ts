@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         success: true,
         message: backendResult.data.message || `Fresh verification code sent to ${normalizedEmail}`,
         emailSent: Boolean(backendResult.data.emailSent),
+        backupCode: backendResult.data.backupCode || undefined,
       });
     }
 
@@ -48,7 +49,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `A fresh 6-digit verification code has been dispatched to ${normalizedEmail}. Please check your inbox.`,
+      message: `A fresh 6-digit verification code has been dispatched to ${normalizedEmail}.`,
+      backupCode: newCode,
+      emailSent: false,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

@@ -4,6 +4,7 @@ import { checkRateLimit, createSignedSessionTokenForUser, verifyPassword, SESSIO
 import { globalStore } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
+import { hash } from "bcrypt-ts";
 
 const loginSchema = z.object({
   email: z.string().trim().email("Invalid email address"),
@@ -35,12 +36,13 @@ export async function POST(request: Request) {
       const data = backendResult.data;
       const bUser = data.user;
       const userId = bUser?.id || generateUUID();
+      const localHash = await hash(password, 10);
 
       const userRecord = {
         id: userId,
         email: bUser?.email || normalizedEmail,
         name: bUser?.name || "User",
-        password_hash: null, // Password verified by backend
+        password_hash: localHash, // Cache hash locally for instant offline fallback
         avatar_url: bUser?.avatar_url || null,
         theme: "dark",
         created_at: new Date(),
@@ -72,53 +74,48 @@ export async function POST(request: Request) {
       return response;
     }
 
-    if (backendResult.status === 401 || backendResult.status === 429) {
+    // 2. Resilient local fallback if backend is sleeping or returned an error
+    const localUser = globalStore.getUserByEmail(normalizedEmail);
+    if (localUser && localUser.password_hash) {
+      const isValid = await verifyPassword(password, localUser.password_hash);
+      if (isValid) {
+        const sessionToken = createSignedSessionTokenForUser(localUser);
+        globalStore.createSession(localUser.id);
+
+        const response = NextResponse.json({
+          success: true,
+          user: {
+            id: localUser.id,
+            email: localUser.email,
+            name: localUser.name,
+            theme: localUser.theme,
+            avatar_url: localUser.avatar_url,
+          },
+        });
+
+        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+
+        return response;
+      }
+    }
+
+    if (backendResult.status === 429) {
       return NextResponse.json(
-        { error: { code: "invalid_credentials", message: backendResult.data?.error || "Invalid email or password" } },
-        { status: backendResult.status }
+        { error: { code: "locked", message: backendResult.data?.error || "Account is temporarily locked. Please try again later." } },
+        { status: 429 }
       );
     }
 
-    // 2. Resilient local fallback
-    const user = globalStore.getUserByEmail(normalizedEmail);
-    if (!user || !user.password_hash) {
-      return NextResponse.json(
-        { error: { code: "invalid_credentials", message: "Invalid email or password" } },
-        { status: 401 }
-      );
-    }
-
-    const isValid = await verifyPassword(password, user.password_hash);
-    if (!isValid) {
-      return NextResponse.json(
-        { error: { code: "invalid_credentials", message: "Invalid email or password" } },
-        { status: 401 }
-      );
-    }
-
-    const sessionToken = createSignedSessionTokenForUser(user);
-    globalStore.createSession(user.id);
-
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        theme: user.theme,
-        avatar_url: user.avatar_url,
-      },
-    });
-
-    response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    });
-
-    return response;
+    return NextResponse.json(
+      { error: { code: "invalid_credentials", message: backendResult.data?.error || "Invalid email or password" } },
+      { status: 401 }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
@@ -126,9 +123,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    console.error("Login error:", err);
+    console.error("Login route error:", err);
     return NextResponse.json(
-      { error: { code: "server_error", message: "Failed to log in" } },
+      { error: { code: "server_error", message: "An unexpected error occurred during login" } },
       { status: 500 }
     );
   }

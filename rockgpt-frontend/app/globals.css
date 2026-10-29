@@ -1258,7 +1258,13 @@ body.light .typing-status-text {
   pointer-events: auto;
 }
 .auth-box {
-  width: min(92vw, 370px);
+  width: min(92vw, 380px);
+  max-height: min(88vh, 640px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 26px;
@@ -1269,6 +1275,9 @@ body.light .typing-status-text {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
   transform: translateY(16px) scale(0.95);
   transition: transform 0.32s var(--bounce);
+}
+.auth-box::-webkit-scrollbar {
+  display: none;
 }
 .auth-modal.on .auth-box {
   transform: none;
@@ -1846,6 +1855,22 @@ body.open .drawer .s-foot > * { animation: navIn .55s calc(.3s + var(--i, 0) * .
     padding: 0 16px !important;
     font-size: 14px !important;
     border-radius: 23px !important;
+  }
+
+  .auth-box {
+    width: min(94vw, 380px) !important;
+    max-height: 86vh !important;
+    padding: 18px 16px 20px !important;
+  }
+
+  .m {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  #feed {
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 }
 

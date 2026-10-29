@@ -26,11 +26,12 @@ export async function POST(request: Request) {
 
       if (backendResult.ok && backendResult.data?.success) {
         const bUser = backendResult.data.user;
+        const existingLocal = globalStore.getUserByEmail(normalizedEmail);
         const userRecord = {
-          id: bUser?.id || generateUUID(),
+          id: bUser?.id || existingLocal?.id || generateUUID(),
           email: bUser?.email || normalizedEmail,
-          name: bUser?.name || "User",
-          password_hash: null,
+          name: bUser?.name || existingLocal?.name || "User",
+          password_hash: existingLocal?.password_hash || null,
           avatar_url: bUser?.avatar_url || null,
           theme: "dark",
           created_at: new Date(),
@@ -60,6 +61,46 @@ export async function POST(request: Request) {
           expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         });
 
+        response.cookies.delete(OTP_COOKIE_NAME);
+        return response;
+      }
+
+      // Check fallback in local store
+      const localOtp = globalStore.getOtp(normalizedEmail, "signup");
+      if (localOtp && localOtp.code === code) {
+        globalStore.deleteOtp(normalizedEmail, "signup");
+        let user = globalStore.getUserByEmail(normalizedEmail);
+        if (!user) {
+          user = {
+            id: generateUUID(),
+            email: normalizedEmail,
+            name: localOtp.name || "User",
+            password_hash: localOtp.password_hash || null,
+            avatar_url: null,
+            theme: "dark",
+            created_at: new Date(),
+          };
+          globalStore.saveUser(user);
+        }
+        const sessionToken = createSignedSessionTokenForUser(user);
+        const response = NextResponse.json({
+          success: true,
+          message: "Account verified successfully! Welcome to RockGPT.",
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            theme: user.theme,
+            avatar_url: user.avatar_url,
+          },
+        });
+        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
         response.cookies.delete(OTP_COOKIE_NAME);
         return response;
       }

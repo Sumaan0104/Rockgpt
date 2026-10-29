@@ -761,7 +761,12 @@ export function RockGPTApp() {
       const data = await res.json();
       if (res.ok) {
         setAuthResendSeconds(60);
-        showToast("New 6-digit code sent!");
+        if (data.backupCode) {
+          setAuthOtpCode(data.backupCode);
+          showToast(`New code: ${data.backupCode}`);
+        } else {
+          showToast(data.message || "New 6-digit code sent!");
+        }
       } else {
         setAuthError(data.error?.message || "Failed to resend code");
       }
@@ -787,9 +792,23 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok) {
+          if (data.alreadyActive && data.user) {
+            setCurrentUser(data.user);
+            setShowAuthModal(false);
+            setAuthPassword("");
+            fetchChats();
+            fetchProjects();
+            showToast("Welcome back! Signed in successfully.");
+            return;
+          }
           setAuthTab("otp");
           setAuthResendSeconds(60);
-          showToast("Verification code sent to your email!");
+          if (data.backupCode) {
+            setAuthOtpCode(data.backupCode);
+            showToast(`Verification code: ${data.backupCode}`);
+          } else {
+            showToast(data.message || "Verification code sent to your email!");
+          }
         } else {
           setAuthError(data.error?.message || "Failed to create account");
         }
@@ -1913,6 +1932,14 @@ export function RockGPTApp() {
                 </div>
                 <h3>Check your inbox</h3>
                 <p>We sent a 6-digit verification code to <b>{authEmail}</b>.</p>
+                <button
+                  type="button"
+                  className="auth-link"
+                  style={{ fontSize: "12.5px", marginTop: "4px" }}
+                  onClick={() => { setAuthTab("signup"); setAuthError(null); }}
+                >
+                  ← Change email or password
+                </button>
               </div>
               <div className="auth-field">
                 <input

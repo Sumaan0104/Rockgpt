@@ -172,9 +172,9 @@ async function sendEmail({ to, subject, html }) {
         port: 465,
         secure: true,
         auth: { user: cleanUser, pass: cleanPass },
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-        socketTimeout: 5000,
+        connectionTimeout: 3000,
+        greetingTimeout: 3000,
+        socketTimeout: 3000,
       });
       const info = await transporter465.sendMail({
         from: `"RockGPT Security" <${cleanUser}>`,
@@ -194,9 +194,9 @@ async function sendEmail({ to, subject, html }) {
           port: 587,
           secure: false,
           auth: { user: cleanUser, pass: cleanPass },
-          connectionTimeout: 5000,
-          greetingTimeout: 5000,
-          socketTimeout: 5000,
+          connectionTimeout: 3000,
+          greetingTimeout: 3000,
+          socketTimeout: 3000,
         });
         const info = await transporter587.sendMail({
           from: `"RockGPT Security" <${cleanUser}>`,
@@ -251,21 +251,38 @@ router.post("/signup", authLimiter, async (req, res) => {
       if (lockCheck.isLocked) {
         return res.status(429).json({ error: lockCheck.message, locked: true });
       }
-      if (existing.passwordHash || existing.password) {
-        return res.status(409).json({
-          error: "An account with this email already exists. Please Sign In with your password.",
-        });
-      }
-      if (existing.googleId) {
+      if (existing.googleId && !existing.passwordHash) {
         return res.status(409).json({
           error: "An account with this email was registered using Google Sign-In. Please sign in with 'Continue with Google', or use 'Forgot password?' to set a password.",
           isGoogleAccount: true,
         });
       }
+      // If account is already verified and active:
+      if (existing.isVerified) {
+        const isMatch = existing.passwordHash ? await bcrypt.compare(password, existing.passwordHash) : false;
+        if (isMatch) {
+          const token = generateToken(existing);
+          return res.json({
+            success: true,
+            alreadyActive: true,
+            message: "Account already exists with this password. Signed in successfully!",
+            user: {
+              id: existing._id,
+              name: existing.name,
+              email: existing.email,
+              plan: formatPlanName(existing.plan),
+            },
+            token,
+          });
+        }
+        return res.status(409).json({
+          error: "An account with this email already exists. Please Sign In with your password, or use 'Forgot password?' to reset.",
+        });
+      }
     }
 
     // Hash password with 12 rounds of bcrypt for enterprise security
-    const salt = await bcrypt.genSalt(12);
+    const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // IMMEDIATELY PERSIST USER ACCOUNT AND PASSWORD IN MONGODB
@@ -276,6 +293,7 @@ router.post("/signup", authLimiter, async (req, res) => {
         email: cleanEmail,
         passwordHash,
         plan: "free",
+        isVerified: false,
         failedOtpAttempts: 0,
         lockedUntil: null,
         lastLoginAt: new Date(),
@@ -430,12 +448,14 @@ router.post("/verify", authLimiter, async (req, res) => {
         email: cleanEmail,
         passwordHash: otpDoc.passwordHash,
         plan: "free",
+        isVerified: true,
         failedOtpAttempts: 0,
         lockedUntil: null,
         lastLoginAt: new Date(),
       });
     } else {
       if (otpDoc.passwordHash) user.passwordHash = otpDoc.passwordHash;
+      user.isVerified = true;
       user.failedOtpAttempts = 0;
       user.lockedUntil = null;
       user.lastLoginAt = new Date();
@@ -528,6 +548,7 @@ async function handleSignIn(req, res) {
     }
 
     // Reset failed counter and update login timestamp
+    user.isVerified = true;
     user.failedOtpAttempts = 0;
     user.lockedUntil = null;
     user.lastLoginAt = new Date();
