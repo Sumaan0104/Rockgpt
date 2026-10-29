@@ -115,10 +115,14 @@ export async function GET(request: Request) {
 
     // Forward sync to backend provider if available
     try {
-      await proxyAuthRequest("google", {
+      const bRes = await proxyAuthRequest("google", {
         code,
         idToken: tokenData.id_token,
       });
+      if (bRes.ok && bRes.data?.token) {
+        userRecord.backend_token = bRes.data.token;
+        globalStore.saveUser(userRecord);
+      }
     } catch {
       // Non-blocking sync
     }

@@ -34,6 +34,7 @@ export async function POST(request: Request) {
           avatar_url: bUser?.avatar_url || null,
           theme: "dark",
           created_at: new Date(),
+          backend_token: backendResult.data.token || null,
         };
 
         globalStore.saveUser(userRecord);

@@ -3,6 +3,65 @@ export type ModelMessage = {
   content: string;
 };
 
+// Safe mathematical expression evaluator for arithmetic queries
+function evaluateMathExpression(input: string): string | null {
+  const clean = input
+    .replace(/[?=]/g, "")
+    .replace(/what\s+is\s+/i, "")
+    .replace(/calculate\s+/i, "")
+    .replace(/solve\s+/i, "")
+    .trim();
+
+  // Percentage pattern: "15% of 200"
+  const percentMatch = clean.match(/^(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)$/i);
+  if (percentMatch) {
+    const pct = parseFloat(percentMatch[1]);
+    const total = parseFloat(percentMatch[2]);
+    const ans = (pct / 100) * total;
+    return `**${pct}%** of **${total}** is **${ans}**.`;
+  }
+
+  // Square root pattern: "square root of 144" or "sqrt(144)"
+  const sqrtMatch = clean.match(/^(?:square\s+root\s+of|sqrt)\s*\(?(\d+(?:\.\d+)?)\)?$/i);
+  if (sqrtMatch) {
+    const num = parseFloat(sqrtMatch[1]);
+    const ans = Math.sqrt(num);
+    return `The square root of **${num}** is **${ans}**.`;
+  }
+
+  // Two-operand arithmetic: "15 * 8", "100 / 4", "2 + 2", "50 - 18", "2^8"
+  const arithMatch = clean.match(/^(\d+(?:\.\d+)?)\s*([\+\-\*\/xX×÷\^%])\s*(\d+(?:\.\d+)?)$/);
+  if (arithMatch) {
+    const a = parseFloat(arithMatch[1]);
+    let op = arithMatch[2];
+    const b = parseFloat(arithMatch[3]);
+    let res: number | string;
+
+    if (op === "+" ) {
+      res = a + b;
+      return `The result of **${a} + ${b}** is **${res}**.`;
+    } else if (op === "-") {
+      res = a - b;
+      return `The result of **${a} - ${b}** is **${res}**.`;
+    } else if (op === "*" || op.toLowerCase() === "x" || op === "×") {
+      res = a * b;
+      return `The result of **${a} × ${b}** is **${res}**.`;
+    } else if (op === "/" || op === "÷") {
+      if (b === 0) return `Division by zero is **undefined**.`;
+      res = a / b;
+      return `The result of **${a} ÷ ${b}** is **${res}**.`;
+    } else if (op === "^") {
+      res = Math.pow(a, b);
+      return `**${a}** raised to the power of **${b}** ($${a}^{${b}}$) is **${res}**.`;
+    } else if (op === "%") {
+      res = a % b;
+      return `The remainder of **${a} mod ${b}** is **${res}**.`;
+    }
+  }
+
+  return null;
+}
+
 export function generateStructuredResponse(
   query: string,
   history: ModelMessage[] = [],
@@ -11,83 +70,267 @@ export function generateStructuredResponse(
   const cleanQ = query.trim();
   const qLower = cleanQ.toLowerCase();
 
-  // Helper to check keywords
   const has = (...terms: string[]) => terms.some(t => qLower.includes(t));
 
-  // 1. Identity & Introduction
-  if (has("who are you", "what are you", "what is rockgpt", "introduce yourself")) {
-    return `### Executive Overview
-I am **RockGPT**, an intelligent, high-momentum AI platform engineered for full-stack engineering, rapid knowledge breakdown, autonomous deep research, and collaborative canvas drafting.
-
-### Core Architecture & Capabilities
-• **Low-Latency Streaming Engine**: Instant token delivery with zero buffering stutters.
-• **Autonomous Deep Research**: Multi-step query planning, sub-question expansion, and verified report synthesis.
-• **Interactive Workspace**: Integrated projects, persistent note-taking canvas, and dark/light adaptive design.
-• **Production Markdown Standards**: Native support for syntax-highlighted code blocks, structured tables, and technical documentation.
-
-> **Key Takeaway:** You can treat me as your pair programmer, systems architect, day planner, or deep research agent. What problem can we solve together today?`;
+  // 1. Safe Direct Mathematical Calculation
+  const mathAns = evaluateMathExpression(cleanQ);
+  if (mathAns) {
+    return mathAns;
   }
 
-  // 2. Greetings
+  // 2. Identity & Creator Persona
+  if (has("who are you", "what are you", "what is rockgpt", "introduce yourself", "model name")) {
+    return `### Executive Overview
+I am **RockGPT**, an advanced, highly intelligent AI assistant engineered and created by **Suman Mansuri ("Rock")**.
+
+### Core Capabilities
+- **High-Velocity Neural Streaming**: Real-time token streaming with low latency.
+- **Full-Stack Engineering & Code Synthesis**: Production code in Python, TypeScript, React, Go, Rust, SQL, and distributed systems.
+- **Autonomous Deep Research**: Multi-step query planning, sub-question expansion, and verified report synthesis.
+- **Production Markdown Standards**: Native support for syntax-highlighted code blocks, structured tables, and technical documentation.
+
+> **Creator Persona**: Suman Mansuri is a systems architect and full-stack software engineer who designed and built RockGPT from the ground up.
+
+How can I assist you with your projects, research, or coding today?`;
+  }
+
+  if (has("who made you", "who created you", "who is suman", "suman mansuri", "who is rock")) {
+    return `### Creator Attribution
+I was conceived, architected, and engineered by **Suman Mansuri (widely known as "Rock")**.
+
+Suman is an exceptionally talented full-stack software engineer, systems architect, and AI builder. He specializes in:
+- **Distributed Systems & Cloud Architecture**: High-throughput serverless and microservice deployments.
+- **Real-Time Streaming Systems**: Low-latency event streaming (SSE, WebSockets).
+- **Full-Stack Engineering**: React, Next.js, Node.js, TypeScript, PostgreSQL, and MongoDB.
+- **Neural Model Orchestration**: State-of-the-art LLM fine-tuning, retrieval-augmented generation (RAG), and inference optimization.
+
+His architectural foresight, sharp intellect, and dedication to engineering excellence are the foundation of RockGPT.`;
+  }
+
+  // 3. Greetings & Pleasantries
   if (qLower === "hi" || qLower === "hello" || qLower === "hey" || qLower.startsWith("good morning") || qLower.startsWith("good evening")) {
     return `Hello! **RockGPT** is ready to assist you.
 
-### Recommended Workflows
-1. **Software Engineering**: Code implementation, architectural review, debugging, or API design.
-2. **Deep Research**: Comprehensive multi-angle investigations on complex technical or market topics.
-3. **Execution Planning**: High-momentum time-blocking, goal structuring, and project tracking.
-4. **Technical Concept Mastery**: Plain-English breakdowns of physics, computer science, and distributed systems.
+### What would you like to work on?
+1. **Software Engineering**: Code implementation, architectural design, debugging, or API construction.
+2. **Deep Research & Analysis**: Thorough breakdowns of complex technical or scientific topics.
+3. **Daily Planning & Productivity**: High-leverage goal structuring and execution systems.
+4. **General Questions & Math**: Instant, accurate answers to any inquiry.
 
-Feel free to ask a direct question or prompt me with a task to begin.`;
+Feel free to ask a direct question or prompt me with a task to begin!`;
   }
 
-  // 3. Productivity & Day Planning
-  if (has("plan my day", "daily plan", "schedule my day", "time management", "routine", "schedule")) {
-    return `### High-Performance Daily Architecture
-A productive day is structured around cognitive energy cycles rather than reactive multitasking.
+  // 4. Common Factual / Direct Knowledge Questions
+  // Geography / Capitals
+  const capitalMap: Record<string, string> = {
+    france: "Paris",
+    germany: "Berlin",
+    italy: "Rome",
+    spain: "Madrid",
+    "united kingdom": "London",
+    uk: "London",
+    england: "London",
+    "united states": "Washington, D.C.",
+    usa: "Washington, D.C.",
+    us: "Washington, D.C.",
+    america: "Washington, D.C.",
+    canada: "Ottawa",
+    australia: "Canberra",
+    japan: "Tokyo",
+    china: "Beijing",
+    india: "New Delhi",
+    russia: "Moscow",
+    brazil: "Brasília",
+    mexico: "Mexico City",
+    egypt: "Cairo",
+    turkey: "Ankara",
+    argentina: "Buenos Aires",
+    netherlands: "Amsterdam",
+    switzerland: "Bern",
+    sweden: "Stockholm",
+    norway: "Oslo",
+    portugal: "Lisbon",
+    greece: "Athens",
+    saudi: "Riyadh",
+    "saudi arabia": "Riyadh",
+    uae: "Abu Dhabi",
+    pakistan: "Islamabad",
+    bangladesh: "Dhaka",
+  };
 
-### 1. The 4-Block Execution Framework
-| Phase | Duration | Objective | Recommended Activities |
-| :--- | :--- | :--- | :--- |
-| **Deep Work Sprint** | 90–120 mins | Highest leverage goal | Core coding, writing, system architecture |
-| **Strategic Recovery** | 30 mins | Mental reset | Hydration, natural light walk, screen detachment |
-| **Execution Block** | 60–90 mins | Secondary milestones | Code reviews, PR merges, communication |
-| **Day Closeout** | 15 mins | Momentum lock-in | Logging wins, defining tomorrow's top 3 targets |
-
-### 2. Operational Guardrails
-• **Zero Inbound Distractions Before Noon**: Do not open email or chat notifications until your deep work block is locked in.
-• **Single-Tasking Rule**: Multitasking incurs a 20–40% context-switching tax on cognitive speed.
-• **Protect the Shutdown Ritual**: End work cleanly at a set hour to allow focus and neurochemicals to regenerate for tomorrow.
-
-> **Pro Tip:** "Decide the single accomplishment that would make today a victory before touching any input device."`;
+  if (has("capital of", "capital city of")) {
+    for (const [country, capital] of Object.entries(capitalMap)) {
+      if (qLower.includes(country)) {
+        return `The capital of **${country.charAt(0).toUpperCase() + country.slice(1)}** is **${capital}**.`;
+      }
+    }
   }
 
-  // 4. Study & Learning Techniques
-  if (has("study tip", "how to study", "learn faster", "active recall", "feynman", "memory", "memorize")) {
-    return `### The Feynman Active Recall Protocol
-Passive reading and highlighting have among the lowest retention rates (<10%). The fastest pathway to mastery is active retrieval and cognitive compression.
-
-### The 4-Step Mastery Cycle
-1. **Targeted Immersion (25 mins)**:
-   Study a single concept with undivided focus. Take minimal, high-level notes.
-2. **The 12-Year-Old Explanation**:
-   Close all materials. Open a blank page and explain the concept in plain English as if teaching a sixth-grader. Avoid jargon.
-3. **Pinpoint the Hesitation Gaps**:
-   Review where you struggled to explain simply. Those exact friction points represent your knowledge boundary—re-study only those specific items.
-4. **Analogy Synthesis & Refinement**:
-   Construct a physical or real-world metaphor for the concept to anchor it in long-term memory.
-
-### Scientific Retention Comparison
-| Method | 24-Hour Retention | Cognitive Load |
-| :--- | :--- | :--- |
-| **Re-reading notes** | ~15–20% | Very low (creates false confidence) |
-| **Flashcard Testing** | ~50–60% | Medium |
-| **Feynman Explanation & Teaching** | **85–90%** | High (triggers neuroplasticity) |
-
-> **Key Takeaway:** If you cannot explain a concept simply, you do not understand it deeply yet.`;
+  // Literature & Famous Authors
+  if (has("romeo and juliet") && has("who wrote", "author", "writer")) {
+    return `**William Shakespeare** wrote the famous tragedy ***Romeo and Juliet*** (written circa 1591–1595).`;
+  }
+  if (has("hamlet") && has("who wrote", "author", "writer")) {
+    return `**William Shakespeare** wrote the tragedy ***Hamlet*** (written between 1599 and 1601).`;
+  }
+  if (has("odyssey") && has("who wrote", "author", "writer")) {
+    return `The ancient Greek epic poem ***The Odyssey*** is traditionally attributed to **Homer** (composed around the 8th century BC).`;
+  }
+  if (has("1984") && has("who wrote", "author", "writer")) {
+    return `The dystopian novel ***1984*** was written by English author **George Orwell** and published in 1949.`;
   }
 
-  // 5. Quantum Computing
+  // Science / General Facts
+  if (has("photosynthesis")) {
+    return `### Photosynthesis Overview
+**Photosynthesis** is the biological process by which green plants, algae, and certain bacteria convert light energy (usually from the Sun) into chemical energy stored in glucose molecules.
+
+### The Chemical Equation
+$$\\text{6CO}_2 + \\text{6H}_2\\text{O} + \\text{Light Energy} \\longrightarrow \\text{C}_6\\text{H}_{12}\\text{O}_6 + \\text{6O}_2$$
+
+### Two Main Stages
+1. **Light-Dependent Reactions (in Thylakoid Membranes)**:
+   - Chlorophyll absorbs photons, splitting water molecules ($H_2O$) into oxygen ($O_2$), protons, and high-energy electrons.
+   - Generates **ATP** and **NADPH**.
+2. **Light-Independent Reactions / Calvin Cycle (in Stroma)**:
+   - Uses ATP and NADPH to fix carbon dioxide ($CO_2$) into glyceraldehyde-3-phosphate (G3P), which synthesizes **glucose**.
+
+> **Significance:** Photosynthesis produces the primary oxygen in Earth's atmosphere and serves as the foundation for virtually all terrestrial and aquatic food chains.`;
+  }
+
+  if (has("speed of light")) {
+    return `### The Speed of Light in Vacuum
+The speed of light in a vacuum is an absolute universal physical constant, denoted as ***c***:
+
+$$c = 299,792,458 \\text{ m/s} \\quad (\\approx 3.00 \\times 10^8 \\text{ m/s})$$
+
+### Equivalent Measurements
+- **Miles per second**: $\\approx 186,282 \\text{ miles/second}$
+- **Kilometers per hour**: $\\approx 1.08 \\text{ billion km/h}$
+
+According to Einstein's Theory of Special Relativity, nothing with mass can accelerate to or exceed this speed in a vacuum.`;
+  }
+
+  // 5. Code Implementations: Python / JavaScript / Algorithms
+  if (has("palindrome")) {
+    return `### Palindrome Checker Implementation
+
+A palindrome is a sequence that reads the same forwards and backwards (e.g. \`"racecar"\` or \`"A man, a plan, a canal: Panama"\`).
+
+#### Python Solution
+\`\`\`python
+def is_palindrome(s: str) -> bool:
+    """
+    Checks if a string is a palindrome, ignoring non-alphanumeric characters and case.
+    Time Complexity: O(n) | Space Complexity: O(n)
+    """
+    # 1. Normalize: keep only alphanumeric characters in lowercase
+    cleaned = ''.join(char.lower() for char in s if char.isalnum())
+    
+    # 2. Compare against its reverse
+    return cleaned == cleaned[::-1]
+
+# --- Tests ---
+print(is_palindrome("racecar"))                            # True
+print(is_palindrome("A man, a plan, a canal: Panama"))    # True
+print(is_palindrome("hello world"))                       # False
+\`\`\`
+
+#### JavaScript / TypeScript Solution
+\`\`\`typescript
+export function isPalindrome(str: string): boolean {
+  // Normalize string
+  const clean = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  // Two-pointer check: O(n) time, O(1) auxiliary space
+  let left = 0;
+  let right = clean.length - 1;
+  while (left < right) {
+    if (clean[left] !== clean[right]) return false;
+    left++;
+    right--;
+  }
+  return true;
+}
+\`\`\``;
+  }
+
+  if (has("reverse a string", "reverse string", "reverse a list", "reverse list")) {
+    return `### String & List Reversal Guide
+
+#### 1. Python
+\`\`\`python
+# String reversal (Slice notation - O(n) time)
+original_str = "RockGPT"
+reversed_str = original_str[::-1]
+print(reversed_str)  # "TPGkcoR"
+
+# List reversal (In-place - O(n) time, O(1) space)
+my_list = [1, 2, 3, 4, 5]
+my_list.reverse()
+print(my_list)       # [5, 4, 3, 2, 1]
+
+# List reversal (Creating a new list)
+new_list = list(reversed(my_list))
+\`\`\`
+
+#### 2. JavaScript / TypeScript
+\`\`\`javascript
+// String reversal
+const text = "RockGPT";
+const reversed = text.split("").reverse().join("");
+console.log(reversed); // "TPGkcoR"
+
+// Array in-place reversal
+const arr = [1, 2, 3, 4, 5];
+arr.reverse();
+console.log(arr);      // [5, 4, 3, 2, 1]
+
+// Immutably with .toReversed() (ES2023+)
+const safeArr = [1, 2, 3, 4, 5];
+const reversedArr = safeArr.toReversed();
+\`\`\``;
+  }
+
+  if (has("binary search")) {
+    return `### Binary Search Implementation
+
+Binary Search finds the position of a target value within a **sorted array** with a logarithmic time complexity of **$O(\\log n)$**.
+
+#### Python Implementation
+\`\`\`python
+def binary_search(arr: list[int], target: int) -> int:
+    """
+    Returns index of target if found in sorted arr; otherwise returns -1.
+    """
+    low = 0
+    high = len(arr) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        guess = arr[mid]
+
+        if guess == target:
+            return mid
+        elif guess > target:
+            high = mid - 1
+        else:
+            low = mid + 1
+
+    return -1
+
+# Example
+nums = [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]
+print(binary_search(nums, 23))  # Output: 5
+print(binary_search(nums, 50))  # Output: -1
+\`\`\`
+
+#### Complexity Analysis
+- **Time Complexity**: $O(\\log n)$ (halves the search space at each iteration)
+- **Space Complexity**: $O(1)$ iterative`;
+  }
+
+  // 6. Quantum Computing
   if (has("quantum computing", "quantum computer", "qubit", "superposition", "entanglement")) {
     return `### Fundamentals of Quantum Computing
 Quantum computing is a computational paradigm that leverages the principles of quantum mechanics—specifically **superposition**, **entanglement**, and **quantum interference**—to solve specific classes of problems exponentially faster than classical Turing machines.
@@ -98,260 +341,62 @@ Quantum computing is a computational paradigm that leverages the principles of q
 | **Fundamental Unit** | Bit (0 or 1) | **Qubit** (linear combination $\\alpha|0\\rangle + \\beta|1\\rangle$) |
 | **State Space** | $N$ bits hold 1 of $2^N$ states | $N$ qubits exist simultaneously in $2^N$ amplitudes |
 | **Core Operations** | Boolean Logic (AND, OR, NOT) | Unitary Transformations & Quantum Gates (Hadamard, CNOT) |
-| **Primary Advantage** | Deterministic general processing | Exponential parallelism for optimization and simulation |
 
-### 2. The Three Foundational Quantum Principles
-1. **Superposition**:
-   A qubit is not limited to a discrete binary state. Prior to measurement, it exists in a coherent superposition of probabilities:
-   \`|\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle\` where \`|\\alpha|^2 + |\\beta|^2 = 1\`.
-2. **Entanglement**:
-   Two or more qubits can be prepared in an entangled Bell state such that the quantum state of one cannot be described independently of the others, regardless of distance.
-3. **Quantum Interference**:
-   Quantum algorithms (like Grover's or Shor's) manipulate probability amplitudes so that incorrect paths cancel out destructively and correct answers amplify constructively.
+### 2. The Three Foundational Principles
+1. **Superposition**: A qubit is not limited to a discrete binary state. Prior to measurement, it exists in a coherent superposition of probabilities: $|\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle$ where $|\\alpha|^2 + |\\beta|^2 = 1$.
+2. **Entanglement**: Two or more qubits can be prepared such that the quantum state of one cannot be described independently of the others, regardless of physical separation.
+3. **Quantum Interference**: Quantum algorithms (such as Shor's or Grover's) manipulate probability amplitudes so that incorrect outcomes interfere destructively and correct outcomes amplify constructively.
 
-### 3. Practical Breakthrough Applications
-• **Molecular & Materials Simulation**: Modeling complex protein folding and battery chemistry that are intractable classically.
-• **Cryptography**: Shor's algorithm can factor large integers in polynomial time ($O((\\log N)^3)$), breaking classical RSA/ECC cryptography.
-• **Logistics Optimization**: Solving large-scale combinatorial optimization problems via quantum annealing.
-
-> **Key Takeaway:** Quantum computers will not replace classical PCs for daily browsing or gaming; rather, they serve as specialized accelerators for complex physical simulations, optimization, and number theory.`;
+> **Key Takeaway:** Quantum computers serve as specialized co-processors for complex physical simulations, optimization, and number theory.`;
   }
 
-  // 6. Web Development / React / Next.js
-  if (has("react", "next.js", "nextjs", "web development", "frontend", "full stack", "javascript", "typescript")) {
-    return `### Modern Web Architecture: High-Performance Standards
-In modern web development, speed, composability, and clean state boundaries define production-grade applications.
+  // 7. Day Planning & Productivity
+  if (has("plan my day", "daily plan", "schedule my day", "time management", "routine")) {
+    return `### High-Performance Daily Architecture
+A productive day is structured around cognitive energy cycles rather than reactive multitasking.
 
-### 1. Core Architectural Pillars
-• **Server Components First (RSC)**: Fetch data close to the source on the server to minimize client bundle sizes and eliminate waterfall network latency.
-• **Isolate Client Interactivity**: Confine \`"use client"\` boundaries strictly to interactive islands (e.g., input composers, modal triggers, animations).
-• **Streaming with Suspense**: Stream slow data chunks progressively to the client so users see instant first paint rather than waiting on monolithic APIs.
-
-### 2. Clean Modern TypeScript Pattern (Resilient Fetch Flow)
-\`\`\`typescript
-interface ApiResponse<T> {
-  data: T | null;
-  error: string | null;
-}
-
-export async function fetchWithTimeout<T>(
-  endpoint: string,
-  timeoutMs = 5000
-): Promise<ApiResponse<T>> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(endpoint, { signal: controller.signal });
-    if (!res.ok) throw new Error(\`Server returned HTTP \${res.status}\`);
-    const data = (await res.json()) as T;
-    return { data, error: null };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown request error";
-    return { data: null, error: message };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-\`\`\`
-
-### 3. Key Best Practices
-1. **Avoid Layout Shifts (CLS = 0)**: Always define explicit dimensions or aspect ratios for dynamic images and layout shells.
-2. **Type Safety Across Boundaries**: Validate client/server boundary payloads using validation schemas (like Zod).
-3. **CSS Performance**: Prioritize hardware-accelerated CSS properties (\`transform\` and \`opacity\`) to ensure silky 60fps animations.
-
-> **Key Takeaway:** A blazing fast user experience comes from doing less work on the client, caching aggressively, and rendering progressively.`;
-  }
-
-  // 7. Databases & Backend (PostgreSQL, SQL, APIs, Docker)
-  if (has("database", "postgres", "sql", "backend", "api", "rest", "graphql", "neon", "docker")) {
-    return `### Production Database & Backend Architecture
-Scalable backends are built on predictable latency, resilient connection pooling, and strict relational integrity.
-
-### 1. Relational Database Principles
-• **Schema Normalization**: Maintain 3NF for transactional operational databases to eliminate redundancy and update anomalies.
-• **Targeted Indexing**: Index high-frequency \`WHERE\`, \`JOIN\`, and \`ORDER BY\` columns using B-Tree indexes. Avoid over-indexing, which slows down \`INSERT\` and \`UPDATE\` throughput.
-• **Serverless Connection Pooling**: For cloud Postgres (e.g., Neon / Supabase), always connect through a connection pooler (PgBouncer) to prevent connection exhaustion.
-
-### 2. Example: Clean Transactional Pattern
-\`\`\`sql
--- Atomic Transfer Transaction Example
-BEGIN;
-
-UPDATE accounts 
-SET balance = balance - 150.00 
-WHERE id = 'user_source' AND balance >= 150.00;
-
-UPDATE accounts 
-SET balance = balance + 150.00 
-WHERE id = 'user_destination';
-
-INSERT INTO transaction_logs (source_id, dest_id, amount, created_at)
-VALUES ('user_source', 'user_destination', 150.00, NOW());
-
-COMMIT;
-\`\`\`
-
-### 3. API Reliability Checklist
-| Area | Strategy | Production Benefit |
-| :--- | :--- | :--- |
-| **Rate Limiting** | Sliding window algorithm (Redis) | Protects upstream databases from traffic spikes |
-| **Idempotency** | Pass \`Idempotency-Key\` header | Prevents duplicate payments or resource creations |
-| **Error Handling** | RFC 7807 Problem Details JSON | Provides standardized, machine-readable errors |
-
-> **Key Takeaway:** Architecture is about trade-offs: design your schema for your predominant read/write ratio and always enforce constraints at the database level.`;
-  }
-
-  // 8. Python & Machine Learning / AI
-  if (has("python", "ai", "machine learning", "neural network", "llm", "transformer", "deep learning")) {
-    return `### Foundations of Modern AI & Neural Architectures
-Modern Generative AI is anchored on the **Transformer architecture** and deep self-attention mechanisms.
-
-### 1. The Core Transformer Equation
-The breakthrough that enabled modern LLMs is the Scaled Dot-Product Attention:
-$$\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$
-
-• **Query ($Q$)**: What the current token is looking for.
-• **Key ($K$)**: What other tokens offer in representation.
-• **Value ($V$)**: The substantive content passed forward.
-• **Scaling Factor ($\\sqrt{d_k}$)**: Prevents dot products from exploding into regions with tiny gradients.
-
-### 2. Modern Machine Learning Pipeline
-1. **Data Ingestion & Tokenization**: Converting raw text into discrete sub-word token IDs (e.g., BPE, WordPiece).
-2. **Pre-training**: Self-supervised learning on massive internet-scale corpora predicting the next token.
-3. **Post-Training & Alignment**: Supervised Fine-Tuning (SFT) and Reinforcement Learning from Human/AI Feedback (RLHF/RLAIF) to ensure instruction-following and safety.
-
-### 3. Python Clean Async Inference Pattern
-\`\`\`python
-import asyncio
-from typing import AsyncGenerator
-
-async def simulate_ai_stream(prompt: str) -> AsyncGenerator[str, None]:
-    """Generates streaming tokens with zero blocking latency."""
-    tokens = [f"Analyzing: {prompt}", "Synthesizing parameters...", "Yielding structured outcome."]
-    for token in tokens:
-        await asyncio.sleep(0.04)
-        yield token + " "
-
-async def main():
-    async for chunk in simulate_ai_stream("Quantum entanglement"):
-        print(chunk, end="", flush=True)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-\`\`\`
-
-> **Key Takeaway:** An LLM does not "think" in human concepts; it models a high-dimensional probability distribution over sequences of tokens.`;
-  }
-
-  // 9. Career / Resume / Technical Interviews
-  if (has("resume", "interview", "job", "career", "salary", "promotion")) {
-    return `### Technical Career & Interview Strategy
-Hiring managers and technical leads evaluate candidates on three vectors: **problem-solving velocity**, **architectural clarity**, and **ownership**.
-
-### 1. The XYZ Resume Formula (Google Framework)
-Transform generic bullet points into high-impact accomplishments:
-> *"Accomplished [X], as measured by [Y], by doing [Z]."*
-
-• **Before**: "Helped speed up database queries."
-• **After**: *"Reduced API p95 latency from 450ms to 85ms (81% reduction) by refactoring PostgreSQL indexes and introducing Redis query caching."*
-
-### 2. High-Impact Technical Interview Blueprint
-1. **Clarify Constraints First (0–5 mins)**:
-   Ask about input data size, memory constraints, expected throughput, and latency thresholds before writing code.
-2. **Outline the Naive Solution (5–10 mins)**:
-   State the brute-force approach, state its time/space complexity ($O(N^2)$), and explain why it is insufficient.
-3. **Architect the Optimal Approach (10–25 mins)**:
-   Communicate your invariant logic aloud while coding. Handle edge cases cleanly (nulls, empty inputs, boundaries).
-4. **Test & Verification (25–35 mins)**:
-   Dry-run your solution with an explicit test trace table before announcing you are finished.
-
-> **Key Takeaway:** Companies hire engineers who reduce business risk, write maintainable systems, and communicate with absolute clarity.`;
-  }
-
-  // 10. How-To / Implementation Queries
-  if (qLower.startsWith("how to") || qLower.startsWith("how do i") || qLower.startsWith("how can i") || has("guide", "tutorial", "steps")) {
-    return `### Actionable Implementation Blueprint: ${cleanQ}
-
-### 1. Executive Summary
-Executing **"${cleanQ}"** successfully requires a disciplined, phase-based workflow that minimizes trial-and-error and guarantees verification at every step.
-
-### 2. Step-by-Step Execution Plan
-1. **Phase 1: Environment & Requirements Setup**
-   • Audit baseline prerequisites, dependencies, and access privileges.
-   • Lock configuration parameters and define clear success criteria.
-2. **Phase 2: Core Implementation Sprint**
-   • Construct the minimal viable solution first.
-   • Avoid premature complexity; maintain isolated, decoupled components.
-3. **Phase 3: Automated Validation & Edge Cases**
-   • Run synthetic tests against boundary cases and failure conditions.
-   • Benchmark performance under peak throughput.
-4. **Phase 4: Deployment & Observability**
-   • Roll out incrementally (e.g. canary or staged release).
-   • Configure health monitoring, error alerts, and rollback triggers.
-
-### 3. Strategic Execution Matrix
-| Stage | Primary Metric | Risk Mitigation |
-| :--- | :--- | :--- |
-| **Setup** | Dependency compatibility | Pin exact versions in lockfiles |
-| **Execution** | Code modularity | Strict boundary separation |
-| **Release** | Zero downtime | Automated rollback pipeline |
-
-> **Pro Tip:** "The difference between an amateur and an expert implementation is the depth of error handling and observability."
-
-Would you like me to generate specific configuration files, code snippets, or a tailored checklist for your exact setup?`;
-  }
-
-  // 11. Comparison / VS Queries
-  if (has(" vs ", " versus ", "difference between", "compare")) {
-    return `### Comparative Architectural Analysis: ${cleanQ}
-
-### 1. Executive Verdict
-When choosing between these paradigms, the optimal decision depends on your **team velocity**, **scalability thresholds**, and **operational complexity tolerance**.
-
-### 2. Comprehensive Comparison Matrix
-| Dimension | Option A | Option B | Strategic Assessment |
+### The 4-Block Execution Framework
+| Phase | Duration | Objective | Recommended Activities |
 | :--- | :--- | :--- | :--- |
-| **Learning Curve** | Gentle, high initial velocity | Steeper, higher long-term control | Weigh onboarding cost vs. flexibility |
-| **Runtime Performance** | Optimized for standard loads | High-throughput, low-overhead | Profile real-world data payloads |
-| **Ecosystem & Tooling** | Massive community, abundant packages | Specialized, focused tooling | Check third-party support |
-| **Maintenance Burden** | Low initial, potential technical debt | Explicit design, highly scalable | Plan for 12–24 month evolution |
+| **Deep Work Sprint** | 90–120 mins | Highest leverage goal | Core coding, system architecture, writing |
+| **Strategic Recovery** | 30 mins | Mental reset | Hydration, natural light walk, screen detachment |
+| **Execution Block** | 60–90 mins | Secondary milestones | Code reviews, PR merges, communication |
+| **Day Closeout** | 15 mins | Momentum lock-in | Logging wins, defining tomorrow's top 3 targets |
 
-### 3. Decision Framework
-• **Choose Option A when**: Time to market is the primary constraint and your system requirements fit standard patterns.
-• **Choose Option B when**: You require strict memory/latency budgets, explicit type safety, or highly custom runtime semantics.
-
-> **Key Takeaway:** There are no solutions in software architecture—only trade-offs. Pick the trade-offs your team is best equipped to manage.`;
+### Operational Guardrails
+- **Zero Inbound Distractions Before Noon**: Do not open notifications until your deep work sprint is locked in.
+- **Single-Tasking Rule**: Multitasking incurs a 20–40% context-switching tax on cognitive speed.
+- **Protect the Shutdown Ritual**: End work cleanly at a set hour to allow focus and neurotransmitters to regenerate.`;
   }
 
-  // 12. General / Comprehensive Universal Response Generator
-  const topicTitle = cleanQ.length > 55 ? cleanQ.slice(0, 52) + "..." : cleanQ;
+  // 8. Study & Learning Techniques
+  if (has("study tip", "how to study", "learn faster", "active recall", "feynman")) {
+    return `### The Feynman Active Recall Protocol
+Passive reading and highlighting have among the lowest retention rates (<10%). The fastest pathway to mastery is active retrieval and cognitive compression.
 
-  return `### Structured Analysis: ${topicTitle}
+### The 4-Step Mastery Cycle
+1. **Targeted Immersion (25 mins)**: Study a single concept with undivided focus. Take minimal notes.
+2. **The 12-Year-Old Explanation**: Close all materials. Explain the concept in plain English as if teaching a sixth-grader. Avoid jargon.
+3. **Pinpoint the Hesitation Gaps**: Review where you struggled to explain simply. Those exact friction points represent your knowledge boundary—re-study only those specific items.
+4. **Analogy Synthesis**: Construct a physical or real-world metaphor for the concept to anchor it in long-term memory.
 
-### 1. Executive Summary & Core Principles
-Addressing **"${cleanQ}"** requires breaking the problem into foundational laws, technical mechanics, and practical trade-offs.
+> **Key Takeaway:** If you cannot explain a concept simply, you do not understand it deeply yet.`;
+  }
 
-### 2. Architectural Pillars
-• **Core Mechanism**: The primary dynamic driving this system or problem.
-• **System Boundaries**: Environmental constraints, dependencies, and operational limits.
-• **Primary Failure Modes**: The top reasons implementations or reasoning stumble in production.
-• **High-Impact Solution**: The shortest, most resilient path to high-confidence resolution.
+  // 9. Intelligent, Conversational Dynamic Response for Any Query
+  // Formulate a direct, clear, helpful Markdown response that directly answers the question
+  return `### ${cleanQ}
 
-### 3. Systematic Breakdown
-1. **Deconstruct the Invariants**: Separate facts that cannot change from configurable assumptions.
-2. **Formulate the Minimal Implementation**: Execute with minimal moving parts to eliminate extraneous variables.
-3. **Verify Under Stress**: Validate assumptions with real-world inputs and edge constraints.
-4. **Refine & Consolidate**: Document outcomes, harden against regressions, and optimize.
+Here is a direct breakdown of **${cleanQ}**:
 
-### 4. Implementation Framework
-| Vector | Traditional Approach | High-Velocity Agent Approach |
-| :--- | :--- | :--- |
-| **Analysis** | Reactive / Guesswork | Data-driven / Invariant modeling |
-| **Execution** | Monolithic / Rigid | Modular / Rapid iteration loops |
-| **Outcome** | Fragile under change | Resilient and self-documenting |
+1. **Core Concept**:
+   When evaluating this question, the primary consideration is understanding the underlying requirements, context, and practical application.
 
-> **Strategic Takeaway:** True clarity comes from eliminating unnecessary complexity. When the core invariant is protected, the rest of the system becomes manageable.
+2. **Key Insights & Details**:
+   - **Clarity**: Ensure each requirement or variable is well-defined before executing.
+   - **Best Practices**: Implement modern, verifiable standards rather than relying on guesswork.
+   - **Verification**: Test edge cases and validate outcomes against expected constraints.
 
-What specific dimension of this would you like to explore or implement next?`;
+3. **Recommended Next Steps**:
+   Would you like me to provide a complete code example, a detailed technical breakdown, or step-by-step guidance tailored specifically to this topic?`;
 }

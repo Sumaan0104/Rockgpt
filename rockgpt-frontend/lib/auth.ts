@@ -69,7 +69,14 @@ export async function verifyPassword(plainText: string, hashString: string): Pro
   }
 }
 
-export function createSignedSessionTokenForUser(user: { id: string; email: string; name: string; avatar_url?: string | null; theme?: string }): string {
+export function createSignedSessionTokenForUser(user: {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string | null;
+  theme?: string;
+  backend_token?: string | null;
+}): string {
   const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
   return signToken({
     id: user.id,
@@ -77,6 +84,7 @@ export function createSignedSessionTokenForUser(user: { id: string; email: strin
     name: user.name,
     avatar_url: user.avatar_url || null,
     theme: user.theme || "dark",
+    backend_token: user.backend_token || null,
     is_guest: user.email.startsWith("guest-"),
     exp: expiresAt.getTime(),
   });
@@ -114,14 +122,22 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function getSessionUser(createIfMissing = false): Promise<User | null> {
+export async function getSessionUser(createIfMissing = false): Promise<(User & { backend_token?: string | null }) | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
     if (token) {
       // 1. Try decoding signed stateless session token
-      const verified = verifyToken<{ id: string; email: string; name: string; avatar_url?: string | null; theme?: string; is_guest?: boolean }>(token);
+      const verified = verifyToken<{
+        id: string;
+        email: string;
+        name: string;
+        avatar_url?: string | null;
+        theme?: string;
+        backend_token?: string | null;
+        is_guest?: boolean;
+      }>(token);
       if (verified && verified.id) {
         const existing = globalStore.getUserById(verified.id);
         if (!existing) {
@@ -132,6 +148,7 @@ export async function getSessionUser(createIfMissing = false): Promise<User | nu
             password_hash: null,
             avatar_url: verified.avatar_url || null,
             theme: verified.theme || "dark",
+            backend_token: verified.backend_token || null,
             created_at: new Date(),
           });
         }
@@ -142,8 +159,9 @@ export async function getSessionUser(createIfMissing = false): Promise<User | nu
           password_hash: null,
           avatar_url: verified.avatar_url || null,
           theme: verified.theme || "dark",
+          backend_token: verified.backend_token || (existing ? existing.backend_token : null),
           created_at: existing ? existing.created_at : new Date(),
-        };
+        } as any;
       }
 
       // 2. Fallback to in-memory lookup if plain UUID

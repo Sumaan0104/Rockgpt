@@ -10,6 +10,7 @@ export type StoredUser = {
   avatar_url: string | null;
   theme: string;
   created_at: Date;
+  backend_token?: string | null;
 };
 
 export type StoredSession = {

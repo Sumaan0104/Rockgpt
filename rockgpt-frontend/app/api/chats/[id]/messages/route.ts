@@ -110,6 +110,15 @@ export async function POST(
         // Instant stream from AI engine
         const textStream = await createChatStream({
           messages: prevMessages.length ? prevMessages : [{ role: "user", content }],
+          user: user
+            ? {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                backend_token: (user as any).backend_token || null,
+              }
+            : null,
+          chatId,
         });
 
         for await (const chunk of textStream) {
