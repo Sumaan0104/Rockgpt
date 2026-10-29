@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
-import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
+import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser, verifyToken } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
@@ -65,17 +66,30 @@ export async function POST(request: Request) {
         return response;
       }
 
-      // Check fallback in local store
+      // Check fallback: First inspect signed OTP cookie (works across any Lambda instance)
+      const cookieStore = await cookies();
+      const otpCookieVal = cookieStore.get(OTP_COOKIE_NAME)?.value;
+      const decodedOtp = verifyToken<{
+        email: string;
+        type: string;
+        name?: string;
+        backupCode?: string;
+        password_hash?: string;
+      }>(otpCookieVal);
+
       const localOtp = globalStore.getOtp(normalizedEmail, "signup");
-      if (localOtp && localOtp.code === code) {
+      const matchedBackupCode = (decodedOtp && decodedOtp.email === normalizedEmail && decodedOtp.backupCode === code)
+        || (localOtp && localOtp.code === code);
+
+      if (matchedBackupCode) {
         globalStore.deleteOtp(normalizedEmail, "signup");
         let user = globalStore.getUserByEmail(normalizedEmail);
         if (!user) {
           user = {
             id: generateUUID(),
             email: normalizedEmail,
-            name: localOtp.name || "User",
-            password_hash: localOtp.password_hash || null,
+            name: decodedOtp?.name || localOtp?.name || "User",
+            password_hash: decodedOtp?.password_hash || localOtp?.password_hash || null,
             avatar_url: null,
             theme: "dark",
             created_at: new Date(),

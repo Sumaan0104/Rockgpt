@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit } from "@/lib/auth";
+import { checkRateLimit, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 
@@ -31,12 +31,29 @@ export async function POST(request: Request) {
     });
 
     if (backendResult.ok && backendResult.data?.success) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         message: backendResult.data.message || `Fresh verification code sent to ${normalizedEmail}`,
         emailSent: Boolean(backendResult.data.emailSent),
         backupCode: backendResult.data.backupCode || undefined,
       });
+
+      if (backendResult.data.backupCode) {
+        const otpToken = signToken({
+          email: normalizedEmail,
+          type,
+          backupCode: backendResult.data.backupCode,
+          exp: Date.now() + 10 * 60 * 1000,
+        });
+        response.cookies.set(OTP_COOKIE_NAME, otpToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          expires: new Date(Date.now() + 10 * 60 * 1000),
+        });
+      }
+      return response;
     }
 
     // 2. Resilient local fallback
@@ -47,12 +64,31 @@ export async function POST(request: Request) {
     const newCode = Math.floor(100000 + Math.random() * 900000).toString();
     globalStore.saveOtp(normalizedEmail, newCode, type, name, passwordHash);
 
-    return NextResponse.json({
+    const otpToken = signToken({
+      email: normalizedEmail,
+      type,
+      name,
+      backupCode: newCode,
+      password_hash: passwordHash,
+      exp: Date.now() + 10 * 60 * 1000,
+    });
+
+    const response = NextResponse.json({
       success: true,
       message: `A fresh 6-digit verification code has been dispatched to ${normalizedEmail}.`,
       backupCode: newCode,
       emailSent: false,
     });
+
+    response.cookies.set(OTP_COOKIE_NAME, otpToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      expires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    return response;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

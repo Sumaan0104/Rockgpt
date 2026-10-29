@@ -70,6 +70,8 @@ export async function createChatStream({
       "Content-Type": "application/json",
       ...(INTERNAL_SERVICE_KEY ? { "x-service-key": INTERNAL_SERVICE_KEY } : {}),
       "x-client-session": user?.id || (chatId ? `chat_${chatId}` : "anon_session"),
+      ...(user?.id ? { "x-user-id": user.id } : {}),
+      ...(user?.email ? { "x-user-email": user.email } : {}),
     };
 
     if (user?.backend_token) {

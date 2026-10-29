@@ -7,20 +7,28 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
+function getUserFilter(userId) {
+  const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+  return {
+    $or: [{ userId: userObjectId }, { userId: String(userId) }],
+  };
+}
+
 // 1. GET /chats — list newest first, unified across Chat and Conversation collections
 router.get("/", requireAuth, async (req, res) => {
   try {
     const userId = req.user._id;
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const userFilter = getUserFilter(userId);
 
     // Fetch from both Chat and legacy Conversation collections
     const [chatsList, convsList] = await Promise.all([
-      Chat.find({ userId })
+      Chat.find(userFilter)
         .sort({ updatedAt: -1 })
         .limit(limit)
         .select("_id title updatedAt createdAt")
         .lean(),
-      Conversation.find({ userId })
+      Conversation.find(userFilter)
         .sort({ updatedAt: -1 })
         .limit(limit)
         .select("_id title updatedAt createdAt")
@@ -73,11 +81,12 @@ router.get("/:id", requireAuth, async (req, res) => {
     }
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
+    const userFilter = getUserFilter(userId);
 
     // Look up in Chat first, then fallback to Conversation
-    let chat = await Chat.findOne({ _id: objectChatId, userId }).lean();
+    let chat = await Chat.findOne({ _id: objectChatId, ...userFilter }).lean();
     if (!chat) {
-      chat = await Conversation.findOne({ _id: objectChatId, userId }).lean();
+      chat = await Conversation.findOne({ _id: objectChatId, ...userFilter }).lean();
     }
 
     if (!chat) {
@@ -134,21 +143,27 @@ router.get("/:id", requireAuth, async (req, res) => {
 router.post("/", requireAuth, async (req, res) => {
   try {
     const userId = req.user._id;
-    const { title } = req.body;
+    const { title, id } = req.body;
     const safeTitle = typeof title === "string" && title.trim() ? title.trim().slice(0, 80) : "New Chat";
     const now = new Date();
+    const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
 
-    const chat = await Chat.create({
-      userId,
+    const chatDoc = {
+      userId: userObjectId,
       title: safeTitle,
       createdAt: now,
       updatedAt: now,
-    });
+    };
+    if (id && mongoose.Types.ObjectId.isValid(id)) {
+      chatDoc._id = new mongoose.Types.ObjectId(id);
+    }
+
+    const chat = await Chat.create(chatDoc);
 
     // Mirror to Conversation
     await Conversation.create({
       _id: chat._id,
-      userId,
+      userId: userObjectId,
       title: safeTitle,
       model: "RockGPT Flash",
       pinned: false,
@@ -186,17 +201,18 @@ router.patch("/:id", requireAuth, async (req, res) => {
     }
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
+    const userFilter = getUserFilter(userId);
     const safeTitle = title.trim().slice(0, 80);
     const now = new Date();
 
     const [chat, conv] = await Promise.all([
       Chat.findOneAndUpdate(
-        { _id: objectChatId, userId },
+        { _id: objectChatId, ...userFilter },
         { title: safeTitle, updatedAt: now },
         { new: true }
       ),
       Conversation.findOneAndUpdate(
-        { _id: objectChatId, userId },
+        { _id: objectChatId, ...userFilter },
         { title: safeTitle, updatedAt: now },
         { new: true }
       ),
@@ -228,10 +244,11 @@ router.delete("/:id", requireAuth, async (req, res) => {
     }
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
+    const userFilter = getUserFilter(userId);
 
     const [chat, conv] = await Promise.all([
-      Chat.findOneAndDelete({ _id: objectChatId, userId }),
-      Conversation.findOneAndDelete({ _id: objectChatId, userId }),
+      Chat.findOneAndDelete({ _id: objectChatId, ...userFilter }),
+      Conversation.findOneAndDelete({ _id: objectChatId, ...userFilter }),
     ]);
 
     if (!chat && !conv) return res.status(404).json({ error: "Chat not found." });
@@ -255,10 +272,11 @@ router.delete("/:id", requireAuth, async (req, res) => {
 router.delete("/", requireAuth, async (req, res) => {
   try {
     const userId = req.user._id;
+    const userFilter = getUserFilter(userId);
 
     const [userChats, userConvs] = await Promise.all([
-      Chat.find({ userId }).select("_id").lean(),
-      Conversation.find({ userId }).select("_id").lean(),
+      Chat.find(userFilter).select("_id").lean(),
+      Conversation.find(userFilter).select("_id").lean(),
     ]);
 
     const chatIds = [
@@ -276,8 +294,8 @@ router.delete("/", requireAuth, async (req, res) => {
     }
 
     await Promise.all([
-      Chat.deleteMany({ userId }),
-      Conversation.deleteMany({ userId }),
+      Chat.deleteMany(userFilter),
+      Conversation.deleteMany(userFilter),
     ]);
 
     res.json({ success: true, message: "All conversations cleared." });

@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
+import { proxyBackendRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
 
 const createChatSchema = z.object({
   title: z.string().trim().min(1).max(120).optional().default("New chat"),
   project_id: z.string().uuid().nullable().optional(),
   mode: z.enum(["chat", "deep"]).optional().default("chat"),
+  id: z.string().optional(),
 });
 
 export async function GET(request: Request) {
@@ -19,6 +21,42 @@ export async function GET(request: Request) {
     );
   }
 
+  // 1. Fetch from persistent MongoDB database via Render backend
+  const backendResult = await proxyBackendRequest("/api/chats", {
+    method: "GET",
+    user,
+  });
+
+  if (backendResult.ok && Array.isArray(backendResult.data)) {
+    const backendChats = backendResult.data.map((c: any) => ({
+      id: c.id || c._id,
+      title: c.title || "Untitled Conversation",
+      project_id: null,
+      mode: "chat",
+      created_at: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+      updated_at: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
+    }));
+
+    // Synchronize to local memory store
+    backendChats.forEach((c: any) => {
+      globalStore.saveChat({
+        id: c.id,
+        user_id: user.id,
+        title: c.title,
+        project_id: null,
+        mode: "chat",
+        created_at: new Date(c.created_at),
+        updated_at: new Date(c.updated_at),
+      });
+    });
+
+    return NextResponse.json({
+      chats: backendChats,
+      nextCursor: null,
+    });
+  }
+
+  // 2. Fallback to local store if backend is offline/sleeping
   const userChats = globalStore.getChats(user.id);
 
   return NextResponse.json({
@@ -45,10 +83,21 @@ export async function POST(request: Request) {
 
   try {
     const json = await request.json().catch(() => ({}));
-    const { title, project_id, mode } = createChatSchema.parse(json);
+    const { title, project_id, mode, id } = createChatSchema.parse(json);
+
+    // 1. Create in persistent MongoDB database via Render backend
+    const backendResult = await proxyBackendRequest("/api/chats", {
+      method: "POST",
+      body: { title, id },
+      user,
+    });
+
+    const chatId = (backendResult.ok && (backendResult.data?.id || backendResult.data?._id))
+      ? (backendResult.data.id || backendResult.data._id)
+      : (id || generateUUID());
 
     const newChat = globalStore.saveChat({
-      id: generateUUID(),
+      id: chatId,
       user_id: user.id,
       title,
       project_id: project_id ?? null,

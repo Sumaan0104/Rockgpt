@@ -33,8 +33,72 @@ export function isServiceKeyValid(serviceKey) {
 export async function authMiddleware(req, res, next) {
   try {
     const serviceKey = req.headers["x-service-key"] || req.headers["x-internal-service"];
-    if (serviceKey && isServiceKeyValid(serviceKey)) {
+    const isService = Boolean(serviceKey && isServiceKeyValid(serviceKey));
+    if (isService) {
       req.isService = true;
+    }
+
+    const authHeader = req.headers.authorization;
+    let token = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && (decoded.id || decoded.email)) {
+          let user = null;
+          if (decoded.id) {
+            try {
+              user = await User.findById(decoded.id).select("-passwordHash -totpSecret").lean();
+            } catch {}
+          }
+          if (!user && decoded.email) {
+            try {
+              user = await User.findOne({ email: decoded.email.toLowerCase().trim() }).select("-passwordHash -totpSecret").lean();
+            } catch {}
+          }
+          if (user) {
+            req.user = user;
+            return next();
+          }
+        }
+      } catch {}
+    }
+
+    // If authenticated via trusted INTERNAL_SERVICE_KEY, look up target user by header
+    if (isService) {
+      const targetUserId = req.headers["x-user-id"];
+      const targetUserEmail = req.headers["x-user-email"];
+
+      let user = null;
+      if (targetUserId) {
+        try {
+          user = await User.findById(targetUserId).select("-passwordHash -totpSecret").lean();
+        } catch {}
+      }
+      if (!user && targetUserEmail) {
+        try {
+          user = await User.findOne({ email: targetUserEmail.toLowerCase().trim() }).select("-passwordHash -totpSecret").lean();
+        } catch {}
+      }
+
+      if (user) {
+        req.user = user;
+        return next();
+      }
+
+      if (targetUserId) {
+        req.user = {
+          _id: targetUserId,
+          email: targetUserEmail || "user@rockgpt.ai",
+          name: "RockGPT User",
+          plan: "pro",
+        };
+        return next();
+      }
+
       req.user = {
         _id: "service_user",
         email: "service@rockgpt.ai",
@@ -44,51 +108,11 @@ export async function authMiddleware(req, res, next) {
       return next();
     }
 
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      req.user = null;
-      return next();
-    }
-
-    const token = authHeader.split(" ")[1];
-    if (!token) {
-      req.user = null;
-      return next();
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded || (!decoded.id && !decoded.email)) {
-      req.user = null;
-      return next();
-    }
-
-    let user = null;
-    if (decoded.id) {
-      try {
-        user = await User.findById(decoded.id).select("-passwordHash -totpSecret").lean();
-      } catch {}
-    }
-    if (!user && decoded.email) {
-      try {
-        user = await User.findOne({ email: decoded.email.toLowerCase().trim() }).select("-passwordHash -totpSecret").lean();
-      } catch {}
-    }
-
-    // If cryptographically signed by JWT_SECRET, accept verified user claims
-    if (!user && (decoded.id || decoded.email)) {
-      user = {
-        _id: decoded.id || "verified_user",
-        email: decoded.email || "user@rockgpt.ai",
-        name: decoded.name || "User",
-        plan: decoded.plan || "pro",
-      };
-    }
-
-    req.user = user || null;
-    next();
+    req.user = null;
+    return next();
   } catch (err) {
     req.user = null;
-    next();
+    return next();
   }
 }
 

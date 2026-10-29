@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
+import { checkRateLimit, signToken, OTP_COOKIE_NAME, SESSION_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
@@ -49,6 +49,45 @@ export async function POST(request: Request) {
       const userId = data.user?.id || generateUUID();
       const localHash = await hash(password, 10);
 
+      // Handle alreadyActive accounts (user already registered and verified with this password)
+      if (data.alreadyActive && data.user) {
+        const userRecord = {
+          id: userId,
+          email: normalizedEmail,
+          name: data.user.name || name,
+          password_hash: localHash,
+          avatar_url: data.user.avatar_url || null,
+          theme: "dark",
+          created_at: new Date(),
+          backend_token: data.token || null,
+        };
+        globalStore.saveUser(userRecord);
+        const sessionToken = createSignedSessionTokenForUser(userRecord);
+
+        const response = NextResponse.json({
+          success: true,
+          alreadyActive: true,
+          message: data.message || "Account already exists with this password. Signed in successfully!",
+          user: {
+            id: userRecord.id,
+            email: userRecord.email,
+            name: userRecord.name,
+            theme: userRecord.theme,
+            avatar_url: userRecord.avatar_url,
+          },
+        });
+
+        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        });
+        response.cookies.delete(OTP_COOKIE_NAME);
+        return response;
+      }
+
       // Save user to local memory store for instant fallback resilience
       const userRecord = {
         id: userId,
@@ -65,11 +104,13 @@ export async function POST(request: Request) {
         globalStore.saveOtp(normalizedEmail, data.backupCode, "signup", name, localHash);
       }
 
-      // Set pending verification cookie without leaking code
+      // Set pending verification cookie including backupCode for instant fallback verification across Lambdas
       const otpToken = signToken({
         email: normalizedEmail,
         type: "signup",
         name,
+        backupCode: data.backupCode || undefined,
+        password_hash: localHash,
         exp: Date.now() + 10 * 60 * 1000,
       });
 

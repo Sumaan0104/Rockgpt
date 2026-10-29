@@ -369,7 +369,7 @@ router.post("/verify", authLimiter, async (req, res) => {
     }
 
     const cleanEmail = email.toLowerCase().trim();
-    const cleanCode = code.trim();
+    const cleanCode = String(code).trim();
 
     // Check existing user lock
     const existingUser = await findUserByEmail(cleanEmail);

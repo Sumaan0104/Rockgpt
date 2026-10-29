@@ -348,9 +348,11 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       try {
         if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
           const objId = new mongoose.Types.ObjectId(chatId);
-          targetChat = await Chat.findOne({ _id: objId, userId: req.user._id });
+          const userObjectId = mongoose.Types.ObjectId.isValid(req.user._id) ? new mongoose.Types.ObjectId(req.user._id) : req.user._id;
+          const userFilter = { $or: [{ userId: userObjectId }, { userId: String(req.user._id) }] };
+          targetChat = await Chat.findOne({ _id: objId, ...userFilter });
           if (!targetChat) {
-            targetChat = await Conversation.findOne({ _id: objId, userId: req.user._id });
+            targetChat = await Conversation.findOne({ _id: objId, ...userFilter });
           }
         }
         if (!targetChat && lastMessage) {
@@ -546,7 +548,7 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
           Message.create({
             chatId: targetChat._id,
             conversationId: targetChat._id,
-            userId: req.user ? req.user._id : undefined,
+            userId: req.user ? (mongoose.Types.ObjectId.isValid(req.user._id) ? new mongoose.Types.ObjectId(req.user._id) : req.user._id) : undefined,
             role: "assistant",
             content: fullAssistantResponse,
           }),

@@ -200,7 +200,8 @@ export function RockGPTApp() {
       const res = await fetch("/api/chats");
       if (res.ok) {
         const data = await res.json();
-        setChatsList(data.chats || []);
+        const list = Array.isArray(data.chats) ? data.chats : (Array.isArray(data) ? data : []);
+        setChatsList(list);
       }
     } catch {
       // offline / guest
@@ -441,8 +442,9 @@ export function RockGPTApp() {
       if (res.ok) {
         const data = await res.json();
         setActiveChatId(id);
+        const rawMessages = data.messages || (data.chat && data.chat.messages) || [];
         setMessages(
-          (data.messages || []).map((m: { role: "user" | "assistant"; content: string }) => ({
+          rawMessages.map((m: { role: "user" | "assistant"; content: string }) => ({
             role: m.role,
             content: m.content,
           }))
@@ -638,12 +640,14 @@ export function RockGPTApp() {
 
     // Standard Chat Stream Flow
     try {
-      // 1. If no active chat, instantly assign client UUID and auto-create on server
+      // 1. If no active chat, instantly assign client 24-hex MongoDB ObjectId and auto-create on server
       if (!chatId) {
-        chatId = crypto.randomUUID();
+        const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, "0");
+        const randomHex = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+        chatId = (timestamp + randomHex).toLowerCase();
         setActiveChatId(chatId);
         // Sync chat list in the background without blocking the stream
-        setTimeout(() => fetchChats().catch(() => {}), 100);
+        setTimeout(() => fetchChats().catch(() => {}), 250);
       }
 
       const streamUrl = `/api/chats/${chatId}/messages`;
@@ -699,6 +703,12 @@ export function RockGPTApp() {
             const jsonStr = line.replace(/^data:\s*/, "");
             try {
               const data = JSON.parse(jsonStr);
+              if (data.chatId || data.chat_id) {
+                const incomingChatId = data.chatId || data.chat_id;
+                if (incomingChatId) {
+                  setActiveChatId(incomingChatId);
+                }
+              }
               const chunk = data.chunk ?? data.text ?? "";
               if (chunk) {
                 if (!firstChunkReceived) {
