@@ -9,10 +9,13 @@ export const SESSION_COOKIE_NAME = "rockgpt_session";
 export const OTP_COOKIE_NAME = "rockgpt_otp_pending";
 const SESSION_DURATION_DAYS = 30;
 
-const SECRET = process.env.AUTH_SECRET || "5f95876a94d086a6498b4a0504e8be19";
+const SECRET = process.env.AUTH_SECRET;
 
 // Stateless HMAC signing for instant multi-instance Vercel Lambdas
 export function signToken(data: any): string {
+  if (!SECRET) {
+    throw new Error("AUTH_SECRET environment variable is missing.");
+  }
   const jsonStr = JSON.stringify(data);
   const base64 = Buffer.from(jsonStr).toString("base64url");
   const sig = crypto.createHmac("sha256", SECRET).update(base64).digest("hex");
@@ -20,7 +23,7 @@ export function signToken(data: any): string {
 }
 
 export function verifyToken<T = any>(token: string | undefined | null): T | null {
-  if (!token || typeof token !== "string" || !token.includes(".")) return null;
+  if (!SECRET || !token || typeof token !== "string" || !token.includes(".")) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [base64, sig] = parts;

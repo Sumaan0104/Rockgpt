@@ -4,7 +4,7 @@ export const SYSTEM_PROMPT = "You are RockGPT, a sleek, intelligent, concise and
 export { type ModelMessage };
 
 const BACKEND_URL = process.env.VITE_BACKEND_URL || process.env.BACKEND_URL || "https://rockgpt.onrender.com";
-const INTERNAL_SERVICE_KEY = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const INTERNAL_SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY;
 
 let cachedBackendToken: { token: string; expiresAt: number } | null = null;
 
@@ -68,7 +68,7 @@ export async function createChatStream({
   try {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "x-service-key": INTERNAL_SERVICE_KEY,
+      ...(INTERNAL_SERVICE_KEY ? { "x-service-key": INTERNAL_SERVICE_KEY } : {}),
       "x-client-session": user?.id || (chatId ? `chat_${chatId}` : "anon_session"),
     };
 

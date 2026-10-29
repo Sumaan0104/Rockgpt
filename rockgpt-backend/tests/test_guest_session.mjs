@@ -7,7 +7,7 @@ dotenv.config();
 process.env.NODE_ENV = "test";
 
 const { default: app } = await import("../server.js");
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 let server;
 let serverUrl;

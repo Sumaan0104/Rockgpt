@@ -11,7 +11,7 @@ import { authMiddleware, requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || "").trim();
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID || undefined);
 
@@ -799,7 +799,6 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
   const knownClientIds = Array.from(
     new Set([
       rawEnvId,
-      "638352604628-c186v5kb6a2fav3aahirgpciknufhkau.apps.googleusercontent.com",
     ])
   ).filter(Boolean);
   const cleanSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();

@@ -1,5 +1,6 @@
 import rateLimit from "express-rate-limit";
 import Usage from "../models/Usage.js";
+import { isServiceKeyValid } from "./auth.js";
 
 // Global DDoS / burst limiter across all API routes (200 requests per 1 minute window)
 export const globalLimiter = rateLimit({
@@ -13,13 +14,13 @@ export const globalLimiter = rateLimit({
 // Per-minute IP limiter for auth endpoints
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // 30 attempts
-  message: { error: "Too many authentication requests. Please try again in a few minutes." },
+  max: 30, // 30 auth requests per 15 min per IP
+  message: { error: "Too many authentication requests. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Per-minute IP limiter for general chat
+// Chat message rate limiter: prevent automated spam loops
 export const chatRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60, // 60 messages per minute
@@ -33,11 +34,10 @@ export const chatRateLimiter = rateLimit({
  */
 export async function dailyUsageLimit(req, res, next) {
   try {
-    const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
     const serviceKey = req.headers["x-service-key"] || req.headers["x-internal-service"];
 
     // Authorized internal frontend service mesh calls or service users bypass daily throttling
-    if (req.isService || (serviceKey && serviceKey === JWT_SECRET)) {
+    if (req.isService || (serviceKey && isServiceKeyValid(serviceKey))) {
       return next();
     }
 
@@ -79,4 +79,3 @@ export async function dailyUsageLimit(req, res, next) {
     next();
   }
 }
-

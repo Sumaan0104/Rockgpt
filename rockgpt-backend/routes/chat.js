@@ -5,20 +5,20 @@ import jwt from "jsonwebtoken";
 import Chat from "../models/Chat.js";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, isServiceKeyValid } from "../middleware/auth.js";
 import { chatRateLimiter, dailyUsageLimit } from "../middleware/limit.js";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const groq = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY || "dummy_groq_key",
+  apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1",
   maxRetries: 0,
   timeout: 3500,
 });
 
-const ACTIVE_GEMINI_KEY = process.env.GEMINI_API_KEY || "";
+const ACTIVE_GEMINI_KEY = process.env.GEMINI_API_KEY;
 
 // Canonical 99 Names reference for strict accuracy
 const canonicalAsmaUlHusna = `1. Ar-Rahman (الرحمن) - The Beneficent
@@ -278,7 +278,7 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     // Backend enforcement: Authentication & Guest access check
     if (!req.user && !req.isService) {
       const serviceKey = req.headers["x-service-key"] || req.headers["x-internal-service"];
-      if (serviceKey && serviceKey === JWT_SECRET) {
+      if (serviceKey && isServiceKeyValid(serviceKey)) {
         req.isService = true;
         req.user = {
           _id: "service_user",

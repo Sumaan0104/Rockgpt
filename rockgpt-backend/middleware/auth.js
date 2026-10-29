@@ -1,7 +1,29 @@
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is missing.");
+}
+
+/**
+ * Validates service key using constant-time comparison against INTERNAL_SERVICE_KEY.
+ * If INTERNAL_SERVICE_KEY is not set, service-key auth is disabled and never matches.
+ */
+export function isServiceKeyValid(serviceKey) {
+  const internalKey = process.env.INTERNAL_SERVICE_KEY;
+  if (!internalKey || !serviceKey) {
+    return false;
+  }
+  const keyString = Array.isArray(serviceKey) ? serviceKey[0] : String(serviceKey);
+  const expected = Buffer.from(internalKey, "utf8");
+  const actual = Buffer.from(keyString, "utf8");
+  if (expected.length !== actual.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(expected, actual);
+}
 
 /**
  * authMiddleware — Optional authentication
@@ -11,7 +33,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_pr
 export async function authMiddleware(req, res, next) {
   try {
     const serviceKey = req.headers["x-service-key"] || req.headers["x-internal-service"];
-    if (serviceKey && serviceKey === JWT_SECRET) {
+    if (serviceKey && isServiceKeyValid(serviceKey)) {
       req.isService = true;
       req.user = {
         _id: "service_user",

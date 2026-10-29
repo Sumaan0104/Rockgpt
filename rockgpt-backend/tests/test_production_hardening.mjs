@@ -11,7 +11,7 @@ const { default: User } = await import("../models/User.js");
 const { default: Chat } = await import("../models/Chat.js");
 const { default: Message } = await import("../models/Message.js");
 
-const JWT_SECRET = process.env.JWT_SECRET || "rockgpt_super_secure_jwt_secret_production_2026";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 let server;
 let serverUrl;
