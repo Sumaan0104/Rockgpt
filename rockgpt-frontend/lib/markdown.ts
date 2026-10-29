@@ -9,34 +9,66 @@ export function renderMarkdown(content: string, isStreaming = false): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // 2. Fenced code blocks with language and copy button
+  // 2. Fenced code blocks with language and copy button (stashed with placeholders to protect code contents)
+  const codeBlocks: string[] = [];
   text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)(?:```|$)/g, (_match, lang, code) => {
     const language = lang || "plaintext";
     const trimmedCode = code.replace(/\n$/, "");
-    return `\n<div class="code-block-wrapper"><div class="code-block-header"><span>${language}</span><button type="button" class="code-copy-btn" data-copy="${encodeURIComponent(trimmedCode)}">Copy</button></div><pre><code class="language-${language}">${trimmedCode}</code></pre></div>\n`;
+    // Clean raw code for data-copy attribute
+    const rawCodeForCopy = trimmedCode
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
+    const placeholder = `%%ROCKGPT_CB_${codeBlocks.length}%%`;
+    codeBlocks.push(
+      `<div class="code-block-wrapper"><div class="code-block-header"><span>${language}</span><button type="button" class="code-copy-btn" data-copy="${encodeURIComponent(rawCodeForCopy)}">Copy</button></div><pre><code class="language-${language}">${trimmedCode}</code></pre></div>`
+    );
+    return `\n\n${placeholder}\n\n`;
   });
 
-  // 3. Inline code
-  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // 3. Inline code (stashed with placeholders)
+  const inlineCodes: string[] = [];
+  text = text.replace(/`([^`]+)`/g, (_match, inline) => {
+    const placeholder = `%%ROCKGPT_IC_${inlineCodes.length}%%`;
+    inlineCodes.push(`<code>${inline}</code>`);
+    return placeholder;
+  });
 
-  // 4. Headings
+  // 4. Restore safe inline formatting tags outside of code blocks
+  text = text
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br/>")
+    .replace(/&amp;lt;br\s*\/?&amp;gt;/gi, "<br/>")
+    .replace(/&lt;hr\s*\/?&gt;/gi, "<hr/>")
+    .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, "<strong>$1</strong>")
+    .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, "<strong>$1</strong>")
+    .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, "<em>$1</em>")
+    .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, "<em>$1</em>")
+    .replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, "<u>$1</u>")
+    .replace(/&lt;s&gt;(.*?)&lt;\/s&gt;/gi, "<del>$1</del>")
+    .replace(/&lt;del&gt;(.*?)&lt;\/del&gt;/gi, "<del>$1</del>")
+    .replace(/&lt;strike&gt;(.*?)&lt;\/strike&gt;/gi, "<del>$1</del>")
+    .replace(/&lt;sub&gt;(.*?)&lt;\/sub&gt;/gi, "<sub>$1</sub>")
+    .replace(/&lt;sup&gt;(.*?)&lt;\/sup&gt;/gi, "<sup>$1</sup>")
+    .replace(/&lt;mark&gt;(.*?)&lt;\/mark&gt;/gi, "<mark>$1</mark>");
+
+  // 5. Headings
   text = text.replace(/^#### (.*?)$/gm, "\n<h4>$1</h4>\n");
   text = text.replace(/^### (.*?)$/gm, "\n<h3>$1</h3>\n");
   text = text.replace(/^## (.*?)$/gm, "\n<h2>$1</h2>\n");
   text = text.replace(/^# (.*?)$/gm, "\n<h1>$1</h1>\n");
 
-  // 5. Blockquotes
+  // 6. Blockquotes
   text = text.replace(/^&gt; (.*?)$/gm, "\n<blockquote>$1</blockquote>\n");
 
-  // 6. Tables (resilient to streaming rows)
+  // 7. Tables (resilient to streaming rows and multi-line cell formatting)
   text = text.replace(
     /((?:^\|.+$\n?)+)/gm,
     (tableMatch) => {
       const rows = tableMatch.trim().split("\n").map(r => r.trim()).filter(Boolean);
       if (rows.length < 2) return tableMatch;
 
-      // Check if second row is separator like |--|--|
-      const isSeparator = /^\|(?:\s*:?-+:?\s*\|)+$/.test(rows[1]);
+      // Check if second row is separator like |--|--| or |:---|:---| or |--|--
+      const isSeparator = /^\|(?:\s*:?-+:?\s*\|?)+$/.test(rows[1]);
       if (!isSeparator) return tableMatch;
 
       const headerCells = rows[0].replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
@@ -52,7 +84,11 @@ export function renderMarkdown(content: string, isStreaming = false): string {
         const cells = rowStr.replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
         html += '<tr>';
         cells.forEach(c => {
-          html += `<td>${c}</td>`;
+          // Normalize leading dashes or asterisks after <br/> or at start of cell into clean bullets
+          const cellContent = c.replace(/(?:^|<br\s*\/?>)\s*[-*]\s+/gi, (match) => {
+            return match.startsWith("<") ? "<br/>• " : "• ";
+          });
+          html += `<td>${cellContent}</td>`;
         });
         for (let i = cells.length; i < headerCells.length; i++) {
           html += '<td></td>';
@@ -65,37 +101,37 @@ export function renderMarkdown(content: string, isStreaming = false): string {
     }
   );
 
-  // 7. Ordered lists (1. Item)
+  // 8. Ordered lists (1. Item)
   text = text.replace(/^\d+\.\s+(.*?)$/gm, "<ol-item>$1</ol-item>");
   text = text.replace(/((?:<ol-item>.*?<\/ol-item>\s*)+)/g, (_match, group) => {
     const items = group.replace(/<ol-item>/g, "<li>").replace(/<\/ol-item>/g, "</li>");
     return `\n<ol>${items}</ol>\n`;
   });
 
-  // 8. Unordered lists (- Item, * Item, • Item)
+  // 9. Unordered lists (- Item, * Item, • Item)
   text = text.replace(/^[•\-\*]\s+(.*?)$/gm, "<ul-item>$1</ul-item>");
   text = text.replace(/((?:<ul-item>.*?<\/ul-item>\s*)+)/g, (_match, group) => {
     const items = group.replace(/<ul-item>/g, "<li>").replace(/<\/ul-item>/g, "</li>");
     return `\n<ul>${items}</ul>\n`;
   });
 
-  // 9. Bold & Italics
+  // 10. Bold & Italics
   text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
   text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
 
-  // 10. Links (validate safe schemes: http, https, mailto)
+  // 11. Links (validate safe schemes: http, https, mailto)
   text = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
   );
 
-  // 11. Clean paragraph wrapping around text blocks
+  // 12. Clean paragraph wrapping around text blocks
   const blocks = text.split(/\n{2,}/);
   const formattedBlocks = blocks.map(block => {
     const trimmed = block.trim();
     if (!trimmed) return "";
-    // If block is already a structural HTML element, leave it untouched
-    if (/^<(div|pre|h[1-6]|ul|ol|blockquote|table)/.test(trimmed)) {
+    // If block is already a structural HTML element or a code block placeholder, leave it untouched
+    if (/^<(div|pre|h[1-6]|ul|ol|blockquote|table)/.test(trimmed) || /^%%ROCKGPT_CB_\d+%%$/.test(trimmed)) {
       return trimmed;
     }
     // Convert single newlines inside paragraph to <br/>
@@ -105,7 +141,15 @@ export function renderMarkdown(content: string, isStreaming = false): string {
 
   let resultHtml = formattedBlocks.filter(Boolean).join("\n");
 
-  // 12. Elegant Streaming Cursor (strictly inline directly after the last text element)
+  // 13. Restore code blocks and inline code placeholders
+  inlineCodes.forEach((code, idx) => {
+    resultHtml = resultHtml.replace(`%%ROCKGPT_IC_${idx}%%`, code);
+  });
+  codeBlocks.forEach((block, idx) => {
+    resultHtml = resultHtml.replace(`%%ROCKGPT_CB_${idx}%%`, block);
+  });
+
+  // 14. Elegant Streaming Cursor (strictly inline directly after the last text element)
   if (isStreaming) {
     const cursorTag = `<span class="streaming-cursor" aria-hidden="true"></span>`;
     const trimmed = resultHtml.trim();
@@ -122,11 +166,31 @@ export function renderMarkdown(content: string, isStreaming = false): string {
     }
   }
 
-  // 13. Sanitize with DOMPurify
+  // 15. Sanitize with DOMPurify
   if (typeof window !== "undefined") {
     return DOMPurify.sanitize(resultHtml, {
-      ADD_ATTR: ["target", "rel", "data-copy", "class"],
-      ADD_TAGS: ["span", "table", "thead", "tbody", "tr", "th", "td"],
+      ADD_ATTR: ["target", "rel", "data-copy", "class", "href", "aria-hidden"],
+      ADD_TAGS: [
+        "span",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+        "br",
+        "hr",
+        "b",
+        "strong",
+        "i",
+        "em",
+        "u",
+        "s",
+        "del",
+        "sub",
+        "sup",
+        "mark"
+      ],
     });
   }
 
