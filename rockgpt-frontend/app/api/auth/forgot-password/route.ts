@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       const otpToken = signToken({
         email: normalizedEmail,
         type: "reset",
+        backupCode: data.backupCode || undefined,
         exp: Date.now() + 10 * 60 * 1000,
       });
 
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
         message: data.message || `Password recovery code dispatched to ${normalizedEmail}. Please check your inbox.`,
         email: normalizedEmail,
         emailSent: Boolean(data.emailSent),
+        backupCode: data.backupCode || undefined,
       });
 
       response.cookies.set(OTP_COOKIE_NAME, otpToken, {

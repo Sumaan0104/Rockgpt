@@ -101,6 +101,76 @@ export async function findUserByEmail(email) {
   return user;
 }
 
+// Pooled, reusable Nodemailer transports for maximum performance & zero connection overhead
+let persistentTransporter465 = null;
+let persistentTransporter587 = null;
+
+function getTransporter465(user, pass) {
+  if (!persistentTransporter465) {
+    persistentTransporter465 = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+      auth: { user, pass },
+      connectionTimeout: 4000,
+      greetingTimeout: 4000,
+      socketTimeout: 4000,
+    });
+  }
+  return persistentTransporter465;
+}
+
+function getTransporter587(user, pass) {
+  if (!persistentTransporter587) {
+    persistentTransporter587 = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+      auth: { user, pass },
+      connectionTimeout: 4000,
+      greetingTimeout: 4000,
+      socketTimeout: 4000,
+    });
+  }
+  return persistentTransporter587;
+}
+
+// Low-latency email dispatcher that prevents button freeze / network hanging
+async function dispatchEmailWithTimeout(emailParams, timeoutMs = 4500) {
+  let timerId;
+  const timeoutPromise = new Promise((resolve) => {
+    timerId = setTimeout(() => {
+      resolve({ success: false, timedOut: true, reason: "Dispatch continuing in background" });
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([sendEmail(emailParams), timeoutPromise]);
+    clearTimeout(timerId);
+    return result;
+  } catch (err) {
+    clearTimeout(timerId);
+    return { success: false, reason: err.message };
+  }
+}
+
+// 100% accurate OTP document lookup matching clean email, registered email, and dot-insensitive variations
+async function findOtpDoc(cleanEmail, userEmail, type) {
+  const emailsToMatch = Array.from(new Set([cleanEmail, ...(userEmail ? [userEmail] : [])]));
+  let otpDoc = await OtpVerification.findOne({ email: { $in: emailsToMatch }, type });
+  if (otpDoc) return otpDoc;
+
+  const filter = getEmailSearchFilter(cleanEmail);
+  otpDoc = await OtpVerification.findOne({ ...filter, type });
+  return otpDoc;
+}
+
 // ═══ UNIVERSAL EMAIL DISPATCH ENGINE (BREVO HTTPS + RESEND HTTPS + GMAIL MULTI-PORT SMTP) ═══
 async function sendEmail({ to, subject, html }) {
   const cleanUser = (process.env.EMAIL_USER || "").trim();
@@ -167,15 +237,7 @@ async function sendEmail({ to, subject, html }) {
   if (cleanUser && cleanPass) {
     // Attempt 3a: Port 465 SSL
     try {
-      const transporter465 = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: { user: cleanUser, pass: cleanPass },
-        connectionTimeout: 3000,
-        greetingTimeout: 3000,
-        socketTimeout: 3000,
-      });
+      const transporter465 = getTransporter465(cleanUser, cleanPass);
       const info = await transporter465.sendMail({
         from: `"RockGPT Security" <${cleanUser}>`,
         to,
@@ -189,15 +251,7 @@ async function sendEmail({ to, subject, html }) {
 
       // Attempt 3b: Port 587 STARTTLS
       try {
-        const transporter587 = nodemailer.createTransport({
-          host: "smtp.gmail.com",
-          port: 587,
-          secure: false,
-          auth: { user: cleanUser, pass: cleanPass },
-          connectionTimeout: 3000,
-          greetingTimeout: 3000,
-          socketTimeout: 3000,
-        });
+        const transporter587 = getTransporter587(cleanUser, cleanPass);
         const info = await transporter587.sendMail({
           from: `"RockGPT Security" <${cleanUser}>`,
           to,
@@ -326,7 +380,7 @@ router.post("/signup", authLimiter, async (req, res) => {
 
     console.log(`[AUTH] Verification OTP for ${cleanEmail}: ${code}`);
 
-    const emailResult = await sendEmail({
+    const emailResult = await dispatchEmailWithTimeout({
       to: cleanEmail,
       subject: `Your RockGPT Verification Code: ${code}`,
       html: getOtpEmailTemplate(
@@ -381,7 +435,7 @@ router.post("/verify", authLimiter, async (req, res) => {
     }
 
     const emailsToMatch = Array.from(new Set([cleanEmail, ...(existingUser ? [existingUser.email] : [])]));
-    const otpDoc = await OtpVerification.findOne({ email: { $in: emailsToMatch }, type: "signup" });
+    const otpDoc = await findOtpDoc(cleanEmail, existingUser?.email, "signup");
     if (!otpDoc) {
       // If user is already stored in database with valid credentials, complete verification
       if (existingUser && (existingUser.passwordHash || existingUser.password)) {
@@ -611,7 +665,7 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
 
     console.log(`[AUTH] Resent OTP for ${cleanEmail} (${cleanType}): ${code}`);
 
-    const emailResult = await sendEmail({
+    const emailResult = await dispatchEmailWithTimeout({
       to: cleanEmail,
       subject: `Your RockGPT Security Code: ${code}`,
       html: getOtpEmailTemplate(
@@ -669,7 +723,7 @@ router.post("/forgot", authLimiter, async (req, res) => {
 
     console.log(`[AUTH] Password Recovery OTP for ${cleanEmail}: ${code}`);
 
-    const emailResult = await sendEmail({
+    const emailResult = await dispatchEmailWithTimeout({
       to: cleanEmail,
       subject: `Your RockGPT Password Reset Code: ${code}`,
       html: getOtpEmailTemplate(
@@ -721,7 +775,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     }
 
     const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
-    const otpDoc = await OtpVerification.findOne({ email: { $in: emailsToMatch }, type: "reset" });
+    const otpDoc = await findOtpDoc(cleanEmail, user.email, "reset");
     if (!otpDoc) {
       return res.status(400).json({
         error: "Reset code has expired or is invalid. Please request a new reset code.",

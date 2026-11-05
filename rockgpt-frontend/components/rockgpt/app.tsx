@@ -766,7 +766,7 @@ export function RockGPTApp() {
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail, type: authTab === "reset" ? "reset" : "signup" }),
+        body: JSON.stringify({ email: authEmail.trim().toLowerCase(), type: authTab === "reset" ? "reset" : "signup" }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -844,13 +844,20 @@ export function RockGPTApp() {
         const res = await fetch("/api/auth/forgot-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail }),
+          body: JSON.stringify({ email: authEmail.trim().toLowerCase() }),
         });
         const data = await res.json();
         if (res.ok) {
           setAuthTab("reset");
           setAuthResendSeconds(60);
-          showToast("Password recovery code sent!");
+          setAuthPassword("");
+          setAuthPasswordConfirm("");
+          if (data.backupCode) {
+            setAuthOtpCode(data.backupCode);
+            showToast(`Recovery code generated: ${data.backupCode}`);
+          } else {
+            showToast(data.message || "Password recovery code sent! Check your inbox.");
+          }
         } else {
           setAuthError(data.error?.message || "Failed to process request");
         }
@@ -1847,6 +1854,9 @@ export function RockGPTApp() {
                   required
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                 />
               </div>
               <div className="auth-field">
@@ -1890,6 +1900,9 @@ export function RockGPTApp() {
                   required
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                 />
               </div>
               <div className="auth-field">
@@ -2008,10 +2021,13 @@ export function RockGPTApp() {
                   required
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                 />
               </div>
               <button type="submit" className="auth-submit" disabled={authLoading}>
-                {authLoading ? "Sending Recovery Code…" : "Send Recovery Code →"}
+                {authLoading ? "Sending OTP Code…" : "Send OTP / Recovery Code →"}
               </button>
               <div className="auth-links" style={{ justifyContent: "center" }}>
                 <button

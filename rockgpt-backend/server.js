@@ -13,6 +13,7 @@ import { sanitizeInput } from "./middleware/sanitize.js";
 import User from "./models/User.js";
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 5000;
 
 // ═══ MONGODB CONNECTION ═══

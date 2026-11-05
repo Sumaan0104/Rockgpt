@@ -14,7 +14,7 @@ export const globalLimiter = rateLimit({
 // Per-minute IP limiter for auth endpoints
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // 30 auth requests per 15 min per IP
+  max: 60, // 60 auth requests per 15 min per IP
   message: { error: "Too many authentication requests. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
