@@ -172,8 +172,9 @@ async function findOtpDoc(cleanEmail, userEmail, type) {
 }
 
 // ═══ UNIVERSAL EMAIL DISPATCH ENGINE (BREVO HTTPS + RESEND HTTPS + GMAIL MULTI-PORT SMTP) ═══
-async function sendEmail({ to, subject, html }) {
+export async function sendEmail({ to, subject, html, fromName }) {
   const cleanUser = (process.env.EMAIL_USER || "").trim();
+  const senderDisplayName = fromName || "RockGPT Security";
 
   // 1. Brevo REST API (HTTPS Port 443 — firewall immune, works seamlessly on Render free tier)
   if (process.env.BREVO_API_KEY) {
@@ -186,7 +187,7 @@ async function sendEmail({ to, subject, html }) {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          sender: { name: "RockGPT Security", email: cleanUser || "noreply@rockgpt.ai" },
+          sender: { name: senderDisplayName, email: cleanUser || "noreply@rockgpt.ai" },
           to: [{ email: to }],
           subject,
           htmlContent: html,
@@ -194,7 +195,7 @@ async function sendEmail({ to, subject, html }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        console.log(`[Brevo API] Verification email sent to ${to}`);
+        console.log(`[Brevo API] Email sent to ${to} (${senderDisplayName})`);
         return { success: true, provider: "brevo", data };
       } else {
         console.warn("[Brevo API Warning]:", data.message || `HTTP ${res.status}`);
@@ -214,7 +215,7 @@ async function sendEmail({ to, subject, html }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: cleanUser ? `RockGPT Security <${cleanUser}>` : "RockGPT Security <onboarding@resend.dev>",
+          from: cleanUser ? `${senderDisplayName} <${cleanUser}>` : `${senderDisplayName} <onboarding@resend.dev>`,
           to: [to],
           subject,
           html,
@@ -222,7 +223,7 @@ async function sendEmail({ to, subject, html }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        console.log(`[Resend API] Verification email sent to ${to}`);
+        console.log(`[Resend API] Email sent to ${to} (${senderDisplayName})`);
         return { success: true, provider: "resend", data };
       } else {
         console.warn("[Resend API Warning]:", data.message || `HTTP ${res.status}`);
@@ -239,12 +240,12 @@ async function sendEmail({ to, subject, html }) {
     try {
       const transporter465 = getTransporter465(cleanUser, cleanPass);
       const info = await transporter465.sendMail({
-        from: `"RockGPT Security" <${cleanUser}>`,
+        from: `"${senderDisplayName}" <${cleanUser}>`,
         to,
         subject,
         html,
       });
-      console.log(`[Gmail SMTP 465] Verification email delivered to ${to}`);
+      console.log(`[Gmail SMTP 465] Email delivered to ${to} (${senderDisplayName})`);
       return { success: true, provider: "gmail-smtp-465", info };
     } catch (err465) {
       console.warn("[Gmail SMTP 465 Warning]:", err465.message);
@@ -253,12 +254,12 @@ async function sendEmail({ to, subject, html }) {
       try {
         const transporter587 = getTransporter587(cleanUser, cleanPass);
         const info = await transporter587.sendMail({
-          from: `"RockGPT Security" <${cleanUser}>`,
+          from: `"${senderDisplayName}" <${cleanUser}>`,
           to,
           subject,
           html,
         });
-        console.log(`[Gmail SMTP 587] Verification email delivered to ${to}`);
+        console.log(`[Gmail SMTP 587] Email delivered to ${to} (${senderDisplayName})`);
         return { success: true, provider: "gmail-smtp-587", info };
       } catch (err587) {
         console.warn("[Gmail SMTP 587 Warning]:", err587.message);
@@ -266,7 +267,7 @@ async function sendEmail({ to, subject, html }) {
     }
   }
 
-  console.log(`[AUTH NOTIFICATION] Simulated/Direct delivery fallback for ${to}: ${subject}`);
+  console.log(`[EMAIL DISPATCH NOTIFICATION] Simulated/Direct delivery fallback for ${to}: ${subject}`);
   return { success: false, reason: "No active email provider reached" };
 }
 

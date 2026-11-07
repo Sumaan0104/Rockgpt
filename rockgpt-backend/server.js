@@ -7,6 +7,7 @@ import mongoose from "mongoose";
 import authRoutes, { setGoogleOAuthClientForTesting } from "./routes/auth.js";
 import chatsRoutes from "./routes/chats.js";
 import chatRoutes from "./routes/chat.js";
+import adminRoutes from "./routes/admin.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { globalLimiter } from "./middleware/limit.js";
 import { sanitizeInput } from "./middleware/sanitize.js";
@@ -78,6 +79,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/chats", chatsRoutes);
 app.use("/api/conversations", chatsRoutes); // Backward-compatibility alias
 app.use("/api/chat", chatRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ═══ HEALTH CHECKS ═══
 app.get("/api/version", (req, res) => {
