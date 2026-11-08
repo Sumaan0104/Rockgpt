@@ -70,13 +70,6 @@ export function buildDailyDigestHtml({ user, promptOfTheDay, proTip, ctaUrl, cus
       <!-- Main Body Content -->
       <div style="padding: 32px 28px 24px;">
 
-        <!-- Delivery Header Summary Box -->
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; font-size: 13px; line-height: 1.7; color: #475569;">
-          <div><strong style="color: #0f172a;">From:</strong> RockGPT &lt;mansurisumaan@gmail.com&gt;</div>
-          <div><strong style="color: #0f172a;">To:</strong> ${name !== "there" && email ? `${name} &lt;${email}&gt;` : email || "RockGPT User"}</div>
-          <div><strong style="color: #0f172a;">Date:</strong> ${formattedDate}</div>
-        </div>
-
         <h2 style="color: #0f172a; margin: 0 0 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;">Explore More with RockGPT 👋</h2>
         <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
           Hi ${name}, here is your curated daily AI inspiration, power prompt, and productivity tip to supercharge your workflow today.
