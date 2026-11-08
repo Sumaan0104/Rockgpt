@@ -33,51 +33,99 @@ export function getPromptOfTheDay(customPrompt) {
 /**
  * Builds the responsive HTML email template for the daily digest.
  */
-export function buildDailyDigestHtml({ user, promptOfTheDay, proTip, ctaUrl }) {
+export function buildDailyDigestHtml({ user, promptOfTheDay, proTip, ctaUrl, customDate }) {
   const name = (user?.name && user.name.trim()) || "there";
+  const email = (user?.email && user.email.trim()) || "";
   const prompt = promptOfTheDay || DAILY_PROMPTS[0];
   const tip =
     proTip ||
     "You can upload documents and code files directly to get instant debugging and reasoning breakdowns.";
   const link = ctaUrl || process.env.FRONTEND_URL || "https://rockgpt-ten.vercel.app";
 
+  const formattedDate = customDate || new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date());
+
   return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden; padding: 28px; box-sizing: border-box; color: #111827;">
-      <div style="margin-bottom: 20px;">
-        <span style="background: #111827; color: #ffffff; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 6px; display: inline-block; letter-spacing: 0.5px;">RockGPT</span>
-      </div>
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-sizing: border-box; color: #0f172a; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
       
-      <h2 style="color: #111827; margin: 0 0 12px; font-size: 22px; font-weight: 700;">Explore More with RockGPT 👋</h2>
-      <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
-        Hi ${name}, here is your daily inspiration to supercharge your productivity today.
-      </p>
+      <!-- Top Brand & Date Header Bar -->
+      <div style="background: #0f172a; padding: 20px 28px; border-bottom: 2px solid #2563eb;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="left" style="vertical-align: middle;">
+              <span style="background: #2563eb; color: #ffffff; font-weight: 800; font-size: 15px; padding: 6px 14px; border-radius: 8px; display: inline-block; letter-spacing: 0.8px;">RockGPT</span>
+            </td>
+            <td align="right" style="vertical-align: middle; color: #cbd5e1; font-size: 13px; font-weight: 500;">
+              📅 ${formattedDate}
+            </td>
+          </tr>
+        </table>
+      </div>
 
-      <!-- Prompt of the Day Card -->
-      <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; margin-bottom: 20px;">
-        <div style="color: #2563eb; font-weight: 600; font-size: 13px; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">💡 Prompt of the Day</div>
-        <div style="color: #1f2937; font-size: 15px; font-weight: 500; font-style: italic; line-height: 1.5;">
-          "${prompt}"
+      <!-- Main Body Content -->
+      <div style="padding: 32px 28px 24px;">
+
+        <!-- Delivery Header Summary Box -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; font-size: 13px; line-height: 1.7; color: #475569;">
+          <div><strong style="color: #0f172a;">From:</strong> RockGPT &lt;mansurisumaan@gmail.com&gt;</div>
+          <div><strong style="color: #0f172a;">To:</strong> ${name !== "there" && email ? `${name} &lt;${email}&gt;` : email || "RockGPT User"}</div>
+          <div><strong style="color: #0f172a;">Date:</strong> ${formattedDate}</div>
         </div>
-      </div>
 
-      <!-- Features Card -->
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px; margin-bottom: 24px;">
-        <div style="color: #166534; font-weight: 600; font-size: 13px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">⚡ RockGPT Pro Tip</div>
-        <div style="color: #15803d; font-size: 14px; line-height: 1.5;">
-          ${tip}
+        <h2 style="color: #0f172a; margin: 0 0 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;">Explore More with RockGPT 👋</h2>
+        <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+          Hi ${name}, here is your curated daily AI inspiration, power prompt, and productivity tip to supercharge your workflow today.
+        </p>
+
+        <!-- Prompt of the Day Card -->
+        <div style="background: #0f172a; border-radius: 12px; padding: 22px; margin-bottom: 22px; color: #f8fafc; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);">
+          <div style="margin-bottom: 10px;">
+            <span style="background: #3b82f6; color: #ffffff; font-weight: 700; font-size: 11px; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.6px; display: inline-block;">
+              💡 Prompt of the Day
+            </span>
+          </div>
+          <div style="color: #e2e8f0; font-size: 15px; font-weight: 500; font-style: italic; line-height: 1.6; margin-top: 10px; padding-left: 12px; border-left: 3px solid #3b82f6;">
+            "${prompt}"
+          </div>
+          <p style="color: #94a3b8; font-size: 12px; margin: 12px 0 0 0;">
+            Copy & paste this prompt into RockGPT to get an instant, production-grade output.
+          </p>
         </div>
+
+        <!-- Pro Tip Card -->
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 18px 20px; margin-bottom: 26px;">
+          <div style="color: #166534; font-weight: 700; font-size: 12px; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
+            ⚡ RockGPT Pro Tip
+          </div>
+          <div style="color: #15803d; font-size: 14px; line-height: 1.5; font-weight: 500;">
+            ${tip}
+          </div>
+        </div>
+
+        <!-- CTA Launch Button -->
+        <div style="text-align: center; margin: 30px 0 10px;">
+          <a href="${link}" target="_blank" rel="noopener noreferrer" style="background: #0f172a; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 15px; font-weight: 700; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 4px 8px rgba(0,0,0,0.12);">
+            Open RockGPT & Try It Now →
+          </a>
+        </div>
+
       </div>
 
-      <!-- CTA Button -->
-      <div style="text-align: center; margin-top: 24px;">
-        <a href="${link}" target="_blank" rel="noopener noreferrer" style="background: #111827; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; display: inline-block; transition: background 0.2s ease;">
-          Open RockGPT & Try It Now →
-        </a>
+      <!-- Clean Footer (No Reply-To lines) -->
+      <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 28px; text-align: center; font-size: 12px; color: #64748b; line-height: 1.6;">
+        <p style="margin: 0 0 4px; font-weight: 500; color: #334155;">
+          RockGPT • Empowering Your Daily Intelligence
+        </p>
+        <p style="margin: 0; color: #94a3b8;">
+          Sent to registered RockGPT users &bull; &copy; ${new Date().getFullYear()} RockGPT by Suman Mansuri
+        </p>
       </div>
 
-      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 28px; line-height: 1.4;">
-        You received this email because you signed up on RockGPT.
-      </p>
     </div>
   `;
 }
@@ -182,11 +230,16 @@ router.post("/send-daily-digest", verifyAdminSecret, async (req, res) => {
           ctaUrl,
         });
 
+        const formattedTo = user.name
+          ? `"${user.name.replace(/["\r\n]/g, "").trim()}" <${user.email}>`
+          : user.email;
+
         const result = await sendEmail({
-          to: user.email,
+          to: formattedTo,
           subject,
           html,
           fromName: "RockGPT",
+          fromEmail: "mansurisumaan@gmail.com",
         });
 
         if (result && result.success !== false) {
