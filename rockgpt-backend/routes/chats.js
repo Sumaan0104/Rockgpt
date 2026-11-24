@@ -123,11 +123,14 @@ router.get("/:id", requireAuth, async (req, res) => {
           ];
         }
 
+        const firstImg = atts.find((a) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url || atts[0]?.url;
+
         return {
           id: m._id.toString(),
           _id: m._id.toString(),
           role: m.role,
           content: typeof m.content === "string" ? m.content : (m.content ? JSON.stringify(m.content) : ""),
+          image: firstImg || undefined,
           attachments: atts,
           createdAt: m.createdAt,
         };
@@ -302,6 +305,68 @@ router.delete("/", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("Clear all chats error:", err.message);
     res.status(500).json({ error: "Failed to clear chats." });
+  }
+});
+
+// 7. POST /chats/:id/messages — append a message with optional image/attachments into MongoDB Atlas
+router.post("/:id/messages", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const chatId = req.params.id;
+    const { role = "user", content = "", image, attachments } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(chatId)) {
+      return res.status(404).json({ error: "Invalid chat ID format." });
+    }
+
+    const objectChatId = new mongoose.Types.ObjectId(chatId);
+    const userFilter = getUserFilter(userId);
+
+    // Ensure chat document exists
+    let chat = await Chat.findOne({ _id: objectChatId, ...userFilter });
+    if (!chat) {
+      const now = new Date();
+      chat = await Chat.create({
+        _id: objectChatId,
+        userId: mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId,
+        title: typeof content === "string" && content.trim() ? content.trim().slice(0, 42) : "New Chat",
+        createdAt: now,
+        updatedAt: now,
+      }).catch(() => null);
+    } else {
+      await Chat.updateOne({ _id: objectChatId }, { updatedAt: new Date() }).catch(() => {});
+    }
+
+    let atts = [];
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      atts = attachments;
+    } else if (image) {
+      atts = [{ name: "Image", type: "image/png", url: image }];
+    }
+
+    const msgDoc = await Message.create({
+      chatId: objectChatId,
+      conversationId: objectChatId,
+      userId: mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId,
+      role: role === "assistant" || role === "bot" ? "assistant" : "user",
+      content: typeof content === "string" ? content : (content ? JSON.stringify(content) : ""),
+      attachments: atts,
+      attachment: atts[0] ? { name: atts[0].name || "Image", kind: "image", dataUrl: atts[0].url } : undefined,
+      createdAt: new Date(),
+    });
+
+    res.status(201).json({
+      id: msgDoc._id.toString(),
+      _id: msgDoc._id.toString(),
+      role: msgDoc.role,
+      content: msgDoc.content,
+      image: atts[0]?.url || undefined,
+      attachments: atts,
+      createdAt: msgDoc.createdAt,
+    });
+  } catch (err) {
+    console.error("Save message to chat error:", err.message);
+    res.status(500).json({ error: "Failed to save message." });
   }
 });
 

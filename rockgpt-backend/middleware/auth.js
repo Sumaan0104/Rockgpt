@@ -29,6 +29,7 @@ export function isServiceKeyValid(serviceKey) {
  * authMiddleware — Optional authentication
  * Attaches req.user if a valid Bearer token is provided.
  * Does not block unauthenticated users (allows guest usage).
+ * SEC-02: Strictly rejects tokens with is2faPending=true or 2FA temporary scope (403).
  */
 export async function authMiddleware(req, res, next) {
   try {
@@ -46,7 +47,26 @@ export async function authMiddleware(req, res, next) {
 
     if (token) {
       try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
+
+        // SEC-02: Reject tokens with 2FA pending or 2FA temp scope on standard endpoints
+        if (
+          decoded &&
+          (decoded.is2faPending === true ||
+            decoded.scope === "2fa_temp" ||
+            decoded.purpose === "2fa_pending")
+        ) {
+          return res.status(403).json({
+            error: "Two-factor authentication pending. Complete 2FA verification to access this resource.",
+            require2FA: true,
+          });
+        }
+
+        // Token scope check: If a scope is present, it must be "access"
+        if (decoded && decoded.scope && decoded.scope !== "access") {
+          return res.status(403).json({ error: "Invalid token scope for this endpoint." });
+        }
+
         if (decoded && (decoded.id || decoded.email)) {
           let user = null;
           if (decoded.id) {
@@ -56,7 +76,9 @@ export async function authMiddleware(req, res, next) {
           }
           if (!user && decoded.email) {
             try {
-              user = await User.findOne({ email: decoded.email.toLowerCase().trim() }).select("-passwordHash -totpSecret").lean();
+              user = await User.findOne({ email: decoded.email.toLowerCase().trim() })
+                .select("-passwordHash -totpSecret")
+                .lean();
             } catch {}
           }
           if (user) {
@@ -64,7 +86,9 @@ export async function authMiddleware(req, res, next) {
             return next();
           }
         }
-      } catch {}
+      } catch (tokenErr) {
+        // Expired or invalid token: do not attach user
+      }
     }
 
     // If authenticated via trusted INTERNAL_SERVICE_KEY, look up target user by header
@@ -80,7 +104,9 @@ export async function authMiddleware(req, res, next) {
       }
       if (!user && targetUserEmail) {
         try {
-          user = await User.findOne({ email: targetUserEmail.toLowerCase().trim() }).select("-passwordHash -totpSecret").lean();
+          user = await User.findOne({ email: targetUserEmail.toLowerCase().trim() })
+            .select("-passwordHash -totpSecret")
+            .lean();
         } catch {}
       }
 

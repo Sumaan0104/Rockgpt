@@ -28,7 +28,12 @@ export function verifyToken<T = any>(token: string | undefined | null): T | null
   if (parts.length !== 2) return null;
   const [base64, sig] = parts;
   const expected = crypto.createHmac("sha256", SECRET).update(base64).digest("hex");
-  if (sig !== expected) return null;
+  if (typeof sig !== "string" || typeof expected !== "string") return null;
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return null;
+  }
   try {
     const jsonStr = Buffer.from(base64, "base64url").toString("utf-8");
     const data = JSON.parse(jsonStr);

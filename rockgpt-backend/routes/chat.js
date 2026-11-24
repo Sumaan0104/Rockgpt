@@ -1,4 +1,5 @@
 import express from "express";
+import https from "https";
 import OpenAI from "openai";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
@@ -11,11 +12,18 @@ import { chatRateLimiter, dailyUsageLimit } from "../middleware/limit.js";
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+  keepAliveMsecs: 30000,
+});
+
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1",
   maxRetries: 0,
   timeout: 3500,
+  httpAgent: keepAliveAgent,
 });
 
 const ACTIVE_GEMINI_KEY = process.env.GEMINI_API_KEY;
@@ -344,7 +352,7 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     // Find existing chat or automatically create one concurrently alongside AI streaming
     let targetChat = null;
     const dbPromise = (async () => {
-      if (!req.user) return null;
+      if (!req.user || !mongoose.Types.ObjectId.isValid(req.user._id)) return null;
       try {
         if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
           const objId = new mongoose.Types.ObjectId(chatId);

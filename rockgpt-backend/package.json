@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "dispatch:digest": "node scripts/dispatch_daily_digest.mjs",
     "test": "node tests/test_google_oauth.mjs",
     "test:auth": "node tests/test_auth_otp.mjs",
     "test:all": "node tests/test_auth_otp.mjs && node tests/test_google_oauth.mjs"
@@ -15,14 +16,18 @@
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "google-auth-library": "^11.1.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.5",
     "nodemailer": "^6.9.16",
-    "openai": "^7.10.0"
+    "openai": "^7.10.0",
+    "zod": "^4.6.7"
   }
 }

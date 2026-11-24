@@ -24,6 +24,8 @@ type MessageItem = {
   id?: string;
   role: "user" | "assistant" | "bot";
   content: string;
+  image?: string;
+  attachments?: { name?: string; type?: string; url?: string }[];
   research_card?: {
     step: number;
     subQuestions: string[];
@@ -37,6 +39,394 @@ type ProjectItem = {
   chat_count: number;
   created_at?: string;
 };
+
+// ═══ 6-BOX AUTO-ADVANCING OTP COMPONENT ═══
+function OtpBoxes({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    const firstEmpty = value.length < 6 ? value.length : 0;
+    inputRefs.current[firstEmpty]?.focus();
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>, idx: number) => {
+    const char = e.target.value.replace(/\D/g, "");
+    if (!char) {
+      const arr = value.split("");
+      arr[idx] = "";
+      onChange(arr.join("").trimEnd());
+      return;
+    }
+    const lastChar = char.slice(-1);
+    const arr = value.padEnd(6, " ").split("");
+    arr[idx] = lastChar;
+    const newVal = arr.join("").trimEnd();
+    onChange(newVal);
+    if (idx < 5 && lastChar) {
+      inputRefs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if (e.key === "Backspace") {
+      if (!value[idx] && idx > 0) {
+        inputRefs.current[idx - 1]?.focus();
+      }
+    } else if (e.key === "ArrowLeft" && idx > 0) {
+      e.preventDefault();
+      inputRefs.current[idx - 1]?.focus();
+    } else if (e.key === "ArrowRight" && idx < 5) {
+      e.preventDefault();
+      inputRefs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const paste = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (paste) {
+      onChange(paste);
+      const nextFocus = Math.min(paste.length, 5);
+      inputRefs.current[nextFocus]?.focus();
+    }
+  };
+
+  return (
+    <div className="otp-digit-grid" onPaste={handlePaste} role="group" aria-label="6-digit verification code">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            inputRefs.current[i] = el;
+          }}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={1}
+          autoComplete="one-time-code"
+          disabled={disabled}
+          value={value[i] || ""}
+          onChange={(e) => handleChange(e, i)}
+          onKeyDown={(e) => handleKeyDown(e, i)}
+          className="otp-digit-box"
+          aria-label={`Digit ${i + 1}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ═══ MESSAGE ACTIONS BAR (Copy, Speaker, Like, Dislike, Regenerate) ═══
+function MessageActionsBar({
+  content,
+  isStreaming,
+  onRegenerate,
+  onToast,
+}: {
+  content: string;
+  isStreaming: boolean;
+  onRegenerate?: () => void;
+  onToast?: (msg: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+
+  // Stop speech if unmounted
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // While this message is streaming tokens, do not render the action toolbar
+  if (isStreaming) {
+    return null;
+  }
+
+  const handleCopy = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = content;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      if (onToast) onToast("Copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      if (onToast) onToast("Failed to copy");
+    }
+  };
+
+  const handleSpeech = () => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      if (onToast) onToast("Text-to-speech not supported in this browser");
+      return;
+    }
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const clean = content
+      .replace(/!\[.*?\]\(.*?\)/g, "")
+      .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+      .replace(/```[\s\S]*?```/g, "")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/[#*_~>|]/g, "")
+      .trim();
+
+    if (!clean) return;
+
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+    utter.onstart = () => setSpeaking(true);
+    utter.onend = () => setSpeaking(false);
+    utter.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utter);
+  };
+
+  const handleLike = () => {
+    if (feedback === "up") {
+      setFeedback(null);
+    } else {
+      setFeedback("up");
+      if (onToast) onToast("Thanks for your feedback! 👍");
+    }
+  };
+
+  const handleDislike = () => {
+    if (feedback === "down") {
+      setFeedback(null);
+    } else {
+      setFeedback("down");
+      if (onToast) onToast("Feedback noted. We'll work on it! 👎");
+    }
+  };
+
+  return (
+    <div className="msg-actions-bar" role="toolbar" aria-label="Response toolbar">
+      {/* 1. Copy */}
+      <button
+        type="button"
+        className={`msg-action-btn ${copied ? "active" : ""}`}
+        onClick={handleCopy}
+        title={copied ? "Copied" : "Copy"}
+        aria-label="Copy"
+      >
+        {copied ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
+      </button>
+
+      {/* 2. Speaker / Read aloud */}
+      <button
+        type="button"
+        className={`msg-action-btn ${speaking ? "speaking" : ""}`}
+        onClick={handleSpeech}
+        title={speaking ? "Stop" : "Read aloud"}
+        aria-label="Read aloud"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        </svg>
+      </button>
+
+      {/* 3. Thumbs Up */}
+      <button
+        type="button"
+        className={`msg-action-btn ${feedback === "up" ? "active" : ""}`}
+        onClick={handleLike}
+        title="Good response"
+        aria-label="Good response"
+      >
+        <svg viewBox="0 0 24 24" fill={feedback === "up" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+        </svg>
+      </button>
+
+      {/* 4. Thumbs Down */}
+      <button
+        type="button"
+        className={`msg-action-btn ${feedback === "down" ? "active" : ""}`}
+        onClick={handleDislike}
+        title="Bad response"
+        aria-label="Bad response"
+      >
+        <svg viewBox="0 0 24 24" fill={feedback === "down" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3" />
+        </svg>
+      </button>
+
+      {/* 5. Regenerate */}
+      {onRegenerate && (
+        <button
+          type="button"
+          className="msg-action-btn"
+          onClick={onRegenerate}
+          disabled={isStreaming}
+          title="Regenerate"
+          aria-label="Regenerate"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+// ═══ MEMOIZED MESSAGE ITEM (PREVENTS FULL-LIST RE-RENDERS ON TOKENS) ═══
+const MemoizedMessageView = React.memo(function MemoizedMessageView({
+  msg,
+  isStreaming,
+  isLast,
+  onRegenerate,
+  onToast,
+}: {
+  msg: MessageItem;
+  isStreaming: boolean;
+  isLast: boolean;
+  onRegenerate?: () => void;
+  onToast?: (msg: string) => void;
+}) {
+  return (
+    <div className={`m ${msg.role === "user" ? "user" : "bot"}`}>
+      {msg.research_card && (
+        <div className={`m rcard ${msg.research_card.status === "done" ? "done" : ""}`}>
+          <div className="rc-h">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="8.5" />
+              <circle cx="12" cy="12" r="3.5" />
+              <path className="sweep" d="M12 12V3.5" />
+            </svg>
+            <span className="rc-t">
+              {msg.research_card.status === "done" ? "Research complete" : "Deep Researching"}
+            </span>
+            <small>Live Engine</small>
+          </div>
+          <div className="rc-bar">
+            <i style={{ width: `${(msg.research_card.step / 5) * 100}%` }} />
+          </div>
+          <div className="rc-steps">
+            {[
+              "Understanding question and planning",
+              "Searching primary verified sources",
+              "Extracting page insights",
+              "Cross-checking and verification",
+              "Synthesizing final research report",
+            ].map((stepText, sIdx) => {
+              const stepNum = sIdx + 1;
+              const isDone = msg.research_card!.step > stepNum || msg.research_card!.status === "done";
+              const isCurrent = msg.research_card!.step === stepNum && msg.research_card!.status === "running";
+              return (
+                <div key={sIdx} className={`rc-step ${isDone ? "ok" : isCurrent ? "run" : ""}`}>
+                  <span className="d" />
+                  <span>{stepText}</span>
+                </div>
+              );
+            })}
+          </div>
+          {msg.research_card.subQuestions.length > 0 && (
+            <div className="rc-q">
+              {msg.research_card.subQuestions.map((q, qIdx) => (
+                <div key={qIdx} style={{ marginTop: 4 }}>• {q}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Attached image preview on message (preserved in chat and previous chat history) */}
+      {msg.image && (
+        <div className="msg-image-wrap">
+          <img src={msg.image} alt="Attached visual" className="msg-image" loading="lazy" />
+        </div>
+      )}
+      {msg.attachments && msg.attachments.length > 0 && !msg.image && (
+        <div className="msg-attachments-wrap">
+          {msg.attachments.map((att, attIdx) => {
+            const isImg = att.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(att.url || att.name || "");
+            if (isImg && att.url) {
+              return (
+                <div key={attIdx} className="msg-image-wrap">
+                  <img src={att.url} alt={att.name || "Attached visual"} className="msg-image" loading="lazy" />
+                  {att.name && <span className="msg-image-caption">{att.name}</span>}
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      )}
+
+      {msg.content && (
+        <div
+          className="msg-content"
+          dangerouslySetInnerHTML={{
+            __html: renderMarkdown(
+              msg.content,
+              msg.role === "assistant" && isStreaming && isLast
+            ),
+          }}
+        />
+      )}
+
+      {/* Action Toolbar on Assistant Messages (Copy, Speaker, Like, Dislike, Regenerate) */}
+      {(msg.role === "assistant" || msg.role === "bot") && msg.content && (
+        <MessageActionsBar
+          content={msg.content}
+          isStreaming={isStreaming && isLast}
+          onRegenerate={onRegenerate}
+          onToast={onToast}
+        />
+      )}
+    </div>
+  );
+}, (prev, next) => {
+  return (
+    prev.msg.content === next.msg.content &&
+    prev.msg.role === next.msg.role &&
+    prev.msg.image === next.msg.image &&
+    prev.isStreaming === next.isStreaming &&
+    prev.isLast === next.isLast &&
+    prev.msg.research_card?.step === next.msg.research_card?.step &&
+    prev.msg.research_card?.status === next.msg.research_card?.status
+  );
+});
 
 export function RockGPTApp() {
   // Splash State
@@ -68,6 +458,7 @@ export function RockGPTApp() {
 
   // Composer State
   const [inputVal, setInputVal] = useState("");
+  const [attachedImage, setAttachedImage] = useState<{ name: string; dataUrl: string } | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   // Projects Sheet State
@@ -83,7 +474,9 @@ export function RockGPTApp() {
 
   // Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset">("login");
+  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset" | "google_select">("login");
+  const [isServerWaking, setIsServerWaking] = useState(false);
+  const [isChatsLoading, setIsChatsLoading] = useState(true);
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -98,6 +491,7 @@ export function RockGPTApp() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [heroBye, setHeroBye] = useState(false);
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   // DOM Refs
   const feedRef = useRef<HTMLDivElement | null>(null);
@@ -205,6 +599,8 @@ export function RockGPTApp() {
       }
     } catch {
       // offline / guest
+    } finally {
+      setIsChatsLoading(false);
     }
   }, []);
 
@@ -240,6 +636,27 @@ export function RockGPTApp() {
     fetchChats();
     fetchProjects();
     fetchCanvas();
+// Health & Server-Wake Check (prevents frozen screens during Render cold boot)
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => {
+      if (active) setIsServerWaking(true);
+    }, 1200);
+
+    fetch("/api/health")
+      .then((res) => {
+        if (res.ok && active) {
+          clearTimeout(timer);
+          setIsServerWaking(false);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, []);
 
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -444,10 +861,17 @@ export function RockGPTApp() {
         setActiveChatId(id);
         const rawMessages = data.messages || (data.chat && data.chat.messages) || [];
         setMessages(
-          rawMessages.map((m: { role: "user" | "assistant"; content: string }) => ({
-            role: m.role,
-            content: m.content,
-          }))
+          rawMessages.map((m: any) => {
+            const atts = m.attachments || (m.attachment ? [m.attachment] : []);
+            const imgUrl = m.image || (atts.find((a: any) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url) || (atts[0]?.url);
+            return {
+              id: m.id || m._id,
+              role: m.role,
+              content: m.content || "",
+              image: imgUrl || undefined,
+              attachments: atts,
+            };
+          })
         );
         if (data.chat?.project_id) {
           const matchedProj = projectsList.find(p => p.id === data.chat.project_id);
@@ -491,23 +915,29 @@ export function RockGPTApp() {
   };
 
   // Send Message Flow
-  const handleSend = async (overrideText?: string) => {
+  const handleSend = async (overrideText?: string, baseHistory?: MessageItem[], overrideImage?: string) => {
     const textToSend = (overrideText ?? inputVal).trim();
-    if (!textToSend || isStreaming) return;
+    const imageToSend = overrideImage !== undefined ? overrideImage : attachedImage?.dataUrl;
+    if ((!textToSend && !imageToSend) || isStreaming) return;
 
     setInputVal("");
+    setAttachedImage(null);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setStreamError(null);
 
     // If transitioning from the empty hero view, execute smooth exit fade
-    if (messages.length === 0) {
+    const currentBase = baseHistory ?? messages;
+    if (currentBase.length === 0) {
       setHeroBye(true);
       await new Promise(r => setTimeout(r, 220));
       setHeroBye(false);
     }
 
-    // Optimistic user message
-    const newMsgList: MessageItem[] = [...messages, { role: "user", content: textToSend }];
+    // Optimistic user message (with image attached if present)
+    const newMsgList: MessageItem[] = [
+      ...currentBase,
+      { role: "user", content: textToSend, image: imageToSend || undefined },
+    ];
     setMessages(newMsgList);
     setIsStreaming(true);
     setIsThinking(true);
@@ -515,6 +945,11 @@ export function RockGPTApp() {
     setTimeout(() => scrollToBottom(false), 30);
 
     let chatId = activeChatId;
+    if (chatAbortRef.current) {
+      chatAbortRef.current.abort();
+    }
+    const abortCtrl = new AbortController();
+    chatAbortRef.current = abortCtrl;
 
     // Deep Research Mode Flow
     if (deepMode) {
@@ -523,6 +958,7 @@ export function RockGPTApp() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: textToSend, chat_id: chatId ?? undefined }),
+          signal: abortCtrl.signal,
         });
 
         if (!researchRes.ok) {
@@ -581,7 +1017,12 @@ export function RockGPTApp() {
             if (event === "start" && data.chat_id) {
               chatId = data.chat_id;
               setActiveChatId(chatId);
-              fetchChats();
+              if (streamRafId) {
+        cancelAnimationFrame(streamRafId);
+        streamRafId = null;
+      }
+      flushTokens();
+      fetchChats();
             } else if (event === "plan") {
               currentStep = 1;
               subQuestions = data.subQuestions || [];
@@ -623,11 +1064,17 @@ export function RockGPTApp() {
               });
               requestAnimationFrame(() => scrollToBottom(false));
             } else if (event === "done") {
-              fetchChats();
+              setIsStreaming(false);
+              setIsThinking(false);
+              requestAnimationFrame(() => scrollToBottom(false));
+              fetchChats().catch(() => {});
+              try { await reader.cancel(); } catch {}
+              break;
             }
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === "AbortError" || abortCtrl.signal.aborted) return;
         console.error("Deep research stream error:", err);
         setStreamError("Deep research failed. Click to retry.");
       } finally {
@@ -655,7 +1102,8 @@ export function RockGPTApp() {
       const res = await fetch(streamUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: textToSend }),
+        body: JSON.stringify({ content: textToSend, image: imageToSend || undefined }),
+        signal: abortCtrl.signal,
       });
 
       if (!res.ok) {
@@ -691,6 +1139,7 @@ export function RockGPTApp() {
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
+        let isDone = false;
         for (const rawLine of lines) {
           const line = rawLine.trim();
           if (!line) {
@@ -699,10 +1148,18 @@ export function RockGPTApp() {
           }
           if (line.startsWith("event:")) {
             currentEvent = line.replace(/^event:\s*/, "");
+            if (currentEvent === "done") {
+              isDone = true;
+              break;
+            }
           } else if (line.startsWith("data:")) {
             const jsonStr = line.replace(/^data:\s*/, "");
             try {
               const data = JSON.parse(jsonStr);
+              if (data.done || data.message_id || currentEvent === "done") {
+                isDone = true;
+                break;
+              }
               if (data.chatId || data.chat_id) {
                 const incomingChatId = data.chatId || data.chat_id;
                 if (incomingChatId) {
@@ -743,19 +1200,44 @@ export function RockGPTApp() {
             } catch {}
           }
         }
+        if (isDone || currentEvent === "done") {
+          try { await reader.cancel(); } catch {}
+          break;
+        }
       }
 
-      fetchChats();
+      setIsStreaming(false);
+      setIsThinking(false);
+      setIsHidingTyping(false);
+      requestAnimationFrame(() => scrollToBottom(false));
+      fetchChats().catch(() => {});
 
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === "AbortError" || abortCtrl.signal.aborted) return;
       console.error("Chat streaming error:", err);
       setStreamError("Something went wrong. Click to retry.");
     } finally {
+      if (chatAbortRef.current === abortCtrl) chatAbortRef.current = null;
       setIsStreaming(false);
       setIsThinking(false);
       setIsHidingTyping(false);
     }
   };
+
+  const handleRegenerate = useCallback((assistantIndex: number) => {
+    if (isStreaming) return;
+    let userQuery = "";
+    let baseList: MessageItem[] = [];
+    for (let i = assistantIndex - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        userQuery = messages[i].content;
+        baseList = messages.slice(0, i);
+        break;
+      }
+    }
+    if (!userQuery) return;
+    handleSend(userQuery, baseList);
+  }, [messages, isStreaming, handleSend]);
 
   // Resend OTP Code
   const handleResendOtp = async () => {
@@ -771,10 +1253,7 @@ export function RockGPTApp() {
       const data = await res.json();
       if (res.ok) {
         setAuthResendSeconds(60);
-        if (data.backupCode) {
-          setAuthOtpCode(data.backupCode);
-          showToast(`New code: ${data.backupCode}`);
-        } else {
+        if (data.message) {
           showToast(data.message || "New 6-digit code sent!");
         }
       } else {
@@ -813,10 +1292,7 @@ export function RockGPTApp() {
           }
           setAuthTab("otp");
           setAuthResendSeconds(60);
-          if (data.backupCode) {
-            setAuthOtpCode(data.backupCode);
-            showToast(`Verification code: ${data.backupCode}`);
-          } else {
+          if (data.message) {
             showToast(data.message || "Verification code sent to your email!");
           }
         } else {
@@ -852,10 +1328,7 @@ export function RockGPTApp() {
           setAuthResendSeconds(60);
           setAuthPassword("");
           setAuthPasswordConfirm("");
-          if (data.backupCode) {
-            setAuthOtpCode(data.backupCode);
-            showToast(`Recovery code generated: ${data.backupCode}`);
-          } else {
+          if (data.message) {
             showToast(data.message || "Password recovery code sent! Check your inbox.");
           }
         } else {
@@ -1134,7 +1607,13 @@ export function RockGPTApp() {
 
         <div className="s-label">Recent</div>
         <div id="list">
-          {chatsList.length === 0 ? (
+          {isChatsLoading ? (
+            <div className="sidebar-skeleton-wrap" aria-label="Loading chat history">
+              <div className="sidebar-skeleton" style={{ width: "88%" }} />
+              <div className="sidebar-skeleton" style={{ width: "65%" }} />
+              <div className="sidebar-skeleton" style={{ width: "78%" }} />
+            </div>
+          ) : chatsList.length === 0 ? (
             <p className="empty-note">Your chats will appear here</p>
           ) : (
             chatsList.map((chat, idx) => (
@@ -1318,67 +1797,14 @@ export function RockGPTApp() {
         {!isFeedEmpty && (
           <div id="feed" ref={feedRef} onScroll={handleFeedScroll} onClick={handleFeedClick}>
             {messages.map((msg, i) => (
-              <div key={i} className={`m ${msg.role === "user" ? "user" : "bot"}`}>
-                {msg.research_card && (
-                  <div className={`m rcard ${msg.research_card.status === "done" ? "done" : ""}`}>
-                    <div className="rc-h">
-                      <svg viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="8.5"/>
-                        <circle cx="12" cy="12" r="3.5"/>
-                        <path className="sweep" d="M12 12V3.5"/>
-                      </svg>
-                      <span className="rc-t">
-                        {msg.research_card.status === "done" ? "Research complete" : "Deep Researching"}
-                      </span>
-                      <small>Live Engine</small>
-                    </div>
-                    <div className="rc-bar">
-                      <i style={{ width: `${(msg.research_card.step / 5) * 100}%` }} />
-                    </div>
-                    <div className="rc-steps">
-                      {[
-                        "Understanding question and planning",
-                        "Searching primary verified sources",
-                        "Extracting page insights",
-                        "Cross-checking and verification",
-                        "Synthesizing final research report",
-                      ].map((stepText, sIdx) => {
-                        const stepNum = sIdx + 1;
-                        const isDone = msg.research_card!.step > stepNum || msg.research_card!.status === "done";
-                        const isCurrent = msg.research_card!.step === stepNum && msg.research_card!.status === "running";
-                        return (
-                          <div
-                            key={sIdx}
-                            className={`rc-step ${isDone ? "ok" : isCurrent ? "run" : ""}`}
-                          >
-                            <span className="d"/>
-                            <span>{stepText}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {msg.research_card.subQuestions.length > 0 && (
-                      <div className="rc-q">
-                        {msg.research_card.subQuestions.map((q, qIdx) => (
-                          <div key={qIdx} style={{ marginTop: 4 }}>• {q}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {msg.content && (
-                  <div
-                    className="msg-content"
-                    dangerouslySetInnerHTML={{
-                      __html: renderMarkdown(
-                        msg.content,
-                        msg.role === "assistant" && isStreaming && i === messages.length - 1
-                      ),
-                    }}
-                  />
-                )}
-              </div>
+              <MemoizedMessageView
+                key={i}
+                msg={msg}
+                isStreaming={isStreaming}
+                isLast={i === messages.length - 1}
+                onRegenerate={() => handleRegenerate(i)}
+                onToast={showToast}
+              />
             ))}
 
             {/* Creative 3D Harmonic Waiting & Replying Indicator */}
@@ -1455,7 +1881,23 @@ export function RockGPTApp() {
             )}
           </div>
 
-          <div className={`box ${inputVal.trim() ? "has" : ""}`} id="box">
+          {attachedImage && (
+            <div className="composer-attached-preview">
+              <img src={attachedImage.dataUrl} alt={attachedImage.name} />
+              <span className="composer-attached-name">{attachedImage.name}</span>
+              <button
+                type="button"
+                className="composer-attached-remove"
+                onClick={() => setAttachedImage(null)}
+                aria-label="Remove image"
+                title="Remove image"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          <div className={`box ${(inputVal.trim() || attachedImage) ? "has" : ""}`} id="box">
             <button
               className="ic"
               id="plus"
@@ -1524,10 +1966,23 @@ export function RockGPTApp() {
         <input
           type="file"
           id="file-input"
+          accept="image/*"
           hidden
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) showToast(`Attached: ${f.name}`);
+            if (!f) return;
+            if (f.size > 10 * 1024 * 1024) {
+              showToast("Image must be smaller than 10MB");
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result as string;
+              setAttachedImage({ name: f.name, dataUrl: base64 });
+              showToast(`Attached image: ${f.name}`);
+            };
+            reader.readAsDataURL(f);
+            e.target.value = "";
           }}
         />
       </main>
@@ -1965,30 +2420,40 @@ export function RockGPTApp() {
                 </button>
               </div>
               <div className="auth-field">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="123456"
-                  className="auth-otp-input"
-                  required
-                  autoFocus
-                  value={authOtpCode}
-                  onChange={(e) => setAuthOtpCode(e.target.value.replace(/\D/g, ""))}
-                />
+                <label style={{ textAlign: "center", marginBottom: 2 }}>Enter 6-Digit Code</label>
+                <OtpBoxes value={authOtpCode} onChange={setAuthOtpCode} disabled={authLoading} />
               </div>
               <button type="submit" className="auth-submit" disabled={authLoading || authOtpCode.length < 6}>
-                {authLoading ? "Verifying…" : "Verify Code & Sign In →"}
+                {authLoading ? (
+                  <>
+                    <span className="btn-spinner" aria-hidden="true" />
+                    <span>Verifying…</span>
+                  </>
+                ) : (
+                  <span>Verify Code & Sign In →</span>
+                )}
               </button>
-              <div className="auth-links">
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={handleResendOtp}
-                  disabled={authResendSeconds > 0 || authLoading}
-                >
-                  {authResendSeconds > 0 ? `Resend code in ${authResendSeconds}s` : "Resend code"}
-                </button>
+              <div className="auth-links" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <div className="auth-resend-countdown-wrap">
+                  {authResendSeconds > 0 ? (
+                    <span className="auth-resend-countdown" aria-live="polite">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      Resend code in <b>{authResendSeconds}s</b>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="auth-link resend-active"
+                      onClick={handleResendOtp}
+                      disabled={authLoading}
+                    >
+                      Resend code now
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="auth-link"

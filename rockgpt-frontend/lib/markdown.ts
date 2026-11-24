@@ -119,6 +119,12 @@ export function renderMarkdown(content: string, isStreaming = false): string {
   text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
   text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
 
+  // 10.5. Markdown Images ![alt](url) (must be parsed before regular links)
+  text = text.replace(
+    /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<div class="msg-image-wrap"><img src="$2" alt="$1" class="msg-image" loading="lazy" /><span class="msg-image-caption">$1</span></div>'
+  );
+
   // 11. Links (validate safe schemes: http, https, mailto)
   text = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
@@ -169,7 +175,7 @@ export function renderMarkdown(content: string, isStreaming = false): string {
   // 15. Sanitize with DOMPurify
   if (typeof window !== "undefined") {
     return DOMPurify.sanitize(resultHtml, {
-      ADD_ATTR: ["target", "rel", "data-copy", "class", "href", "aria-hidden"],
+      ADD_ATTR: ["target", "rel", "data-copy", "class", "href", "aria-hidden", "src", "alt", "loading"],
       ADD_TAGS: [
         "span",
         "table",
@@ -189,7 +195,9 @@ export function renderMarkdown(content: string, isStreaming = false): string {
         "del",
         "sub",
         "sup",
-        "mark"
+        "mark",
+        "div",
+        "img"
       ],
     });
   }

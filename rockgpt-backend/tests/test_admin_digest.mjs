@@ -8,7 +8,7 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-key-rockgpt-123456";
-process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || "rockgpt-secret-2026";
+process.env.ADMIN_SECRET = process.env.ADMIN_SECRET || "2d88c438e89b1542f0424c76bd10264076b4a792d63f6580e8646c705ef7dd9f";
 
 const { default: app } = await import("../server.js");
 const { getPromptOfTheDay, buildDailyDigestHtml, DAILY_PROMPTS } = await import("../routes/admin.js");
@@ -112,13 +112,13 @@ async function runTests() {
     });
     assert(invalidKeyRes.status === 403, "Invalid admin key returns HTTP 403 Forbidden");
 
-    // 4. Authorized via x-admin-key: rockgpt-secret-2026 with users list
+    // 4. Authorized via x-admin-key: 2d88c438e89b1542f0424c76bd10264076b4a792d63f6580e8646c705ef7dd9f with users list
     console.log("\n[3] Admin Dispatch: Target recipient batch with x-admin-key header");
     const batchRes = await request("/api/admin/send-daily-digest", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": "rockgpt-secret-2026",
+        "x-admin-key": "2d88c438e89b1542f0424c76bd10264076b4a792d63f6580e8646c705ef7dd9f",
       },
       body: JSON.stringify({
         dryRun: true,
@@ -144,7 +144,7 @@ async function runTests() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer rockgpt-secret-2026",
+        Authorization: "Bearer 2d88c438e89b1542f0424c76bd10264076b4a792d63f6580e8646c705ef7dd9f",
       },
       body: JSON.stringify({
         dryRun: true,
@@ -159,7 +159,7 @@ async function runTests() {
     // 6. Preview Digest Endpoint
     console.log("\n[5] Admin HTML Preview Endpoint");
     const previewRes = await request("/api/admin/preview-digest", {
-      headers: { "x-admin-key": "rockgpt-secret-2026" },
+      headers: { "x-admin-key": "2d88c438e89b1542f0424c76bd10264076b4a792d63f6580e8646c705ef7dd9f" },
     });
     assert(previewRes.status === 200, "Preview endpoint returns HTTP 200 OK");
     assert(typeof previewRes.body === "string" && previewRes.body.includes("RockGPT"), "Preview returns rendered HTML");
@@ -170,7 +170,7 @@ async function runTests() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-admin-key": "rockgpt-secret-2026",
+        "x-admin-key": "2d88c438e89b1542f0424c76bd10264076b4a792d63f6580e8646c705ef7dd9f",
       },
       body: JSON.stringify({ users: [] }),
     });

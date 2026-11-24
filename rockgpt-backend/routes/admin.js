@@ -1,8 +1,106 @@
+import crypto from "crypto";
+import dns from "dns/promises";
 import express from "express";
 import User from "../models/User.js";
 import { sendEmail } from "./auth.js";
 
 const router = express.Router();
+
+// ═══ TEST & DUMMY DOMAIN / USER PATTERNS ═══
+export const TEST_DOMAIN_PATTERNS = [
+  /\.(local|secure|test|invalid|example|localhost)$/i,
+  /^example\.(com|net|org)$/i,
+  /^testrockgpt\.com$/i,
+  /^test\.com$/i,
+];
+
+export const TEST_EMAIL_PATTERNS = [
+  /^test[-_.]/i,
+  /^testuser[-_.]/i,
+  /^test_account/i,
+  /^test_engineer/i,
+  /^user_\d+@test/i,
+  /^dummy[-_.]/i,
+];
+
+const mxCache = new Map();
+
+/**
+ * Validates whether a domain has deliverable MX records via DNS.
+ */
+export async function isDeliverableDomain(domain) {
+  if (!domain || typeof domain !== "string") return false;
+  const cleanDomain = domain.trim().toLowerCase();
+  if (mxCache.has(cleanDomain)) return mxCache.get(cleanDomain);
+
+  if (TEST_DOMAIN_PATTERNS.some((p) => p.test(cleanDomain))) {
+    mxCache.set(cleanDomain, false);
+    return false;
+  }
+
+  try {
+    const records = await dns.resolveMx(cleanDomain);
+    const hasMx = Array.isArray(records) && records.length > 0;
+    mxCache.set(cleanDomain, hasMx);
+    return hasMx;
+  } catch (err) {
+    mxCache.set(cleanDomain, false);
+    return false;
+  }
+}
+
+/**
+ * Filters user records to only genuine, deliverable users who have
+ * signed up or logged in, excluding dummy test domains and synthetic accounts.
+ */
+export async function filterAuthenticRecipients(rawUsers) {
+  const verified = [];
+  const excluded = [];
+
+  for (const u of rawUsers || []) {
+    const email = String(u?.email || "").trim().toLowerCase();
+    const name = String(u?.name || "").trim();
+
+    if (!email || !email.includes("@")) {
+      excluded.push({ email: email || "unknown", reason: "Invalid email syntax" });
+      continue;
+    }
+
+    const domain = email.split("@")[1];
+    if (!domain || !domain.includes(".")) {
+      excluded.push({ email, reason: "Invalid domain structure" });
+      continue;
+    }
+
+    if (TEST_DOMAIN_PATTERNS.some((p) => p.test(domain))) {
+      excluded.push({ email, reason: `Reserved or test domain (@${domain})` });
+      continue;
+    }
+
+    if (TEST_EMAIL_PATTERNS.some((p) => p.test(email))) {
+      excluded.push({ email, reason: "Synthetic test user identifier pattern" });
+      continue;
+    }
+
+    const hasAuthenticActivity = Boolean(
+      u.password || u.passwordHash || u.googleId || u.lastLoginAt || u.isVerified
+    );
+    if (!hasAuthenticActivity) {
+      excluded.push({ email, reason: "No signup credentials or login history found" });
+      continue;
+    }
+
+    const mxExists = await isDeliverableDomain(domain);
+    if (!mxExists) {
+      excluded.push({ email, reason: `Domain (@${domain}) has no deliverable MX mail servers` });
+      continue;
+    }
+
+    verified.push({ email, name });
+  }
+
+  return { verified, excluded };
+}
 
 // ═══ ROTATING POWER PROMPTS ═══
 export const DAILY_PROMPTS = [
@@ -125,15 +223,27 @@ export function buildDailyDigestHtml({ user, promptOfTheDay, proTip, ctaUrl, cus
 
 /**
  * Admin authorization middleware
+ * SEC-03: Require ADMIN_SECRET (min 32 chars) and compare using crypto.timingSafeEqual
  */
 function verifyAdminSecret(req, res, next) {
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret || adminSecret.length < 32) {
+    console.error("[CRITICAL SECURITY] ADMIN_SECRET is missing or under 32 characters in length.");
+    return res.status(500).json({ error: "Server error: Admin authentication is misconfigured." });
+  }
+
   const authHeader =
     req.headers["x-admin-key"] ||
     (req.headers["authorization"] && req.headers["authorization"].replace(/^Bearer\s+/i, ""));
 
-  const validKeys = [process.env.ADMIN_SECRET, "rockgpt-secret-2026"].filter(Boolean);
+  if (!authHeader) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
 
-  if (!authHeader || !validKeys.includes(authHeader)) {
+  const expected = Buffer.from(adminSecret, "utf8");
+  const actual = Buffer.from(String(authHeader), "utf8");
+
+  if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
     return res.status(403).json({ error: "Unauthorized" });
   }
 
@@ -160,23 +270,36 @@ router.post("/send-daily-digest", verifyAdminSecret, async (req, res) => {
         if (req.body.verifiedOnly) {
           query.isVerified = true;
         }
-        rawUsers = await User.find(query).select("name email isVerified").lean();
+        rawUsers = await User.find(query)
+          .select("name email isVerified googleId password passwordHash lastLoginAt")
+          .lean();
       } catch (dbErr) {
         console.warn("[Admin Digest] Database fetch warning:", dbErr.message);
         rawUsers = [];
       }
     }
 
-    // Normalize recipients
-    const recipients = (rawUsers || [])
-      .map((u) => {
-        if (typeof u === "string") return { email: u.trim().toLowerCase(), name: "" };
-        if (u && typeof u === "object" && u.email) {
-          return { email: String(u.email).trim().toLowerCase(), name: u.name || "" };
-        }
-        return null;
-      })
-      .filter((u) => u && u.email && u.email.includes("@"));
+    // Normalize and filter recipients:
+    // If explicit users were supplied (e.g. targeted or test runs), keep them;
+    // If pulled from database, enforce authentic user and deliverability filtering.
+    let recipients = [];
+    if (Array.isArray(req.body.users) || req.body.email) {
+      recipients = (rawUsers || [])
+        .map((u) => {
+          if (typeof u === "string") return { email: u.trim().toLowerCase(), name: "" };
+          if (u && typeof u === "object" && u.email) {
+            return { email: String(u.email).trim().toLowerCase(), name: u.name || "" };
+          }
+          return null;
+        })
+        .filter((u) => u && u.email && u.email.includes("@"));
+    } else {
+      const { verified, excluded } = await filterAuthenticRecipients(rawUsers);
+      if (excluded.length > 0) {
+        console.log(`[Admin Digest] Excluded ${excluded.length} non-existent or test accounts.`);
+      }
+      recipients = verified;
+    }
 
     if (recipients.length === 0) {
       return res.json({

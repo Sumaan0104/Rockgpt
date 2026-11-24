@@ -40,13 +40,19 @@ export async function GET(
       created_at: data.createdAt ? new Date(data.createdAt) : new Date(),
       updated_at: data.updatedAt ? new Date(data.updatedAt) : new Date(),
     };
-    const messages = (data.messages || []).map((m: any) => ({
-      id: m.id || m._id,
-      chat_id: id,
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-      created_at: m.createdAt ? new Date(m.createdAt) : new Date(),
-    }));
+    const messages = (data.messages || []).map((m: any) => {
+      const atts = m.attachments || (m.attachment ? [m.attachment] : []);
+      const imgUrl = m.image || (atts.find((a: any) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url) || (atts[0]?.url);
+      return {
+        id: m.id || m._id,
+        chat_id: id,
+        role: m.role,
+        content: typeof m.content === "string" ? m.content : (m.content ? JSON.stringify(m.content) : ""),
+        image: imgUrl || undefined,
+        attachments: atts,
+        created_at: m.createdAt ? new Date(m.createdAt) : new Date(),
+      };
+    });
 
     // Cache locally
     globalStore.saveChat(chat);

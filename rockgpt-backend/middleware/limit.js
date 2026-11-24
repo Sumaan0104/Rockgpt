@@ -31,6 +31,7 @@ export const chatRateLimiter = rateLimit({
 
 /**
  * dailyUsageLimit — Check and increment daily usage count in MongoDB
+ * SEC-05: Rate-limit guests strictly by req.ip (never trust client headers)
  */
 export async function dailyUsageLimit(req, res, next) {
   try {
@@ -47,13 +48,8 @@ export async function dailyUsageLimit(req, res, next) {
     // Paid members have unlimited usage
     if (isPaid) return next();
 
-    // Isolate client key by explicit device/client session identifier or IP
-    const clientSession = req.headers["x-client-session"] || req.headers["x-device-id"];
-    const clientIp = req.headers["x-forwarded-for"]
-      ? req.headers["x-forwarded-for"].split(",")[0].trim()
-      : req.ip || "guest";
-
-    const clientKey = user ? `user_${user._id}` : (clientSession ? `sess_${clientSession}` : `ip_${clientIp}`);
+    // SEC-05: Strict IP rate-limiting for guests via Express trusted proxy
+    const clientKey = user ? `user_${user._id}` : `ip_${req.ip || "unknown"}`;
     const today = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
 
     const maxAllowed = user ? 500 : 100; // Generous 500 messages for registered free users, 100 for guests

@@ -945,21 +945,22 @@ body.light .hero .logo-rock-hero {
 /* Streaming Cursor (Smooth glowing indicator at live insertion point) */
 .streaming-cursor {
   display: inline-block;
-  width: 7px;
-  height: 15px;
+  width: 6px;
+  height: 16px;
   margin-left: 4px;
-  background: var(--text);
-  border-radius: 2px;
-  vertical-align: -1.5px;
-  animation: streamPulse 0.8s ease-in-out infinite;
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+  background: #38bdf8;
+  border-radius: 3px;
+  vertical-align: -2px;
+  animation: streamPulse 0.7s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.75), 0 0 4px rgba(56, 189, 248, 0.95);
 }
 body.light .streaming-cursor {
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.25);
+  background: #0284c7;
+  box-shadow: 0 0 8px rgba(2, 132, 199, 0.6);
 }
 @keyframes streamPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.15; transform: scale(0.85); }
+  50% { opacity: 0.25; transform: scale(0.88); }
 }
 
 /* Creative 3D Harmonic Neural Waiting & Replying Indicator */
@@ -1900,3 +1901,369 @@ body.open .drawer .s-foot > * { animation: navIn .55s calc(.3s + var(--i, 0) * .
 }
 
 
+
+/* ============================================================
+   11. SPEED OPTIMIZATION & POLISHED UI (PHASES 3 & 4)
+   ============================================================ */
+
+/* Server Waking Indicator (Render Cold Start Pulse) */
+.server-waking-pill {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 12px rgba(56, 189, 248, 0.2);
+  animation: fadeInDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: none;
+}
+.waking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.85); opacity: 0.6; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* 6-Box OTP Verification Grid */
+.otp-digit-grid {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin: 12px 0 8px;
+  width: 100%;
+}
+.otp-digit-box {
+  width: 44px;
+  height: 52px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+  caret-color: var(--white);
+  padding: 0;
+  box-sizing: border-box;
+}
+.otp-digit-box:focus {
+  border-color: var(--white);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  background: var(--card);
+}
+.otp-digit-box:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Visual Resend Timer Badge */
+.auth-resend-countdown-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+}
+.auth-resend-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.auth-resend-countdown b {
+  color: var(--text);
+  font-weight: 600;
+}
+.auth-link.resend-active {
+  color: #38bdf8;
+  font-weight: 600;
+}
+.auth-link.resend-active:hover {
+  text-decoration: underline;
+}
+
+/* Button Loading Spinner (Fixed Dimensions, No Layout Shifts) */
+.auth-submit {
+  min-height: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+.btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btnSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+body.light .btn-spinner {
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+}
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Sidebar Skeleton Loaders */
+.sidebar-skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.sidebar-skeleton {
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+
+/* ==========================================================================
+   AI GENERATED IMAGES & RICH MEDIA STYLES
+   ========================================================================== */
+.msg-image-wrap {
+  margin: 14px 0 16px;
+  max-width: 100%;
+  display: inline-flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.msg-image-wrap:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.42);
+}
+.msg-image {
+  width: 100%;
+  max-width: 520px;
+  max-height: 520px;
+  height: auto;
+  object-fit: cover;
+  display: block;
+  border-radius: 16px 16px 0 0;
+  background: rgba(255, 255, 255, 0.03);
+}
+.msg-image-wrap:has(.msg-image-caption:empty) .msg-image,
+.msg-image-wrap:not(:has(.msg-image-caption)) .msg-image {
+  border-radius: 16px;
+}
+.msg-image-caption {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 8px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   ASSISTANT MESSAGE ACTIONS TOOLBAR (Copy, Speaker, Like, Dislike, Regenerate)
+   ========================================================================== */
+.msg-actions-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  padding: 2px 2px;
+  user-select: none;
+  opacity: 1;
+  animation: fadeInActions 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes fadeInActions {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.16s ease;
+  position: relative;
+  outline: none;
+}
+.msg-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3f4f6;
+  transform: translateY(-1px);
+}
+.msg-action-btn:active {
+  transform: scale(0.94);
+}
+.msg-action-btn.active {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+}
+.msg-action-btn.speaking {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.14);
+  animation: pulseSpeech 1.2s ease-in-out infinite;
+}
+@keyframes pulseSpeech {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+.msg-action-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.msg-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Light mode overrides for action toolbar */
+body.light .msg-action-btn {
+  color: #6b7280;
+}
+body.light .msg-action-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111827;
+}
+body.light .msg-action-btn.active {
+  color: #0284c7;
+  background: rgba(2, 132, 199, 0.12);
+}
+body.light .msg-action-btn.speaking {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+}
+
+
+/* ==========================================================================
+   COMPOSER ATTACHED IMAGE PREVIEW & ATTACHMENTS WRAPPER
+   ========================================================================== */
+.composer-attached-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+  animation: pop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.composer-attached-preview img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.composer-attached-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-attached-remove {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all 0.16s ease;
+  margin-left: auto;
+}
+.composer-attached-remove:hover {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+
+/* User & Assistant message attachments wrapper */
+.msg-attachments-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.msg-file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.18s;
+}
+.msg-file-pill:hover {
+  background: var(--surface-2);
+}

@@ -44,6 +44,8 @@ export type StoredMessage = {
   chat_id: string;
   role: "user" | "assistant" | "system";
   content: string;
+  image?: string;
+  attachments?: any[];
   tokens_out?: number;
   created_at: Date;
 };

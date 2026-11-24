@@ -3,10 +3,13 @@ import { z } from "zod";
 import { getSessionUser, checkRateLimit } from "@/lib/auth";
 import { createChatStream, type ModelMessage } from "@/lib/ai-stream";
 import { globalStore } from "@/lib/store";
+import { proxyBackendRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
 
 const postMessageSchema = z.object({
   content: z.string().trim().min(1, "Message content is required").max(32_000),
+  image: z.string().optional(),
+  attachments: z.array(z.any()).optional(),
 });
 
 // Map of active AbortControllers per chat
@@ -36,9 +39,14 @@ export async function POST(
   }
 
   let content: string;
+  let image: string | undefined;
+  let attachments: any[] | undefined;
   try {
     const json = await request.json();
-    content = postMessageSchema.parse(json).content;
+    const parsed = postMessageSchema.parse(json);
+    content = parsed.content;
+    image = parsed.image;
+    attachments = parsed.attachments;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
@@ -77,8 +85,17 @@ export async function POST(
     chat_id: chatId,
     role: "user",
     content,
+    image,
+    attachments,
     created_at: new Date(),
   });
+
+  // Background sync user message to MongoDB Atlas
+  proxyBackendRequest(`/api/chats/${chatId}/messages`, {
+    method: "POST",
+    user,
+    body: { role: "user", content, image, attachments },
+  }).catch(() => {});
 
   // 2. Start SSE Stream Response IMMEDIATELY (Zero Delay)
   const encoder = new TextEncoder();
@@ -145,6 +162,13 @@ export async function POST(
             tokens_out: Math.ceil(finalText.length / 4),
             created_at: new Date(),
           });
+
+          // Background sync assistant response to MongoDB Atlas
+          proxyBackendRequest(`/api/chats/${chatId}/messages`, {
+            method: "POST",
+            user,
+            body: { role: "assistant", content: finalText },
+          }).catch(() => {});
 
           try {
             controller.enqueue(

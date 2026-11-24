@@ -78,6 +78,19 @@ export function generateStructuredResponse(
     return mathAns;
   }
 
+  // 1.5. Neural Image Generation
+  const imgPromptMatch =
+    cleanQ.match(/^(?:generate|create|draw|make|show|render|produce)\s+(?:an?\s+)?(?:image|picture|photo|illustration|art|wallpaper)\s+(?:of\s+|about\s+|for\s+)?(.+)$/i) ||
+    cleanQ.match(/^(?:image|picture|photo|wallpaper)\s+(?:of\s+|for\s+)?(.+)$/i) ||
+    cleanQ.match(/(?:image|photo|picture)\s+(?:banao|dikhao|bana do|chahiye|generate karo)\s*(?:of\s+|ki\s+|ka\s+)?(.*)$/i) ||
+    cleanQ.match(/(?:ek|kisi)?\s*(.+?)\s*(?:ki|ka)\s*(?:image|photo|picture)\s*(?:banao|dikhao|generate karo)/i);
+  if (imgPromptMatch) {
+    const rawSubject = (imgPromptMatch[1] || imgPromptMatch[2] || "art").trim().replace(/[?.!]+$/, "");
+    const subject = rawSubject || "creative illustration";
+    const encoded = encodeURIComponent(subject);
+    return `### Generated Visual\nHere is your custom rendered image for **"${subject}"**:\n\n![${subject}](https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&nologo=true)\n\n*Rendered by RockGPT Neural Imaging Engine.*`;
+  }
+
   // 2. Identity & Creator Persona
   if (has("who are you", "what are you", "what is rockgpt", "introduce yourself", "model name")) {
     return `### Executive Overview

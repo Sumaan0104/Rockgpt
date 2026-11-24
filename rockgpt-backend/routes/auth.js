@@ -1,19 +1,175 @@
 import express from "express";
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first");
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { OAuth2Client } from "google-auth-library";
+import { z } from "zod";
 import User from "../models/User.js";
 import OtpVerification from "../models/OtpVerification.js";
+import OtpRateLimit from "../models/OtpRateLimit.js";
+import RefreshToken from "../models/RefreshToken.js";
 import { authLimiter } from "../middleware/limit.js";
 import { authMiddleware, requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// ═══ ZOD VALIDATION SCHEMAS ═══
+const signupSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100),
+  email: z.string().trim().email("Invalid email address").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128),
+});
+
+const verifySchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+  code: z.string().trim().min(4).max(10),
+});
+
+const signinSchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const forgotSchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+});
+
+const resetSchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+  code: z.string().trim().min(4).max(10),
+  newPassword: z.string().min(8, "New password must be at least 8 characters").max(128),
+});
+
+const resendSchema = z.object({
+  email: z.string().trim().email("Invalid email address"),
+  type: z.enum(["signup", "reset", "login"]).optional().default("signup"),
+});
+
+// ═══ OTP CRYPTOGRAPHIC HASHING & RATE-LIMITING ═══
+export function generateOtpCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+export function computeOtpHash(email, purpose, code) {
+  const canonicalEmail = String(email).toLowerCase().trim();
+  return crypto
+    .createHmac("sha256", JWT_SECRET)
+    .update(`${canonicalEmail}:${purpose}:${String(code).trim()}`)
+    .digest("hex");
+}
+
+export function verifyOtpHash(email, purpose, candidateCode, storedHash) {
+  if (!candidateCode || !storedHash) return false;
+  const computed = computeOtpHash(email, purpose, candidateCode);
+  const bufComputed = Buffer.from(computed, "utf8");
+  const bufStored = Buffer.from(storedHash, "utf8");
+  if (bufComputed.length !== bufStored.length) return false;
+  return crypto.timingSafeEqual(bufComputed, bufStored);
+}
+
+// Resend cooldown 60s, max 5 sends/hour per email & per IP
+async function checkAndRecordOtpRateLimit(email, ip, req) {
+  if (process.env.NODE_ENV === "test" && req?.headers?.["x-test-rate-limit"] !== "true") {
+    return { allowed: true };
+  }
+  const cleanEmail = String(email).toLowerCase().trim();
+  const cleanIp = String(ip || "unknown").trim();
+  const now = Date.now();
+
+  const keys = [`email:${cleanEmail}`, `ip:${cleanIp}`];
+
+  for (const key of keys) {
+    try {
+      const record = await OtpRateLimit.findOne({ key });
+      if (record) {
+        const timeDiff = now - new Date(record.lastSentAt).getTime();
+        if (timeDiff < 60 * 1000) {
+          const retryAfterSec = Math.ceil((60 * 1000 - timeDiff) / 1000);
+          return {
+            allowed: false,
+            status: 429,
+            error: `Please wait ${retryAfterSec} second${retryAfterSec === 1 ? "" : "s"} before requesting a new code.`,
+            retryAfter: retryAfterSec,
+          };
+        }
+        if (record.count >= 5) {
+          return {
+            allowed: false,
+            status: 429,
+            error: "Too many verification code requests. Please wait an hour before trying again.",
+            retryAfter: 3600,
+          };
+        }
+      }
+    } catch (e) {
+      // In-memory or temporary DB glitch: allow to proceed
+    }
+  }
+
+  return { allowed: true };
+}
+
+async function recordOtpSent(email, ip) {
+  const cleanEmail = String(email).toLowerCase().trim();
+  const cleanIp = String(ip || "unknown").trim();
+
+  for (const key of [`email:${cleanEmail}`, `ip:${cleanIp}`]) {
+    try {
+      await OtpRateLimit.findOneAndUpdate(
+        { key },
+        {
+          $inc: { count: 1 },
+          $set: { lastSentAt: new Date() },
+          $setOnInsert: { expiresAt: new Date(Date.now() + 3600 * 1000) },
+        },
+        { upsert: true, new: true }
+      );
+    } catch {}
+  }
+}
+
+// ═══ REFRESH TOKEN ROTATION & REVOCATION ═══
+async function issueRefreshToken(userId, res) {
+  const rawRefreshToken = crypto.randomBytes(40).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawRefreshToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+
+  try {
+    await RefreshToken.create({
+      userId,
+      tokenHash,
+      expiresAt,
+    });
+  } catch {}
+
+  if (res && res.cookie) {
+    res.cookie("refreshToken", rawRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/api/auth",
+      maxAge: 30 * 24 * 3600 * 1000,
+    });
+  }
+
+  return rawRefreshToken;
+}
+
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || "").trim();
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID || undefined);
+
+export function timingSafeEqualString(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function generateToken(user) {
   return jwt.sign(
@@ -22,9 +178,10 @@ function generateToken(user) {
       email: user.email,
       name: user.name,
       plan: user.plan || "free",
+      scope: "access",
     },
     JWT_SECRET,
-    { expiresIn: "30d" }
+    { algorithm: "HS256", expiresIn: "15m" }
   );
 }
 
@@ -102,43 +259,25 @@ export async function findUserByEmail(email) {
 }
 
 // Pooled, reusable Nodemailer transports for maximum performance & zero connection overhead
-let persistentTransporter465 = null;
-let persistentTransporter587 = null;
+let persistentTransporter = null;
 
-function getTransporter465(user, pass) {
-  if (!persistentTransporter465) {
-    persistentTransporter465 = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
+function getTransporter(user, pass) {
+  if (!persistentTransporter) {
+    persistentTransporter = nodemailer.createTransport({
+      service: "gmail",
       auth: { user, pass },
-      connectionTimeout: 4000,
-      greetingTimeout: 4000,
-      socketTimeout: 4000,
-    });
-  }
-  return persistentTransporter465;
-}
-
-function getTransporter587(user, pass) {
-  if (!persistentTransporter587) {
-    persistentTransporter587 = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
       pool: true,
-      maxConnections: 3,
-      maxMessages: 100,
-      auth: { user, pass },
-      connectionTimeout: 4000,
-      greetingTimeout: 4000,
-      socketTimeout: 4000,
+      maxConnections: 5,
+      maxMessages: 200,
+      family: 4, // Force IPv4: completely bypasses 30-40s IPv6 timeouts
+      connectionTimeout: 6000,
+      greetingTimeout: 6000,
+      socketTimeout: 6000,
     });
+    // Background warm-up
+    persistentTransporter.verify().catch(() => {});
   }
-  return persistentTransporter587;
+  return persistentTransporter;
 }
 
 // Low-latency email dispatcher that prevents button freeze / network hanging
@@ -233,36 +372,40 @@ export async function sendEmail({ to, subject, html, fromName }) {
     }
   }
 
-  // 3. Gmail SMTP via Nodemailer (Attempts direct SSL Port 465 then STARTTLS Port 587)
+  // 3. Gmail SMTP via Nodemailer (Ultra-Fast IPv4 Pooled Transport)
   const cleanPass = (process.env.EMAIL_PASS || "").replace(/\s+/g, "");
   if (cleanUser && cleanPass) {
-    // Attempt 3a: Port 465 SSL
     try {
-      const transporter465 = getTransporter465(cleanUser, cleanPass);
-      const info = await transporter465.sendMail({
+      const transporter = getTransporter(cleanUser, cleanPass);
+      const info = await transporter.sendMail({
         from: `"${senderDisplayName}" <${cleanUser}>`,
         to,
         subject,
         html,
       });
-      console.log(`[Gmail SMTP 465] Email delivered to ${to} (${senderDisplayName})`);
-      return { success: true, provider: "gmail-smtp-465", info };
-    } catch (err465) {
-      console.warn("[Gmail SMTP 465 Warning]:", err465.message);
-
-      // Attempt 3b: Port 587 STARTTLS
+      console.log(`[Gmail SMTP Fast] Email delivered to ${to} (${senderDisplayName})`);
+      return { success: true, provider: "gmail-smtp-fast", info };
+    } catch (err) {
+      console.warn("[Gmail SMTP Fast Warning]:", err.message);
       try {
-        const transporter587 = getTransporter587(cleanUser, cleanPass);
-        const info = await transporter587.sendMail({
+        const fallback = nodemailer.createTransport({
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          auth: { user: cleanUser, pass: cleanPass },
+          family: 4,
+          connectionTimeout: 5000,
+        });
+        const info = await fallback.sendMail({
           from: `"${senderDisplayName}" <${cleanUser}>`,
           to,
           subject,
           html,
         });
-        console.log(`[Gmail SMTP 587] Email delivered to ${to} (${senderDisplayName})`);
+        console.log(`[Gmail SMTP Fallback 587] Delivered to ${to}`);
         return { success: true, provider: "gmail-smtp-587", info };
       } catch (err587) {
-        console.warn("[Gmail SMTP 587 Warning]:", err587.message);
+        console.warn("[Gmail SMTP 587 Error]:", err587.message);
       }
     }
   }
@@ -290,15 +433,14 @@ function getOtpEmailTemplate(code, title, subtitle) {
 // 1. Sign Up (Immediately creates/stores user data & password in MongoDB + dispatches OTP)
 router.post("/signup", authLimiter, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Name, email, and password are required." });
+    const parseResult = signupSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const msg = parseResult.error.issues[0]?.message || "Invalid registration data.";
+      return res.status(400).json({ error: msg });
     }
 
+    const { name, email, password } = parseResult.data;
     const cleanEmail = email.toLowerCase().trim();
-    if (password.length < 8) {
-      return res.status(400).json({ error: "Password must be at least 8 characters long." });
-    }
 
     const existing = await findUserByEmail(cleanEmail);
     if (existing) {
@@ -312,11 +454,11 @@ router.post("/signup", authLimiter, async (req, res) => {
           isGoogleAccount: true,
         });
       }
-      // If account is already verified and active:
       if (existing.isVerified) {
         const isMatch = existing.passwordHash ? await bcrypt.compare(password, existing.passwordHash) : false;
         if (isMatch) {
           const token = generateToken(existing);
+          const refreshToken = await issueRefreshToken(existing._id, res);
           return res.json({
             success: true,
             alreadyActive: true,
@@ -328,6 +470,7 @@ router.post("/signup", authLimiter, async (req, res) => {
               plan: formatPlanName(existing.plan),
             },
             token,
+            refreshToken,
           });
         }
         return res.status(409).json({
@@ -336,11 +479,16 @@ router.post("/signup", authLimiter, async (req, res) => {
       }
     }
 
-    // Hash password with 12 rounds of bcrypt for enterprise security
-    const salt = await bcrypt.genSalt(10);
+    // Rate limiting: 60s cooldown & max 5 sends/hour
+    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, req.ip, req);
+    if (!rateCheck.allowed) {
+      return res.status(rateCheck.status).json({ error: rateCheck.error, retryAfter: rateCheck.retryAfter });
+    }
+
+    // Hash password with cost factor 12
+    const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // IMMEDIATELY PERSIST USER ACCOUNT AND PASSWORD IN MONGODB
     let user = existing;
     if (!user) {
       user = await User.create({
@@ -363,23 +511,28 @@ router.post("/signup", authLimiter, async (req, res) => {
     }
 
     const token = generateToken(user);
+    const refreshToken = await issueRefreshToken(user._id, res);
 
-    // Cryptographically secure 6-digit OTP
-    const code = crypto.randomInt(100000, 999999).toString();
+    // Cryptographic 6-digit OTP stored ONLY as HMAC hash
+    const code = generateOtpCode();
+    const codeHash = computeOtpHash(cleanEmail, "signup", code);
 
-    // Store in MongoDB OtpVerification collection with 10-minute TTL
     const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
-    await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "signup" });
     await OtpVerification.create({
       email: cleanEmail,
-      code,
+      codeHash,
       type: "signup",
       name: name.trim(),
       passwordHash,
       attempts: 0,
+      ...(process.env.NODE_ENV === "test" ? { testPlainCode: code } : {}),
     });
 
-    console.log(`[AUTH] Verification OTP for ${cleanEmail}: ${code}`);
+    // In production, never log OTP to console
+    if (process.env.NODE_ENV === "test") {
+      console.log(`[AUTH TEST MODE] Verification OTP for ${cleanEmail}: ${code}`);
+    }
 
     const emailResult = await dispatchEmailWithTimeout({
       to: cleanEmail,
@@ -393,6 +546,16 @@ router.post("/signup", authLimiter, async (req, res) => {
 
     const emailSent = Boolean(emailResult?.success);
 
+    // Real error handling: If sending failed in production, return error and clean up
+    if (!emailSent && !emailResult?.timedOut && process.env.NODE_ENV === "production") {
+      await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "signup" });
+      return res.status(502).json({
+        error: "Failed to dispatch verification email. Please check your email address and try again.",
+      });
+    }
+
+    await recordOtpSent(cleanEmail, req.ip);
+
     res.json({
       success: true,
       message: emailSent
@@ -400,7 +563,7 @@ router.post("/signup", authLimiter, async (req, res) => {
         : "Account created successfully! Your credentials have been securely stored.",
       email: cleanEmail,
       emailSent,
-      backupCode: emailSent ? undefined : code,
+      backupCode: process.env.NODE_ENV === "test" ? code : undefined,
       user: {
         id: user._id,
         name: user.name,
@@ -408,6 +571,7 @@ router.post("/signup", authLimiter, async (req, res) => {
         plan: formatPlanName(user.plan),
       },
       token,
+      refreshToken,
     });
   } catch (err) {
     console.error("Signup error:", err.message);
@@ -418,15 +582,15 @@ router.post("/signup", authLimiter, async (req, res) => {
 // 2. Verify OTP & Activate (5 attempts with 15-minute cooldown)
 router.post("/verify", authLimiter, async (req, res) => {
   try {
-    const { email, code } = req.body;
-    if (!email || !code) {
-      return res.status(400).json({ error: "Email and verification code are required." });
+    const parseResult = verifySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: "Email and valid verification code are required." });
     }
 
+    const { email, code } = parseResult.data;
     const cleanEmail = email.toLowerCase().trim();
     const cleanCode = String(code).trim();
 
-    // Check existing user lock
     const existingUser = await findUserByEmail(cleanEmail);
     if (existingUser) {
       const lockCheck = checkLockout(existingUser);
@@ -437,33 +601,22 @@ router.post("/verify", authLimiter, async (req, res) => {
 
     const emailsToMatch = Array.from(new Set([cleanEmail, ...(existingUser ? [existingUser.email] : [])]));
     const otpDoc = await findOtpDoc(cleanEmail, existingUser?.email, "signup");
+    
+    // SEC-01: /api/auth/verify must NEVER issue a token when no valid OTP exists
     if (!otpDoc) {
-      // If user is already stored in database with valid credentials, complete verification
-      if (existingUser && (existingUser.passwordHash || existingUser.password)) {
-        const token = generateToken(existingUser);
-        return res.json({
-          success: true,
-          message: "Account active! Welcome to RockGPT.",
-          user: {
-            id: existingUser._id,
-            name: existingUser.name,
-            email: existingUser.email,
-            plan: formatPlanName(existingUser.plan),
-          },
-          token,
-        });
-      }
-
       return res.status(400).json({
         error: "Verification code has expired or is invalid. Please request a new code.",
       });
     }
 
-    // Increment attempts count
     otpDoc.attempts += 1;
 
-    // Check if code matches
-    if (otpDoc.code !== cleanCode) {
+    // SEC-07: Timing-safe HMAC hash verification
+    const isCodeMatch =
+      (otpDoc.codeHash && verifyOtpHash(cleanEmail, "signup", cleanCode, otpDoc.codeHash)) ||
+      (otpDoc.code && timingSafeEqualString(otpDoc.code, cleanCode));
+
+    if (!isCodeMatch) {
       if (otpDoc.attempts >= 5) {
         const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
         if (existingUser) {
@@ -477,7 +630,7 @@ router.post("/verify", authLimiter, async (req, res) => {
             { upsert: false }
           );
         }
-        await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
+        await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "signup" });
         return res.status(429).json({
           error: "Maximum attempts exceeded (5/5). Please wait 15 minutes before trying again.",
           locked: true,
@@ -492,10 +645,9 @@ router.post("/verify", authLimiter, async (req, res) => {
       });
     }
 
-    // Code is correct: single-use destruction
-    await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
+    // Single-use destruction: delete OTP document immediately
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "signup" });
 
-    // Ensure user document exists and is active
     let user = existingUser || (await findUserByEmail(cleanEmail));
     if (!user) {
       user = await User.create({
@@ -518,10 +670,11 @@ router.post("/verify", authLimiter, async (req, res) => {
     }
 
     const token = generateToken(user);
+    const refreshToken = await issueRefreshToken(user._id, res);
 
     res.json({
       success: true,
-      message: "Account verified successfully! Welcome to RockGPT.",
+      message: "Account active! Welcome to RockGPT.",
       user: {
         id: user._id,
         name: user.name,
@@ -529,25 +682,28 @@ router.post("/verify", authLimiter, async (req, res) => {
         plan: formatPlanName(user.plan),
       },
       token,
+      refreshToken,
     });
   } catch (err) {
     console.error("Verify OTP error:", err.message);
-    res.status(500).json({ error: "Verification failed." });
+    res.status(500).json({ error: "Verification server error." });
   }
 });
 
-// 3. Sign In (also alias /login)
 async function handleSignIn(req, res) {
   try {
-    const { email, password } = req.body;
-    if (!email || !password || typeof email !== "string" || typeof password !== "string") {
-      return res.status(400).json({ error: "Email and password must be valid strings." });
+    const parseResult = signinSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
+    const { email, password } = parseResult.data;
     const cleanEmail = email.toLowerCase().trim();
+
     const user = await findUserByEmail(cleanEmail);
     if (!user) {
-      return res.status(401).json({ error: "Invalid email or password. Please verify credentials or sign up." });
+      // Generic error message: prevent user enumeration
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     if (!user.passwordHash && !user.password) {
@@ -578,9 +734,7 @@ async function handleSignIn(req, res) {
         isMatch = await bcrypt.compare(password, user.password);
       }
       if (isMatch) {
-        // Auto-upgrade legacy password to bcrypt hash
-        const salt = await bcrypt.genSalt(12);
-        user.passwordHash = await bcrypt.hash(password, salt);
+        user.passwordHash = await bcrypt.hash(password, 12);
         user.password = null;
       }
     }
@@ -602,14 +756,28 @@ async function handleSignIn(req, res) {
       });
     }
 
-    // Reset failed counter and update login timestamp
     user.isVerified = true;
     user.failedOtpAttempts = 0;
     user.lockedUntil = null;
     user.lastLoginAt = new Date();
     await user.save();
 
+    // SEC-02: Enforce 2FA if enabled on account
+    if (user.twoFactorEnabled || user.is2faEnabled) {
+      const tempToken = jwt.sign(
+        { id: user._id, email: user.email, is2faPending: true, scope: "2fa_temp" },
+        JWT_SECRET,
+        { algorithm: "HS256", expiresIn: "10m" }
+      );
+      return res.json({
+        require2FA: true,
+        tempToken,
+        email: user.email,
+      });
+    }
+
     const token = generateToken(user);
+    const refreshToken = await issueRefreshToken(user._id, res);
 
     res.json({
       success: true,
@@ -620,6 +788,7 @@ async function handleSignIn(req, res) {
         plan: formatPlanName(user.plan),
       },
       token,
+      refreshToken,
     });
   } catch (err) {
     console.error("Sign in error:", err.message);
@@ -633,11 +802,12 @@ router.post("/login", authLimiter, handleSignIn);
 // 4. Resend OTP Endpoint
 router.post("/resend-otp", authLimiter, async (req, res) => {
   try {
-    const { email, type = "signup" } = req.body;
-    if (!email) {
+    const parseResult = resendSchema.safeParse(req.body);
+    if (!parseResult.success) {
       return res.status(400).json({ error: "Email is required." });
     }
 
+    const { email, type } = parseResult.data;
     const cleanEmail = email.toLowerCase().trim();
     const cleanType = type === "reset" ? "reset" : "signup";
 
@@ -651,20 +821,30 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
       return res.status(429).json({ error: lockCheck.message, locked: true });
     }
 
-    const code = crypto.randomInt(100000, 999999).toString();
+    // Rate limiting: 60s cooldown & max 5 sends/hour
+    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, req.ip, req);
+    if (!rateCheck.allowed) {
+      return res.status(rateCheck.status).json({ error: rateCheck.error, retryAfter: rateCheck.retryAfter });
+    }
+
+    const code = generateOtpCode();
+    const codeHash = computeOtpHash(cleanEmail, cleanType, code);
     const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
 
     await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: cleanType });
     await OtpVerification.create({
       email: cleanEmail,
-      code,
+      codeHash,
       type: cleanType,
       name: user.name,
       passwordHash: user.passwordHash,
       attempts: 0,
+      ...(process.env.NODE_ENV === "test" ? { testPlainCode: code } : {}),
     });
 
-    console.log(`[AUTH] Resent OTP for ${cleanEmail} (${cleanType}): ${code}`);
+    if (process.env.NODE_ENV === "test") {
+      console.log(`[AUTH TEST MODE] Resent OTP for ${cleanEmail} (${cleanType}): ${code}`);
+    }
 
     const emailResult = await dispatchEmailWithTimeout({
       to: cleanEmail,
@@ -672,11 +852,18 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
       html: getOtpEmailTemplate(
         code,
         cleanType === "reset" ? "Reset Your Password" : "Verify Your RockGPT Account",
-        `Here is your new 6-digit security code. Single-use only.`
+        "Here is your new 6-digit security code. Single-use only."
       ),
     });
 
     const emailSent = Boolean(emailResult?.success);
+
+    if (!emailSent && !emailResult?.timedOut && process.env.NODE_ENV === "production") {
+      await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: cleanType });
+      return res.status(502).json({ error: "Failed to dispatch verification email. Please try again." });
+    }
+
+    await recordOtpSent(cleanEmail, req.ip);
 
     res.json({
       success: true,
@@ -684,7 +871,7 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
         ? "Fresh verification code sent to your email inbox."
         : "New verification code generated successfully.",
       emailSent,
-      backupCode: emailSent ? undefined : code,
+      backupCode: process.env.NODE_ENV === "test" ? code : undefined,
     });
   } catch (err) {
     console.error("Resend OTP error:", err.message);
@@ -695,10 +882,12 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
 // 5. Forgot Password (Sends 6-digit recovery OTP)
 router.post("/forgot", authLimiter, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required." });
+    const parseResult = forgotSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: "Valid email is required." });
+    }
 
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = parseResult.data.email.toLowerCase().trim();
     const user = await findUserByEmail(cleanEmail);
 
     if (!user) {
@@ -710,19 +899,29 @@ router.post("/forgot", authLimiter, async (req, res) => {
       return res.status(429).json({ error: lockCheck.message, locked: true });
     }
 
-    const code = crypto.randomInt(100000, 999999).toString();
+    // Rate limiting: 60s cooldown & max 5 sends/hour
+    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, req.ip, req);
+    if (!rateCheck.allowed) {
+      return res.status(rateCheck.status).json({ error: rateCheck.error, retryAfter: rateCheck.retryAfter });
+    }
+
+    const code = generateOtpCode();
+    const codeHash = computeOtpHash(cleanEmail, "reset", code);
     const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
 
     await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
     await OtpVerification.create({
       email: cleanEmail,
-      code,
+      codeHash,
       type: "reset",
       name: user.name,
       attempts: 0,
+      ...(process.env.NODE_ENV === "test" ? { testPlainCode: code } : {}),
     });
 
-    console.log(`[AUTH] Password Recovery OTP for ${cleanEmail}: ${code}`);
+    if (process.env.NODE_ENV === "test") {
+      console.log(`[AUTH TEST MODE] Password Recovery OTP for ${cleanEmail}: ${code}`);
+    }
 
     const emailResult = await dispatchEmailWithTimeout({
       to: cleanEmail,
@@ -736,6 +935,13 @@ router.post("/forgot", authLimiter, async (req, res) => {
 
     const emailSent = Boolean(emailResult?.success);
 
+    if (!emailSent && !emailResult?.timedOut && process.env.NODE_ENV === "production") {
+      await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
+      return res.status(502).json({ error: "Failed to dispatch password recovery email. Please try again." });
+    }
+
+    await recordOtpSent(cleanEmail, req.ip);
+
     res.json({
       success: true,
       message: emailSent
@@ -743,7 +949,7 @@ router.post("/forgot", authLimiter, async (req, res) => {
         : "Recovery code generated. Enter the code below to reset your password.",
       email: cleanEmail,
       emailSent,
-      backupCode: emailSent ? undefined : code,
+      backupCode: process.env.NODE_ENV === "test" ? code : undefined,
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to process password recovery." });
@@ -753,17 +959,14 @@ router.post("/forgot", authLimiter, async (req, res) => {
 // 6. Reset Password with OTP
 router.post("/reset-password", authLimiter, async (req, res) => {
   try {
-    const { email, code, newPassword } = req.body;
-    if (!email || !code || !newPassword) {
-      return res.status(400).json({ error: "Email, reset code, and new password are required." });
+    const parseResult = resetSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: "Email, reset code, and valid new password (8+ chars) are required." });
     }
 
+    const { email, code, newPassword } = parseResult.data;
     const cleanEmail = email.toLowerCase().trim();
     const cleanCode = code.trim();
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: "New password must be at least 8 characters long." });
-    }
 
     const user = await findUserByEmail(cleanEmail);
     if (!user) {
@@ -785,12 +988,17 @@ router.post("/reset-password", authLimiter, async (req, res) => {
 
     otpDoc.attempts += 1;
 
-    if (otpDoc.code !== cleanCode) {
+    // SEC-07: Timing-safe HMAC hash check
+    const isResetMatch =
+      (otpDoc.codeHash && verifyOtpHash(cleanEmail, "reset", cleanCode, otpDoc.codeHash)) ||
+      (otpDoc.code && timingSafeEqualString(otpDoc.code, cleanCode));
+
+    if (!isResetMatch) {
       if (otpDoc.attempts >= 5) {
         user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
         user.failedOtpAttempts = 5;
         await user.save();
-        await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
+        await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
 
         return res.status(429).json({
           error: "Maximum attempts exceeded (5/5). Please wait 15 minutes before trying again.",
@@ -799,37 +1007,29 @@ router.post("/reset-password", authLimiter, async (req, res) => {
       }
 
       await otpDoc.save();
-      const attemptsLeft = 5 - otpDoc.attempts;
+      const remainingAttempts = 5 - otpDoc.attempts;
       return res.status(400).json({
-        error: `Incorrect code. ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} remaining.`,
-        attemptsLeft,
+        error: `Incorrect code. ${remainingAttempts} attempt${remainingAttempts === 1 ? "" : "s"} remaining.`,
+        remainingAttempts,
       });
     }
 
-    // Code matches: single-use destruction
-    await OtpVerification.deleteMany({ email: { $in: emailsToMatch } });
-
-    // Hash new password with 12 rounds
-    const salt = await bcrypt.genSalt(12);
-    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    // Hash new password with cost 12
+    user.passwordHash = await bcrypt.hash(newPassword, 12);
     user.password = null;
     user.failedOtpAttempts = 0;
     user.lockedUntil = null;
+    user.isVerified = true;
     user.lastLoginAt = new Date();
     await user.save();
 
-    const token = generateToken(user);
+    // Revoke OTP and all active refresh tokens for this account
+    await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
+    await RefreshToken.deleteMany({ userId: user._id });
 
     res.json({
       success: true,
-      message: "Password reset successful! You are now logged in.",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        plan: formatPlanName(user.plan),
-      },
-      token,
+      message: "Password reset successfully. You can now log in with your new password.",
     });
   } catch (err) {
     console.error("Reset password error:", err.message);
@@ -857,26 +1057,34 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
         throw new Error("Invalid or expired authorization code.");
       }
       if (tokenRes?.tokens?.id_token) {
-        const ticket = await testGoogleOAuthClient.verifyIdToken({ idToken: tokenRes.tokens.id_token, audience: "test_client_id" });
+        const ticket = await testGoogleOAuthClient.verifyIdToken({
+          idToken: tokenRes.tokens.id_token,
+          audience: "test_client_id",
+        });
         const p = ticket.getPayload();
-        if (p?.email && p.email_verified !== false) return { email: p.email.toLowerCase().trim(), name: p.name, googleId: p.sub, picture: p.picture };
+        if (p?.email && p.email_verified !== false) {
+          return { email: p.email.toLowerCase().trim(), name: p.name, googleId: p.sub, picture: p.picture };
+        }
         throw new Error("Email not verified by Google");
       }
       throw new Error("Invalid or expired authorization code.");
     } else {
-      const ticket = await testGoogleOAuthClient.verifyIdToken({ idToken: cleanInput, audience: "test_client_id" });
+      const ticket = await testGoogleOAuthClient.verifyIdToken({
+        idToken: cleanInput,
+        audience: "test_client_id",
+      });
       const p = ticket.getPayload();
-      if (p?.email && p.email_verified !== false) return { email: p.email.toLowerCase().trim(), name: p.name, googleId: p.sub, picture: p.picture };
+      if (p?.email && p.email_verified !== false) {
+        return { email: p.email.toLowerCase().trim(), name: p.name, googleId: p.sub, picture: p.picture };
+      }
       throw new Error("Email not verified by Google");
     }
   }
 
-  const rawEnvId = (process.env.GOOGLE_CLIENT_ID || "").trim();
-  const knownClientIds = Array.from(
-    new Set([
-      rawEnvId,
-    ])
-  ).filter(Boolean);
+  const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").trim() || GOOGLE_CLIENT_ID;
+  if (!googleClientId) {
+    throw new Error("GOOGLE_CLIENT_ID is not configured on the server.");
+  }
   const cleanSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
 
   // 1. If authorization code (starts with 4/ or no dots):
@@ -888,103 +1096,43 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           code: cleanInput,
-          client_id: knownClientIds[0] || GOOGLE_CLIENT_ID,
+          client_id: googleClientId,
           client_secret: cleanSecret,
           redirect_uri: "postmessage",
           grant_type: "authorization_code",
         }),
       });
-      const tokenData = await tokenRes.json();
+      const tokenData = await tokenRes.json().catch(() => ({}));
       if (tokenData.id_token) {
         resolvedIdToken = tokenData.id_token;
-      } else if (tokenData.access_token) {
-        const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` },
-        });
-        if (userRes.ok) {
-          const u = await userRes.json();
-          if (u.email) {
-            return {
-              email: u.email.toLowerCase().trim(),
-              name: u.name || u.email.split("@")[0],
-              googleId: u.sub,
-              picture: u.picture,
-            };
-          }
-        }
+      } else {
+        throw new Error(tokenData.error_description || "Invalid or expired Google authorization code.");
       }
     } catch (e) {
-      console.warn("[Google Auth] Code exchange error:", e.message);
+      throw new Error(e.message || "Google authorization code exchange failed.");
     }
   }
 
-  // 2. Try google-auth-library verifyIdToken with known client IDs
-  for (const aud of knownClientIds) {
-    try {
-      const client = new OAuth2Client(aud);
-      const ticket = await client.verifyIdToken({
-        idToken: resolvedIdToken,
-        audience: aud,
-        maxExpiry: 7200,
-      });
-      const p = ticket.getPayload();
-      if (p && p.email) {
-        if (p.email_verified === false) {
-          throw new Error("Email not verified by Google");
-        }
-        return {
-          email: p.email.toLowerCase().trim(),
-          name: p.name || p.email.split("@")[0],
-          googleId: p.sub,
-          picture: p.picture,
-        };
-      }
-    } catch (libErr) {
-      if (libErr.message.includes("Email not verified")) throw libErr;
-    }
+  // 2. SEC-06: Strictly verify ID token via OAuth2Client with audience = GOOGLE_CLIENT_ID
+  const client = new OAuth2Client(googleClientId);
+  const ticket = await client.verifyIdToken({
+    idToken: resolvedIdToken,
+    audience: googleClientId,
+  });
+  const payload = ticket.getPayload();
+  if (!payload || !payload.email) {
+    throw new Error("Invalid Google token payload.");
+  }
+  if (payload.email_verified === false) {
+    throw new Error("Email not verified by Google");
   }
 
-  // 3. Fallback: Google's official REST tokeninfo endpoint
-  try {
-    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(resolvedIdToken)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.email) {
-        if (data.email_verified === "false" || data.email_verified === false) {
-          throw new Error("Email not verified by Google");
-        }
-        return {
-          email: data.email.toLowerCase().trim(),
-          name: data.name || data.email.split("@")[0],
-          googleId: data.sub,
-          picture: data.picture,
-        };
-      }
-    }
-  } catch (tokeninfoErr) {
-    if (tokeninfoErr.message.includes("Email not verified")) throw tokeninfoErr;
-    console.warn("[Google Auth] tokeninfo API error:", tokeninfoErr.message);
-  }
-
-  // 4. Fallback: Try token as access_token against userinfo endpoint
-  try {
-    const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-      headers: { Authorization: `Bearer ${resolvedIdToken}` },
-    });
-    if (res.ok) {
-      const u = await res.json();
-      if (u && u.email) {
-        return {
-          email: u.email.toLowerCase().trim(),
-          name: u.name || u.email.split("@")[0],
-          googleId: u.sub,
-          picture: u.picture,
-        };
-      }
-    }
-  } catch {}
-
-  return null;
+  return {
+    email: payload.email.toLowerCase().trim(),
+    name: payload.name || payload.email.split("@")[0],
+    googleId: payload.sub,
+    picture: payload.picture,
+  };
 }
 
 // 6. Google OAuth Login
@@ -1034,7 +1182,7 @@ router.post("/google", authLimiter, async (req, res) => {
     // Enforce 2FA if enabled on account
     if (user.twoFactorEnabled || user.is2faEnabled) {
       const tempToken = jwt.sign(
-        { id: user._id, email: user.email, is2faPending: true },
+        { id: user._id, email: user.email, is2faPending: true, scope: "2fa_temp" },
         JWT_SECRET,
         { expiresIn: "10m" }
       );
@@ -1082,6 +1230,157 @@ router.get("/me", authMiddleware, async (req, res) => {
 // 8. Guest Session Initialization
 // Configurable guest access duration (default: 150 seconds / 2 minutes 30 seconds)
 const GUEST_ACCESS_DURATION_SEC = parseInt(process.env.GUEST_ACCESS_DURATION_SEC, 10) || 150;
+
+// SEC-02: Dedicated 2FA verification endpoint
+router.post("/verify-2fa", authLimiter, async (req, res) => {
+  try {
+    const { tempToken, code } = req.body;
+    if (!tempToken || !code) {
+      return res.status(400).json({ error: "Temporary token and 2FA code are required." });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, JWT_SECRET, { algorithms: ["HS256"] });
+    } catch {
+      return res.status(401).json({ error: "Invalid or expired 2FA session. Please log in again." });
+    }
+
+    if (!decoded || (!decoded.is2faPending && decoded.scope !== "2fa_temp")) {
+      return res.status(400).json({ error: "Invalid 2FA token." });
+    }
+
+    const user = await findUserByEmail(decoded.email);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const cleanCode = String(code).trim();
+    let is2faValid = false;
+
+    if (user.totpSecret && timingSafeEqualString(user.totpSecret, cleanCode)) {
+      is2faValid = true;
+    }
+
+    if (!is2faValid) {
+      const otpDoc = await findOtpDoc(user.email, null, "login");
+      if (otpDoc && timingSafeEqualString(otpDoc.code, cleanCode)) {
+        is2faValid = true;
+        await OtpVerification.deleteOne({ _id: otpDoc._id });
+      }
+    }
+
+    if (!is2faValid) {
+      return res.status(400).json({ error: "Invalid two-factor authentication code." });
+    }
+
+    user.isVerified = true;
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const token = generateToken(user);
+    res.json({
+      success: true,
+      message: "Two-factor authentication verified.",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: formatPlanName(user.plan),
+      },
+      token,
+    });
+  } catch (err) {
+    console.error("2FA verification error:", err.message);
+    res.status(500).json({ error: "Two-factor authentication failed." });
+  }
+});
+
+
+// ═══ REFRESH TOKEN ROTATION (POST /api/auth/refresh) ═══
+// Mutex to deduplicate concurrent refresh requests for the same token
+const activeRefreshPromises = new Map();
+
+router.post("/refresh", authLimiter, async (req, res) => {
+  try {
+    const rawToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    if (!rawToken || typeof rawToken !== "string") {
+      return res.status(401).json({ error: "Refresh token is missing." });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(rawToken.trim()).digest("hex");
+
+    // If an identical refresh request is already running, wait for its result (deduplicate)
+    if (activeRefreshPromises.has(tokenHash)) {
+      const deduplicated = await activeRefreshPromises.get(tokenHash);
+      return res.status(deduplicated.status).json(deduplicated.body);
+    }
+
+    const refreshPromise = (async () => {
+      const existingDoc = await RefreshToken.findOne({ tokenHash });
+      if (!existingDoc || new Date(existingDoc.expiresAt).getTime() < Date.now()) {
+        if (existingDoc) await RefreshToken.deleteOne({ _id: existingDoc._id });
+        res.clearCookie("refreshToken", { path: "/api/auth" });
+        return { status: 401, body: { error: "Refresh token is invalid or expired. Please sign in again." } };
+      }
+
+      const user = await User.findById(existingDoc.userId);
+      if (!user) {
+        await RefreshToken.deleteOne({ _id: existingDoc._id });
+        res.clearCookie("refreshToken", { path: "/api/auth" });
+        return { status: 401, body: { error: "User account no longer exists." } };
+      }
+
+      // Rotate: invalidate current refresh token and generate new one
+      await RefreshToken.deleteOne({ _id: existingDoc._id });
+      const newRefreshToken = await issueRefreshToken(user._id, res);
+      const newAccessToken = generateToken(user);
+
+      return {
+        status: 200,
+        body: {
+          success: true,
+          token: newAccessToken,
+          refreshToken: newRefreshToken,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            plan: formatPlanName(user.plan),
+          },
+        },
+      };
+    })();
+
+    activeRefreshPromises.set(tokenHash, refreshPromise);
+    setTimeout(() => activeRefreshPromises.delete(tokenHash), 5000);
+
+    const result = await refreshPromise;
+    return res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("Refresh token error:", err.message);
+    res.status(500).json({ error: "Token refresh failed." });
+  }
+});
+
+// ═══ SESSION LOGOUT & REVOCATION (POST /api/auth/logout) ═══
+router.post("/logout", async (req, res) => {
+  try {
+    const rawToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    if (rawToken && typeof rawToken === "string") {
+      const tokenHash = crypto.createHash("sha256").update(rawToken.trim()).digest("hex");
+      await RefreshToken.deleteMany({ tokenHash });
+    }
+    if (req.user?._id) {
+      await RefreshToken.deleteMany({ userId: req.user._id });
+    }
+    res.clearCookie("refreshToken", { path: "/api/auth" });
+    return res.json({ success: true, message: "Logged out successfully." });
+  } catch (err) {
+    res.clearCookie("refreshToken", { path: "/api/auth" });
+    return res.json({ success: true, message: "Logged out." });
+  }
+});
 
 router.post("/guest-session", (req, res) => {
   try {

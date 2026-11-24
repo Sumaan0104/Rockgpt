@@ -1,4 +1,3 @@
-import { withBotId } from "botid/next/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -29,4 +28,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withBotId(nextConfig);
+let exportedConfig: NextConfig = nextConfig;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const botid = require("botid/next/config");
+  if (typeof botid?.withBotId === "function") {
+    exportedConfig = botid.withBotId(nextConfig);
+  }
+} catch {
+  // botid optional wrapper fallback
+}
+
+export default exportedConfig;

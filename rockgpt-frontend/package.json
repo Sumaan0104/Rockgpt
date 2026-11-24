@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "(tsx lib/db/migrate || true) && next build",
+    "build": "next build",
     "start": "next start",
     "check": "ultracite check",
     "fix": "ultracite fix",
-    "prepare": "husky || true",
+    "prepare": "husky || exit 0",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "npx tsx lib/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
