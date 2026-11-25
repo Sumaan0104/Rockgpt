@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/opengraph-image.png?v=20261125",
+        url: "/preview.png?v=20261125",
         width: 1200,
         height: 630,
         alt: "RockGPT – Next-Generation AI Assistant",
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     title: "RockGPT – Official AI Assistant & Workspace",
     description:
       "Ultra-fast, secure AI assistant by Suman Mansuri for coding, math, vision, and deep research.",
-    images: ["/twitter-image.png?v=20261125"],
+    images: ["/preview.png?v=20261125"],
   },
   appleWebApp: {
     capable: true,
