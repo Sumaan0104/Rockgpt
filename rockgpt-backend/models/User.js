@@ -73,7 +73,12 @@ const userSchema = new mongoose.Schema(
       },
       fast: {
         type: Boolean,
-        default: false,
+        default: true,
+      },
+      mode: {
+        type: String,
+        enum: ["fast", "think", "deep"],
+        default: "fast",
       },
       textSize: {
         type: String,

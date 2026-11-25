@@ -23,7 +23,8 @@ export async function GET() {
   return NextResponse.json({
     settings: {
       instructions: "",
-      fast: false,
+      fast: true,
+      mode: "fast",
       textSize: "m",
     },
   });

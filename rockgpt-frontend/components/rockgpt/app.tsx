@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { renderMarkdown } from "@/lib/markdown";
 
+type AiMode = "fast" | "think" | "deep";
+
 type UserData = {
   id?: string;
   name?: string;
@@ -11,6 +13,7 @@ type UserData = {
   settings?: {
     instructions?: string;
     fast?: boolean;
+    mode?: AiMode;
     textSize?: "s" | "m" | "l";
   };
 };
@@ -200,11 +203,11 @@ function ShieldLogo({ size = 28 }: { size?: number }) {
 function ThinkingIndicator({
   hasImage,
   isImageGen,
-  fastMode,
+  aiMode = "fast",
 }: {
   hasImage?: boolean;
   isImageGen?: boolean;
-  fastMode?: boolean;
+  aiMode?: AiMode;
 }) {
   const [stageIdx, setStageIdx] = useState(0);
 
@@ -212,9 +215,11 @@ function ThinkingIndicator({
     ? ["Thinking...", "Inspecting image...", "Working...", "Analyzing details..."]
     : isImageGen
     ? ["Thinking...", "Imagining visual...", "Working...", "Rendering artwork..."]
-    : fastMode
-    ? ["Thinking...", "Working..."]
-    : ["Thinking...", "Analyzing request...", "Working...", "Synthesizing answer..."];
+    : aiMode === "fast"
+    ? ["Thinking quickly...", "Working..."]
+    : aiMode === "deep"
+    ? ["Deep analysis...", "Exploring edge cases...", "Working...", "Synthesizing full guide..."]
+    : ["Thinking...", "Analyzing step by step...", "Working...", "Structuring answer..."];
 
   useEffect(() => {
     setStageIdx(0);
@@ -222,7 +227,7 @@ function ThinkingIndicator({
       setStageIdx((prev) => (prev + 1) % stages.length);
     }, 1050);
     return () => clearInterval(id);
-  }, [hasImage, isImageGen, fastMode, stages.length]);
+  }, [hasImage, isImageGen, aiMode, stages.length]);
 
   const label = stages[stageIdx % stages.length];
 
@@ -522,7 +527,9 @@ export function RockGPTApp() {
     instr: "",
     fast: false,
   });
-  const [fastMode, setFastMode] = useState(false);
+  const [aiMode, setAiMode] = useState<AiMode>("fast");
+  const fastMode = aiMode === "fast";
+  const [composerNudge, setComposerNudge] = useState(false);
 
   // Layout & Sidebar
   const [collapsed, setCollapsed] = useState(false);
@@ -778,8 +785,16 @@ export function RockGPTApp() {
       if (savedSet) updateSettings(savedSet);
     } catch {}
 
-    const savedFast = localStorage.getItem("rockgpt_fast") === "1";
-    setFastMode(savedFast);
+    try {
+      const savedMode = localStorage.getItem("rockgpt_mode") as AiMode | null;
+      if (savedMode === "fast" || savedMode === "think" || savedMode === "deep") {
+        setAiMode(savedMode);
+      } else if (localStorage.getItem("rockgpt_fast") === "0") {
+        setAiMode("think");
+      } else {
+        setAiMode("fast");
+      }
+    } catch {}
 
     // 2. Viewport Resize & App Mode
     const updateVh = () => {
@@ -983,8 +998,10 @@ export function RockGPTApp() {
               fast: !!data.user.settings.fast,
               size: data.user.settings.textSize || "m",
             });
-            if (data.user.settings.fast !== undefined) {
-              setFastMode(!!data.user.settings.fast);
+            if (data.user.settings.mode === "fast" || data.user.settings.mode === "think" || data.user.settings.mode === "deep") {
+              setAiMode(data.user.settings.mode);
+            } else if (data.user.settings.fast !== undefined) {
+              setAiMode(data.user.settings.fast ? "fast" : "think");
             }
           }
           return;
@@ -1448,6 +1465,7 @@ export function RockGPTApp() {
             dataUrl: f.type.startsWith("image/") ? f.dataUrl : undefined,
           })),
           fast: fastMode,
+          mode: aiMode,
           instructions: settings.instr,
           isFirstTurn: messages.length === 0,
         }),
@@ -2581,7 +2599,7 @@ export function RockGPTApp() {
                           <ThinkingIndicator
                             hasImage={thinkingContext.hasImage}
                             isImageGen={thinkingContext.isImageGen}
-                            fastMode={fastMode}
+                            aiMode={aiMode}
                           />
                         ) : null}
                       </div>
@@ -2649,7 +2667,7 @@ export function RockGPTApp() {
           {/* Composer Footer */}
           <footer>
             <div
-              className={`composer ${isDragOver ? "over" : ""}`}
+              className={`composer ${isDragOver ? "over" : ""} ${composerNudge ? "nudge" : ""}`}
               id="comp"
               onDragOver={(e) => {
                 e.preventDefault();
@@ -2664,6 +2682,12 @@ export function RockGPTApp() {
                 }
               }}
             >
+              {isDragOver && (
+                <div className="drop-hint" aria-hidden="true">
+                  Drop files to attach
+                </div>
+              )}
+
               {/* Attachments Tray */}
               {attachments.length > 0 && (
                 <div id="tray">
@@ -2693,7 +2717,11 @@ export function RockGPTApp() {
                 id="in"
                 ref={textareaRef}
                 rows={1}
-                placeholder="Reply to RockGPT"
+                placeholder={
+                  isFeedEmpty
+                    ? "Ask RockGPT anything, or drop in a file"
+                    : "Reply to RockGPT, or drop in a file"
+                }
                 value={inputValue}
                 onChange={(e) => {
                   setInputValue(e.target.value);
@@ -2726,7 +2754,7 @@ export function RockGPTApp() {
                     type="button"
                     className="sbtn"
                     id="clip"
-                    title="Attach file"
+                    title="Attach file or image"
                     aria-label="Attach file"
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -2735,29 +2763,60 @@ export function RockGPTApp() {
                     </svg>
                   </button>
 
-                  <button
-                    type="button"
-                    className={`pill ${fastMode ? "on" : ""}`}
-                    id="fast"
-                    onClick={() => {
-                      const next = !fastMode;
-                      setFastMode(next);
-                      localStorage.setItem("rockgpt_fast", next ? "1" : "0");
-                      if (user) {
-                        fetch("/api/me/settings", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ fast: next }),
-                        }).catch(() => {});
-                      }
-                      showToast(next ? "Fast mode enabled" : "Fast mode disabled");
-                    }}
+                  <div
+                    className="mode-seg"
+                    role="tablist"
+                    aria-label="Response mode"
+                    data-mode={aiMode}
+                    style={{ ["--mode-idx" as any]: aiMode === "fast" ? 0 : aiMode === "think" ? 1 : 2 }}
                   >
-                    <svg viewBox="0 0 24 24">
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                    </svg>
-                    <span>Fast</span>
-                  </button>
+                    <span className="mode-pill" aria-hidden="true" />
+                    {(
+                      [
+                        { id: "fast", label: "Fast", tip: "Quick, direct answers" },
+                        { id: "think", label: "Think", tip: "Step-by-step reasoning" },
+                        { id: "deep", label: "Deep", tip: "In-depth comprehensive analysis" },
+                      ] as const
+                    ).map((opt) => {
+                      const selectMode = (m: AiMode) => {
+                        setAiMode(m);
+                        try {
+                          localStorage.setItem("rockgpt_mode", m);
+                          localStorage.setItem("rockgpt_fast", m === "fast" ? "1" : "0");
+                        } catch {}
+                        if (user) {
+                          fetch("/api/me/settings", {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ fast: m === "fast", mode: m }),
+                          }).catch(() => {});
+                        }
+                      };
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={aiMode === opt.id}
+                          title={opt.tip}
+                          data-mode-btn={opt.id}
+                          className={`mode-opt ${aiMode === opt.id ? "on" : ""}`}
+                          onClick={() => selectMode(opt.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowRight") {
+                              e.preventDefault();
+                              selectMode(opt.id === "fast" ? "think" : opt.id === "think" ? "deep" : "fast");
+                            } else if (e.key === "ArrowLeft") {
+                              e.preventDefault();
+                              selectMode(opt.id === "fast" ? "deep" : opt.id === "think" ? "fast" : "think");
+                            }
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="cr">
@@ -2766,61 +2825,58 @@ export function RockGPTApp() {
                       {inputValue.trim().split(/\s+/).filter(Boolean).length}w · {inputValue.length}c
                     </span>
                   )}
-                  {!inputValue.trim() && attachments.length === 0 && (
-                    <button
-                      type="button"
-                      className={`sbtn ${isRecording ? "rec" : ""}`}
-                      id="mic"
-                      title={isRecording ? "Stop recording" : "Voice dictation"}
-                      aria-label={isRecording ? "Stop recording" : "Voice dictation"}
-                      onClick={handleVoiceInput}
-                    >
-                      <svg viewBox="0 0 24 24">
-                        <rect x="9" y="3" width="6" height="11" rx="3" />
-                        <path d="M5 11a7 7 0 0014 0M12 18v3" />
-                      </svg>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className={`sbtn ${isRecording ? "rec" : ""}`}
+                    id="mic"
+                    title={isRecording ? "Stop recording" : "Voice dictation"}
+                    aria-label={isRecording ? "Stop recording" : "Voice dictation"}
+                    onClick={handleVoiceInput}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <rect x="9" y="3" width="6" height="11" rx="3" />
+                      <path d="M5 11a7 7 0 0014 0M12 18v3" />
+                    </svg>
+                  </button>
 
                   <button
                     type="button"
                     id="send"
-                    className={`${(inputValue.trim() || attachments.length) && !isBusy ? "on" : ""} ${
+                    className={`${(inputValue.trim() || attachments.length) && !isBusy ? "on" : "ready"} ${
                       isBusy ? "stop" : ""
-                    } ${!isBusy && isRecording && !inputValue.trim() && attachments.length === 0 ? "rec" : ""}`}
-                    aria-label={
-                      isBusy
-                        ? "Stop generating"
-                        : inputValue.trim() || attachments.length
-                        ? "Send message"
-                        : isRecording
-                        ? "Stop voice input"
-                        : "Start voice input"
-                    }
+                    }`}
+                    title={isBusy ? "Stop generating" : "Send message"}
+                    aria-label={isBusy ? "Stop generating" : "Send message"}
                     onClick={
                       isBusy
                         ? stopGeneration
                         : inputValue.trim() || attachments.length
                         ? () => handleSend()
-                        : handleVoiceInput
+                        : () => {
+                            textareaRef.current?.focus();
+                            setComposerNudge(true);
+                            setTimeout(() => setComposerNudge(false), 380);
+                          }
                     }
                   >
                     {isBusy ? (
                       <svg className="sq" viewBox="0 0 24 24" fill="currentColor">
                         <rect x="4" y="4" width="16" height="16" rx="3" />
                       </svg>
-                    ) : (inputValue.trim() || attachments.length) ? (
+                    ) : (
                       <svg className="up" viewBox="0 0 24 24">
                         <path d="M12 19V5M6 11l6-6 6 6" />
-                      </svg>
-                    ) : (
-                      <svg className="wav" viewBox="0 0 24 24">
-                        <path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4" />
                       </svg>
                     )}
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="hint-row" aria-hidden="true">
+              {settings.enter
+                ? "Shift + Enter for a new line"
+                : "Ctrl + Enter to send · Shift + Enter for a new line"}
             </div>
 
             {isFeedEmpty && (

@@ -13,6 +13,7 @@ const postMessageSchema = z
     image: z.string().optional(),
     attachments: z.array(z.any()).max(8).optional(),
     fast: z.boolean().optional().default(false),
+    mode: z.enum(["fast", "think", "deep"]).optional(),
     instructions: z.string().max(600).optional().default(""),
     isFirstTurn: z.boolean().optional().default(false),
   })
@@ -79,6 +80,7 @@ export async function POST(
   let image: string | undefined;
   let attachments: StreamAttachment[] | undefined;
   let fast = false;
+  let mode: "fast" | "think" | "deep" = "fast";
   let instructions = "";
   let isFirstTurn = false;
 
@@ -89,7 +91,8 @@ export async function POST(
     content = parsed.content.trim();
     image = parsed.image;
     attachments = parsed.attachments;
-    fast = parsed.fast;
+    mode = parsed.mode ?? (parsed.fast ? "fast" : "think");
+    fast = mode === "fast";
     instructions = parsed.instructions;
     isFirstTurn = parsed.isFirstTurn;
   } catch (err) {
@@ -237,6 +240,7 @@ export async function POST(
             },
             chatId,
             fast,
+            mode,
             instructions,
             image,
             attachments,

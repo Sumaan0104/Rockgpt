@@ -158,10 +158,14 @@ app.get("/api/me/settings", authMiddleware, async (req, res) => {
 app.put("/api/me/settings", authMiddleware, async (req, res) => {
   try {
     if (!req.user || !req.user._id) return res.status(401).json({ error: "Unauthorized" });
-    const { instructions, fast, textSize } = req.body || {};
+    const { instructions, fast, mode, textSize } = req.body || {};
     const update = {};
     if (typeof instructions === "string") update["settings.instructions"] = instructions.slice(0, 600);
     if (typeof fast === "boolean") update["settings.fast"] = fast;
+    if (["fast", "think", "deep"].includes(mode)) {
+      update["settings.mode"] = mode;
+      if (typeof fast !== "boolean") update["settings.fast"] = mode === "fast";
+    }
     if (["s", "m", "l"].includes(textSize)) update["settings.textSize"] = textSize;
     const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { returnDocument: "after" }).select("settings").lean();
     res.json({ success: true, settings: user?.settings || {} });
