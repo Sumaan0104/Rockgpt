@@ -1,0 +1,177 @@
+{
+  "timestamp": "2026-11-24T15:34:14.728Z",
+  "endpoints": [
+    {
+      "method": "POST",
+      "endpoint": "/api/auth/guest-session",
+      "requestBody": {},
+      "expectedStatus": 200,
+      "responseSample": {
+        "guestToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "isGuest": true,
+        "expiresInSeconds": 210
+      },
+      "note": "Issues 3.5-minute temporary guest token"
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/auth/signup",
+      "requestBody": {
+        "name": "Baseline User",
+        "email": "baseline_test@rockgpt.local",
+        "password": "Password123!#"
+      },
+      "expectedStatus": 200,
+      "responseSample": {
+        "success": true,
+        "message": "Account created! 6-digit verification code sent to your email inbox.",
+        "email": "baseline_test@rockgpt.local",
+        "emailSent": true,
+        "user": {
+          "id": "6b00...",
+          "name": "Baseline User",
+          "email": "baseline_test@rockgpt.local",
+          "plan": "Free"
+        },
+        "token": "jwt_session_token..."
+      },
+      "note": "Creates user in MongoDB, generates 6-digit OTP hash, dispatches email"
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/auth/verify",
+      "requestBody": {
+        "email": "baseline_test@rockgpt.local",
+        "code": "123456"
+      },
+      "expectedStatus": 200,
+      "responseSample": {
+        "success": true,
+        "message": "Account active! Welcome to RockGPT.",
+        "user": {
+          "id": "6b00...",
+          "name": "Baseline User",
+          "email": "baseline_test@rockgpt.local",
+          "plan": "Free"
+        },
+        "token": "jwt_verified_token..."
+      },
+      "note": "Validates single-use HMAC-SHA256 OTP hash and activates user"
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/auth/signin",
+      "requestBody": {
+        "email": "baseline_test@rockgpt.local",
+        "password": "Password123!#"
+      },
+      "expectedStatus": 200,
+      "responseSample": {
+        "success": true,
+        "message": "Signed in successfully.",
+        "user": {
+          "id": "6b00...",
+          "name": "Baseline User",
+          "email": "baseline_test@rockgpt.local",
+          "plan": "Free"
+        },
+        "token": "jwt_session_token..."
+      },
+      "note": "Authenticates user against Bcrypt hash (Cost 12)"
+    },
+    {
+      "method": "GET",
+      "endpoint": "/api/auth/me",
+      "requestBody": null,
+      "expectedStatus": 200,
+      "responseSample": {
+        "user": {
+          "id": "6b00...",
+          "name": "Baseline User",
+          "email": "baseline_test@rockgpt.local",
+          "plan": "Free"
+        }
+      },
+      "note": "Returns authenticated user profile"
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/chat",
+      "requestBody": {
+        "chatId": "6b00...",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Hello RockGPT"
+          }
+        ],
+        "fast": true
+      },
+      "expectedStatus": 200,
+      "responseSample": "text/event-stream (data: {\"token\":\"...\"}\\n\\n ... data: {\"done\":true}\\n\\n)",
+      "note": "SSE streaming AI completion endpoint with auto-chat persistence"
+    },
+    {
+      "method": "GET",
+      "endpoint": "/api/chats?limit=30",
+      "requestBody": null,
+      "expectedStatus": 200,
+      "responseSample": {
+        "chats": [
+          {
+            "id": "6b00...",
+            "title": "Hello RockGPT",
+            "pinned": false,
+            "updatedAt": "2026-11-24T..."
+          }
+        ]
+      },
+      "note": "Lists user conversations newest first"
+    },
+    {
+      "method": "GET",
+      "endpoint": "/api/chats/:id",
+      "requestBody": null,
+      "expectedStatus": 200,
+      "responseSample": {
+        "chat": {
+          "id": "6b00...",
+          "title": "Hello RockGPT",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hello"
+            },
+            {
+              "role": "assistant",
+              "content": "Hi"
+            }
+          ]
+        }
+      },
+      "note": "Loads chat with message history"
+    },
+    {
+      "method": "DELETE",
+      "endpoint": "/api/chats/:id",
+      "requestBody": null,
+      "expectedStatus": 200,
+      "responseSample": {
+        "success": true,
+        "message": "Chat deleted"
+      },
+      "note": "Deletes or soft-deletes chat session"
+    },
+    {
+      "method": "POST",
+      "endpoint": "/api/auth/logout",
+      "requestBody": {},
+      "expectedStatus": 200,
+      "responseSample": {
+        "success": true,
+        "message": "Logged out successfully"
+      },
+      "note": "Invalidates refresh token and clears session cookie"
+    }
+  ]
+}

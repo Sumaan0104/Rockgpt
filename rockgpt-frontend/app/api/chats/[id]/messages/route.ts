@@ -19,7 +19,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await getSessionUser();
+  // Automatically provision guest session with signed token so unauthenticated visitors can chat seamlessly
+  const user = await getSessionUser(true);
   if (!user) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
@@ -90,12 +91,14 @@ export async function POST(
     created_at: new Date(),
   });
 
-  // Background sync user message to MongoDB Atlas
-  proxyBackendRequest(`/api/chats/${chatId}/messages`, {
-    method: "POST",
-    user,
-    body: { role: "user", content, image, attachments },
-  }).catch(() => {});
+  // Background sync user message to MongoDB Atlas only for authenticated accounts
+  if (!user.email.startsWith("guest-")) {
+    proxyBackendRequest(`/api/chats/${chatId}/messages`, {
+      method: "POST",
+      user,
+      body: { role: "user", content, image, attachments },
+    }).catch(() => {});
+  }
 
   // 2. Start SSE Stream Response IMMEDIATELY (Zero Delay)
   const encoder = new TextEncoder();
@@ -163,12 +166,14 @@ export async function POST(
             created_at: new Date(),
           });
 
-          // Background sync assistant response to MongoDB Atlas
-          proxyBackendRequest(`/api/chats/${chatId}/messages`, {
-            method: "POST",
-            user,
-            body: { role: "assistant", content: finalText },
-          }).catch(() => {});
+          // Background sync assistant response to MongoDB Atlas only for authenticated accounts
+          if (!user.email.startsWith("guest-")) {
+            proxyBackendRequest(`/api/chats/${chatId}/messages`, {
+              method: "POST",
+              user,
+              body: { role: "assistant", content: finalText },
+            }).catch(() => {});
+          }
 
           try {
             controller.enqueue(

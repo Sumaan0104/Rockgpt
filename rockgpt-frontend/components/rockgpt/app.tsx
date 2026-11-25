@@ -8,36 +8,87 @@ type UserData = {
   name?: string;
   email?: string;
   theme?: "dark" | "light";
-  avatar_url?: string;
+  settings?: {
+    instructions?: string;
+    fast?: boolean;
+    textSize?: "s" | "m" | "l";
+  };
 };
 
 type ChatItem = {
   id: string;
+  _id?: string;
   title: string;
-  project_id: string | null;
-  mode: "chat" | "deep";
-  created_at: string;
-  updated_at: string;
+  pinned?: boolean;
+  clientId?: string;
+  created_at?: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  msgs?: MessageItem[];
+  messages?: MessageItem[];
+  t?: number;
 };
 
 type MessageItem = {
   id?: string;
-  role: "user" | "assistant" | "bot";
+  _id?: string;
+  role: "user" | "assistant";
   content: string;
   image?: string;
-  attachments?: { name?: string; type?: string; url?: string }[];
-  research_card?: {
-    step: number;
-    subQuestions: string[];
-    status: "running" | "done" | "failed";
-  };
+  attachments?: { name?: string; type?: string; url?: string; dataUrl?: string }[];
+  files?: { name: string; type: string; url?: string; dataUrl?: string }[];
+  feedback?: "up" | "down" | null;
+  fb?: "up" | "dn" | null;
+  createdAt?: string;
 };
 
-type ProjectItem = {
-  id: string;
-  name: string;
-  chat_count: number;
-  created_at?: string;
+// ═══ SVG SPRITE ICONS ═══
+const PIN_SVG = (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 4h6l-1 6 3 3v1H7v-1l3-3zM12 14v6" />
+  </svg>
+);
+
+const REN_SVG = (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h8M16.5 3.5a2.1 2.1 0 013 3L8 18l-4 1 1-4z" />
+  </svg>
+);
+
+const BIN_SVG = (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
+  </svg>
+);
+
+const EDIT_SVG = (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h8M16.5 3.5a2.1 2.1 0 013 3L8 18l-4 1 1-4z" />
+  </svg>
+);
+
+const GOOGLE_SVG = (
+  <svg width="20" height="20" viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z" />
+    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+    <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+    <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z" />
+  </svg>
+);
+
+const FUP_OPTIONS = [
+  "Explain more",
+  "Give an example",
+  "Make it shorter",
+  "Translate to Hindi",
+];
+
+// Helper to check if element is visible in viewport
+const isSeen = (el: HTMLElement | null) => {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return el.getClientRects().length > 0 && r.width > 0 && r.right > 0 && r.left < window.innerWidth && r.top < window.innerHeight;
 };
 
 // ═══ 6-BOX AUTO-ADVANCING OTP COMPONENT ═══
@@ -112,6 +163,7 @@ function OtpBoxes({
           pattern="[0-9]*"
           maxLength={1}
           autoComplete="one-time-code"
+          data-lpignore="true"
           disabled={disabled}
           value={value[i] || ""}
           onChange={(e) => handleChange(e, i)}
@@ -124,23 +176,49 @@ function OtpBoxes({
   );
 }
 
-// ═══ MESSAGE ACTIONS BAR (Copy, Speaker, Like, Dislike, Regenerate) ═══
-function MessageActionsBar({
+// ═══ SECURITY SHIELD LOGO (MATCHING USER IMAGE 2) ═══
+function ShieldLogo({ size = 28 }: { size?: number }) {
+  return (
+    <div className="shield" role="img" aria-label="RockGPT Security Shield">
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 2.5L4.5 5.5v5.5c0 5.25 3.5 10 7.5 11 4-1 7.5-5.75 7.5-11V5.5L12 2.5z" />
+      </svg>
+    </div>
+  );
+}
+
+// ═══ RESPONSE ACTION BUTTONS BAR (MATCHING USER IMAGES) ═══
+function ResponseActionsBar({
+  messageId,
   content,
+  feedback,
+  onFeedbackChange,
+  isLast,
   isStreaming,
   onRegenerate,
   onToast,
 }: {
+  messageId?: string;
   content: string;
+  feedback?: "up" | "down" | null;
+  onFeedbackChange?: (val: "up" | "down" | null) => void;
+  isLast: boolean;
   isStreaming: boolean;
   onRegenerate?: () => void;
-  onToast?: (msg: string) => void;
+  onToast: (msg: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
-  // Stop speech if unmounted
   useEffect(() => {
     return () => {
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -149,37 +227,20 @@ function MessageActionsBar({
     };
   }, []);
 
-  // While this message is streaming tokens, do not render the action toolbar
-  if (isStreaming) {
-    return null;
-  }
-
   const handleCopy = async () => {
     try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(content);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = content;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
+      await navigator.clipboard.writeText(content);
       setCopied(true);
-      if (onToast) onToast("Copied to clipboard!");
-      setTimeout(() => setCopied(false), 2000);
+      onToast("Copied to clipboard!");
+      setTimeout(() => setCopied(false), 1400);
     } catch {
-      if (onToast) onToast("Failed to copy");
+      onToast("Couldn't copy");
     }
   };
 
   const handleSpeech = () => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      if (onToast) onToast("Text-to-speech not supported in this browser");
+      onToast("Text-to-speech not supported");
       return;
     }
     if (speaking) {
@@ -188,19 +249,15 @@ function MessageActionsBar({
       return;
     }
     window.speechSynthesis.cancel();
-    const clean = content
-      .replace(/!\[.*?\]\(.*?\)/g, "")
-      .replace(/\[(.*?)\]\(.*?\)/g, "$1")
-      .replace(/```[\s\S]*?```/g, "")
-      .replace(/`([^`]+)`/g, "$1")
-      .replace(/[#*_~>|]/g, "")
+    const plain = content
+      .replace(/```[\s\S]*?```/g, " code block ")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[`*#>_]/g, "")
       .trim();
 
-    if (!clean) return;
-
-    const utter = new SpeechSynthesisUtterance(clean);
-    utter.rate = 1.0;
-    utter.pitch = 1.0;
+    if (!plain) return;
+    const utter = new SpeechSynthesisUtterance(plain);
+    utter.lang = navigator.language || "en-US";
     utter.onstart = () => setSpeaking(true);
     utter.onend = () => setSpeaking(false);
     utter.onerror = () => setSpeaking(false);
@@ -208,99 +265,104 @@ function MessageActionsBar({
   };
 
   const handleLike = () => {
-    if (feedback === "up") {
-      setFeedback(null);
-    } else {
-      setFeedback("up");
-      if (onToast) onToast("Thanks for your feedback! 👍");
+    const next = feedback === "up" ? null : "up";
+    onFeedbackChange?.(next);
+    if (messageId) {
+      fetch(`/api/messages/${messageId}/feedback`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedback: next }),
+      }).catch(() => {});
     }
+    onToast(next ? "Thanks for your feedback! 👍" : "Feedback removed");
   };
 
   const handleDislike = () => {
-    if (feedback === "down") {
-      setFeedback(null);
-    } else {
-      setFeedback("down");
-      if (onToast) onToast("Feedback noted. We'll work on it! 👎");
+    const next = feedback === "down" ? null : "down";
+    onFeedbackChange?.(next);
+    if (messageId) {
+      fetch(`/api/messages/${messageId}/feedback`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedback: next }),
+      }).catch(() => {});
     }
+    onToast(next ? "Feedback noted. We'll work on it! 👎" : "Feedback removed");
   };
 
   return (
-    <div className="msg-actions-bar" role="toolbar" aria-label="Response toolbar">
+    <div className="acts" role="toolbar" aria-label="Response toolbar">
       {/* 1. Copy */}
       <button
         type="button"
-        className={`msg-action-btn ${copied ? "active" : ""}`}
+        className={`ab ${copied ? "ok" : ""}`}
         onClick={handleCopy}
-        title={copied ? "Copied" : "Copy"}
+        title="Copy"
         aria-label="Copy"
       >
-        {copied ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-        )}
+        <svg className="cp" viewBox="0 0 24 24">
+          <rect x="9" y="9" width="11" height="11" rx="2.5" />
+          <path d="M5 15V6.5A2.5 2.5 0 017.5 4H15" />
+        </svg>
+        <svg className="ck" viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
       </button>
 
       {/* 2. Speaker / Read aloud */}
       <button
         type="button"
-        className={`msg-action-btn ${speaking ? "speaking" : ""}`}
+        className={`ab ${speaking ? "sel" : ""}`}
         onClick={handleSpeech}
         title={speaking ? "Stop" : "Read aloud"}
         aria-label="Read aloud"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <svg viewBox="0 0 24 24">
+          <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5zM15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11" />
         </svg>
       </button>
 
       {/* 3. Thumbs Up */}
       <button
         type="button"
-        className={`msg-action-btn ${feedback === "up" ? "active" : ""}`}
+        className={`ab ${feedback === "up" ? "sel" : ""}`}
         onClick={handleLike}
         title="Good response"
         aria-label="Good response"
       >
-        <svg viewBox="0 0 24 24" fill={feedback === "up" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+        <svg viewBox="0 0 24 24">
+          <path d="M7 10l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.3l-1.2 6A2 2 0 0116.1 20H7V10z" />
         </svg>
       </button>
 
-      {/* 4. Thumbs Down */}
+      {/* 4. Thumbs Down (Rotated 180deg) */}
       <button
         type="button"
-        className={`msg-action-btn ${feedback === "down" ? "active" : ""}`}
+        className={`ab ${feedback === "down" ? "sel" : ""}`}
+        data-k="dn"
         onClick={handleDislike}
         title="Bad response"
         aria-label="Bad response"
       >
-        <svg viewBox="0 0 24 24" fill={feedback === "down" ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3" />
+        <svg viewBox="0 0 24 24">
+          <path d="M7 10l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.3l-1.2 6A2 2 0 0116.1 20H7V10z" />
         </svg>
       </button>
 
-      {/* 5. Regenerate */}
-      {onRegenerate && (
+      {/* 5. Regenerate (on last assistant message, matching User Image 1) */}
+      {isLast && onRegenerate && (
         <button
           type="button"
-          className="msg-action-btn"
+          className="ab"
+          data-k="rg"
           onClick={onRegenerate}
           disabled={isStreaming}
           title="Regenerate"
           aria-label="Regenerate"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24">
             <polyline points="23 4 23 10 17 10" />
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
           </svg>
         </button>
       )}
@@ -308,255 +370,223 @@ function MessageActionsBar({
   );
 }
 
-
-// ═══ MEMOIZED MESSAGE ITEM (PREVENTS FULL-LIST RE-RENDERS ON TOKENS) ═══
-const MemoizedMessageView = React.memo(function MemoizedMessageView({
-  msg,
-  isStreaming,
-  isLast,
-  onRegenerate,
-  onToast,
-}: {
-  msg: MessageItem;
-  isStreaming: boolean;
-  isLast: boolean;
-  onRegenerate?: () => void;
-  onToast?: (msg: string) => void;
-}) {
-  return (
-    <div className={`m ${msg.role === "user" ? "user" : "bot"}`}>
-      {msg.research_card && (
-        <div className={`m rcard ${msg.research_card.status === "done" ? "done" : ""}`}>
-          <div className="rc-h">
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="8.5" />
-              <circle cx="12" cy="12" r="3.5" />
-              <path className="sweep" d="M12 12V3.5" />
-            </svg>
-            <span className="rc-t">
-              {msg.research_card.status === "done" ? "Research complete" : "Deep Researching"}
-            </span>
-            <small>Live Engine</small>
-          </div>
-          <div className="rc-bar">
-            <i style={{ width: `${(msg.research_card.step / 5) * 100}%` }} />
-          </div>
-          <div className="rc-steps">
-            {[
-              "Understanding question and planning",
-              "Searching primary verified sources",
-              "Extracting page insights",
-              "Cross-checking and verification",
-              "Synthesizing final research report",
-            ].map((stepText, sIdx) => {
-              const stepNum = sIdx + 1;
-              const isDone = msg.research_card!.step > stepNum || msg.research_card!.status === "done";
-              const isCurrent = msg.research_card!.step === stepNum && msg.research_card!.status === "running";
-              return (
-                <div key={sIdx} className={`rc-step ${isDone ? "ok" : isCurrent ? "run" : ""}`}>
-                  <span className="d" />
-                  <span>{stepText}</span>
-                </div>
-              );
-            })}
-          </div>
-          {msg.research_card.subQuestions.length > 0 && (
-            <div className="rc-q">
-              {msg.research_card.subQuestions.map((q, qIdx) => (
-                <div key={qIdx} style={{ marginTop: 4 }}>• {q}</div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Attached image preview on message (preserved in chat and previous chat history) */}
-      {msg.image && (
-        <div className="msg-image-wrap">
-          <img src={msg.image} alt="Attached visual" className="msg-image" loading="lazy" />
-        </div>
-      )}
-      {msg.attachments && msg.attachments.length > 0 && !msg.image && (
-        <div className="msg-attachments-wrap">
-          {msg.attachments.map((att, attIdx) => {
-            const isImg = att.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(att.url || att.name || "");
-            if (isImg && att.url) {
-              return (
-                <div key={attIdx} className="msg-image-wrap">
-                  <img src={att.url} alt={att.name || "Attached visual"} className="msg-image" loading="lazy" />
-                  {att.name && <span className="msg-image-caption">{att.name}</span>}
-                </div>
-              );
-            }
-            return null;
-          })}
-        </div>
-      )}
-
-      {msg.content && (
-        <div
-          className="msg-content"
-          dangerouslySetInnerHTML={{
-            __html: renderMarkdown(
-              msg.content,
-              msg.role === "assistant" && isStreaming && isLast
-            ),
-          }}
-        />
-      )}
-
-      {/* Action Toolbar on Assistant Messages (Copy, Speaker, Like, Dislike, Regenerate) */}
-      {(msg.role === "assistant" || msg.role === "bot") && msg.content && (
-        <MessageActionsBar
-          content={msg.content}
-          isStreaming={isStreaming && isLast}
-          onRegenerate={onRegenerate}
-          onToast={onToast}
-        />
-      )}
-    </div>
-  );
-}, (prev, next) => {
-  return (
-    prev.msg.content === next.msg.content &&
-    prev.msg.role === next.msg.role &&
-    prev.msg.image === next.msg.image &&
-    prev.isStreaming === next.isStreaming &&
-    prev.isLast === next.isLast &&
-    prev.msg.research_card?.step === next.msg.research_card?.step &&
-    prev.msg.research_card?.status === next.msg.research_card?.status
-  );
-});
-
+// ═══ MAIN ROCKGPT APPLICATION COMPONENT ═══
 export function RockGPTApp() {
-  // Splash State
-  const [showSplash, setShowSplash] = useState(true);
-  const [introOut, setIntroOut] = useState(false);
+  // Splash & Intro State
+  const [showIntro, setShowIntro] = useState(true);
+  const [flown, setFlown] = useState(false);
 
   // User & Theme State
-  const [currentUser, setCurrentUser] = useState<UserData | null>(null);
+  const [user, setUser] = useState<UserData | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [settings, setSettings] = useState<{
+    enter: boolean;
+    intro: boolean;
+    size: "s" | "m" | "l";
+    scroll: boolean;
+    instr: string;
+  }>({
+    enter: true,
+    intro: true,
+    size: "m",
+    scroll: true,
+    instr: "",
+  });
+  const [fastMode, setFastMode] = useState(false);
 
-  // Sidebar & Sheets State
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [activeSheet, setActiveSheet] = useState<"proj" | "canvas" | null>(null);
+  // Layout & Sidebar
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchInput, setShowSearchInput] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState("");
 
-  // Chats & Active Session
-  const [chatsList, setChatsList] = useState<ChatItem[]>([]);
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  // Chats & Active Conversation
+  const [chats, setChats] = useState<ChatItem[]>([]);
+  const [activeChat, setActiveChat] = useState<ChatItem | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
-  const [isHidingTyping, setIsHidingTyping] = useState(false);
-  const [streamError, setStreamError] = useState<string | null>(null);
-
-  // Mode Chips
-  const [deepMode, setDeepMode] = useState(false);
-  const [activeProject, setActiveProject] = useState<ProjectItem | null>(null);
-  const [projectsList, setProjectsList] = useState<ProjectItem[]>([]);
-
-  // Composer State
-  const [inputVal, setInputVal] = useState("");
-  const [attachedImage, setAttachedImage] = useState<{ name: string; dataUrl: string } | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
-  // Projects Sheet State
-  const [showNewProjForm, setShowNewProjForm] = useState(false);
-  const [newProjName, setNewProjName] = useState("");
-  const [expandedProjId, setExpandedProjId] = useState<string | null>(null);
+  // Composer State
+  const [inputValue, setInputValue] = useState("");
+  const [attachments, setAttachments] = useState<{ name: string; type: string; url?: string; dataUrl?: string; file?: File }[]>([]);
 
-  // Canvas State
-  const [canvasTitle, setCanvasTitle] = useState("");
-  const [canvasText, setCanvasText] = useState("");
-  const [canvasSavedNotice, setCanvasSavedNotice] = useState(false);
-  const canvasSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Auth Modal State
+  // Modals & Overlays
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authTab, setAuthTab] = useState<"login" | "signup" | "otp" | "forgot" | "reset" | "google_select">("login");
-  const [isServerWaking, setIsServerWaking] = useState(false);
-  const [isChatsLoading, setIsChatsLoading] = useState(true);
+  const [authMode, setAuthMode] = useState<"in" | "up" | "code" | "forgot" | "reset">("in");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
+  const [authPassword2, setAuthPassword2] = useState("");
   const [authOtpCode, setAuthOtpCode] = useState("");
-  const [authShowPassword, setAuthShowPassword] = useState(false);
-  const [authResendSeconds, setAuthResendSeconds] = useState(0);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authShowPw, setAuthShowPw] = useState(false);
+  const [authAgreeTos, setAuthAgreeTos] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+  const [authResendSeconds, setAuthResendSeconds] = useState(0);
 
-  // Toast State
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [heroBye, setHeroBye] = useState(false);
-  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const chatAbortRef = useRef<AbortController | null>(null);
+  // Guest Session Countdown Timer (3 Minutes Free Trial)
+  const [guestTimeLeft, setGuestTimeLeft] = useState<number | null>(null);
+
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Toasts
+  const [toasts, setToasts] = useState<{ id: string; msg: string; act?: { label: string; fn: () => void } }[]>([]);
 
   // DOM Refs
-  const feedRef = useRef<HTMLDivElement | null>(null);
+  const scRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const sheetWaveRef = useRef<HTMLDivElement | null>(null);
-  const drawerRef = useRef<HTMLElement | null>(null);
-  const appRef = useRef<HTMLElement | null>(null);
-  const scrimRef = useRef<HTMLDivElement | null>(null);
-  const touchStateRef = useRef<{
-    startX: number;
-    startY: number;
-    lastX: number;
-    lastTime: number;
-    vx: number;
-    isOpen: boolean;
-    drawerW: number;
-    active: boolean;
-  } | null>(null);
+  const introIconRef = useRef<HTMLImageElement | null>(null);
+  const sMarkRef = useRef<HTMLDivElement | null>(null);
+  const hMarkRef = useRef<HTMLDivElement | null>(null);
+  const abortCtrlRef = useRef<AbortController | null>(null);
+  const lastAiMarkRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const micRecRef = useRef<any>(null);
+  const introRanRef = useRef(false);
+  const flyInRanRef = useRef(false);
 
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToastMsg(null), 2000);
+  // Toast Dispatcher
+  const showToast = useCallback((msg: string, act?: { label: string; fn: () => void }) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev.slice(-3), { id, msg, act }]);
+    const duration = act ? 6000 : 2400;
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, duration);
+  }, []);
+
+  // Auth Modal Opener (Guarantees fresh state, zero prefill, and no autofill)
+  const openAuthModal = useCallback((mode: "in" | "up" = "in", errorMsg?: string) => {
+    setAuthMode(mode);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthPassword2("");
+    setAuthName("");
+    setAuthOtpCode("");
+    setAuthError(errorMsg || null);
+    setAuthSuccessMsg(null);
+    setShowAuthModal(true);
   }, []);
 
   // Theme Synchronizer
-  const applyThemeMode = useCallback((mode: "dark" | "light", save = true) => {
-    setTheme(mode);
+  const applyTheme = useCallback((t: "dark" | "light") => {
+    setTheme(t);
     if (typeof document !== "undefined") {
-      document.body.classList.toggle("light", mode === "light");
-    }
-    if (save) {
-      localStorage.setItem("rockgpt_theme", mode);
-      fetch("/api/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: mode }),
-      }).catch(() => {});
+      document.documentElement.dataset.theme = t;
+      try {
+        localStorage.setItem("rockgpt_theme", t);
+      } catch {}
     }
   }, []);
 
-  // 1. Initial Load: Splash Animation (synchronous with media_1793129248177.html)
-  const dismissSplash = useCallback(() => {
-    setIntroOut(true);
-    if (typeof document !== "undefined") {
-      document.body.classList.add("ready");
-    }
-    setTimeout(() => {
-      setShowSplash(false);
-    }, 680);
+  // Settings Synchronizer
+  const updateSettings = useCallback((newSet: Partial<typeof settings>) => {
+    setSettings((prev) => {
+      const merged = { ...prev, ...newSet };
+      if (typeof document !== "undefined") {
+        document.documentElement.dataset.size = merged.size;
+        try {
+          localStorage.setItem("rockgpt_set", JSON.stringify(merged));
+        } catch {}
+      }
+      return merged;
+    });
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(dismissSplash, 3400);
-    return () => clearTimeout(timer);
-  }, [dismissSplash]);
+  // 1. INTRO FLIP ANIMATION (SECTION 6 & FLIP SHARED-ELEMENT)
+  const flyIn = useCallback(() => {
+    if (flyInRanRef.current) return;
+    flyInRanRef.current = true;
+    setFlown(true);
 
-  // Check saved theme
-  useEffect(() => {
-    const saved = localStorage.getItem("rockgpt_theme") as "dark" | "light" | null;
-    if (saved) applyThemeMode(saved, false);
-  }, [applyThemeMode]);
+    const root = document.documentElement;
+    root.classList.add("reveal");
 
-  // Viewport Height Sync
+    const icon = introIconRef.current;
+    if (icon) {
+      try {
+        icon.getAnimations().forEach((x) => x.cancel());
+        icon.style.opacity = "1";
+      } catch {}
+    }
+
+    const targetSlot = [hMarkRef.current, sMarkRef.current].find((el) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    });
+
+    const done = () => {
+      if (targetSlot) {
+        targetSlot.style.opacity = "1";
+        targetSlot.style.transition = "none";
+      }
+      root.classList.add("reveal", "landed");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setShowIntro(false);
+        });
+      });
+    };
+
+    // Watchdog fallback: never allow intro to stay stuck
+    const watchdog = setTimeout(done, 1100);
+
+    if (!targetSlot || !icon || !icon.animate) {
+      clearTimeout(watchdog);
+      done();
+      return;
+    }
+
+    try {
+      const a = icon.getBoundingClientRect();
+      const b = targetSlot.getBoundingClientRect();
+      const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+      const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+      const k = b.width / (a.width || 1);
+
+      const anim = icon.animate(
+        [
+          { transform: "translate(0,0) scale(1)" },
+          { transform: `translate(${dx}px, ${dy}px) scale(${k})` },
+        ],
+        {
+          duration: 750,
+          easing: "cubic-bezier(.65,0,.35,1)",
+          fill: "forwards",
+        }
+      );
+      anim.onfinish = () => {
+        clearTimeout(watchdog);
+        done();
+      };
+    } catch {
+      clearTimeout(watchdog);
+      done();
+    }
+  }, []);
+
+  // Initial Load & Mount Setup
   useEffect(() => {
+    // 1. Theme & Settings
+    const savedTheme = (localStorage.getItem("rockgpt_theme") as "dark" | "light") || "dark";
+    applyTheme(savedTheme);
+
+    try {
+      const savedSet = JSON.parse(localStorage.getItem("rockgpt_set") || "{}");
+      if (savedSet) updateSettings(savedSet);
+    } catch {}
+
+    const savedFast = localStorage.getItem("rockgpt_fast") === "1";
+    setFastMode(savedFast);
+
+    // 2. Viewport Resize & App Mode
     const updateVh = () => {
       const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
       document.documentElement.style.setProperty("--vh", `${h}px`);
@@ -564,69 +594,118 @@ export function RockGPTApp() {
     updateVh();
     window.addEventListener("resize", updateVh);
     window.visualViewport?.addEventListener("resize", updateVh);
+
+    // 3. Intro Flow (Guaranteed to execute and never freeze)
+    if (!introRanRef.current) {
+      introRanRef.current = true;
+
+      const fallbackTimer = setTimeout(() => {
+        document.documentElement.classList.add("reveal", "landed");
+        setShowIntro(false);
+      }, 4500);
+
+      const isAppMode =
+        document.documentElement.classList.contains("app-mode") ||
+        window.matchMedia("(display-mode: standalone)").matches;
+
+      const forceIntro = !!sessionStorage.getItem("rg_force");
+      if (forceIntro) {
+        sessionStorage.removeItem("rg_force");
+      }
+
+      let prefIntro = true;
+      try {
+        const saved = localStorage.getItem("rockgpt_set");
+        if (saved) prefIntro = JSON.parse(saved).intro !== false;
+      } catch {}
+
+      if (prefIntro || forceIntro) {
+        if (introIconRef.current) {
+          introIconRef.current.style.opacity = "1";
+        }
+        // Logo unfolds (0s-0.52s), "ROCKGPT" arranges next to it (0.45s-1.00s), fully formed by 1.00s, holds arranged, then flyIn() hands off into app!
+        const dur = isAppMode ? 1700 : 2000;
+        const timer = setTimeout(flyIn, dur);
+        return () => {
+          clearTimeout(timer);
+          clearTimeout(fallbackTimer);
+          window.removeEventListener("resize", updateVh);
+          window.visualViewport?.removeEventListener("resize", updateVh);
+        };
+      } else {
+        clearTimeout(fallbackTimer);
+        document.documentElement.classList.add("reveal", "landed");
+        setShowIntro(false);
+      }
+    }
+
     return () => {
       window.removeEventListener("resize", updateVh);
       window.visualViewport?.removeEventListener("resize", updateVh);
     };
+  }, [applyTheme, flyIn, updateSettings]);
+
+  // Keydown / Click to Dismiss Intro Early
+  useEffect(() => {
+    if (!showIntro) return;
+    const onKey = () => flyIn();
+    window.addEventListener("keydown", onKey, { once: true });
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showIntro, flyIn]);
+
+  // Code block copy delegation
+  useEffect(() => {
+    const onListClick = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".cc, .code-copy-btn");
+      if (!btn) return;
+      const raw = btn.dataset.copy
+        ? decodeURIComponent(btn.dataset.copy)
+        : btn.closest("pre")?.querySelector("code")?.textContent || "";
+      if (raw) {
+        navigator.clipboard.writeText(raw).then(() => {
+          const oldText = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(() => {
+            btn.textContent = oldText || "Copy";
+          }, 1400);
+        });
+      }
+    };
+    const sc = scRef.current;
+    sc?.addEventListener("click", onListClick);
+    return () => sc?.removeEventListener("click", onListClick);
   }, []);
 
-  // Fetch Session User
+  // Fetch Session & Persistent Chats
   const fetchSession = useCallback(async () => {
     try {
       const res = await fetch("/api/me");
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
-          setCurrentUser(data.user);
-          if (data.user.theme) applyThemeMode(data.user.theme, false);
+          setUser(data.user);
+          if (data.user.settings) {
+            updateSettings({
+              instr: data.user.settings.instructions || "",
+              fast: !!data.user.settings.fast,
+              size: data.user.settings.textSize || "m",
+            });
+            if (data.user.settings.fast !== undefined) {
+              setFastMode(!!data.user.settings.fast);
+            }
+          }
         }
-      } else {
-        setCurrentUser(null);
       }
-    } catch {
-      setCurrentUser(null);
-    }
-  }, [applyThemeMode]);
+    } catch {}
+  }, [updateSettings]);
 
-  // Fetch Chats
   const fetchChats = useCallback(async () => {
     try {
       const res = await fetch("/api/chats");
       if (res.ok) {
         const data = await res.json();
-        const list = Array.isArray(data.chats) ? data.chats : (Array.isArray(data) ? data : []);
-        setChatsList(list);
-      }
-    } catch {
-      // offline / guest
-    } finally {
-      setIsChatsLoading(false);
-    }
-  }, []);
-
-  // Fetch Projects
-  const fetchProjects = useCallback(async () => {
-    try {
-      const res = await fetch("/api/projects");
-      if (res.ok) {
-        const data = await res.json();
-        setProjectsList(data.projects || []);
-      }
-    } catch {
-      // offline / guest
-    }
-  }, []);
-
-  // Fetch Canvas
-  const fetchCanvas = useCallback(async () => {
-    try {
-      const res = await fetch("/api/canvas");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.canvas) {
-          setCanvasTitle(data.canvas.title || "");
-          setCanvasText(data.canvas.content || "");
-        }
+        const list: ChatItem[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
+        setChats(list);
       }
     } catch {}
   }, []);
@@ -634,501 +713,307 @@ export function RockGPTApp() {
   useEffect(() => {
     fetchSession();
     fetchChats();
-    fetchProjects();
-    fetchCanvas();
-// Health & Server-Wake Check (prevents frozen screens during Render cold boot)
+  }, [fetchSession, fetchChats]);
+
+  // Auto-scroll when assistant reply finishes to reveal response toolbar & follow-up chips
   useEffect(() => {
-    let active = true;
-    const timer = setTimeout(() => {
-      if (active) setIsServerWaking(true);
-    }, 1200);
-
-    fetch("/api/health")
-      .then((res) => {
-        if (res.ok && active) {
-          clearTimeout(timer);
-          setIsServerWaking(false);
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, []);
-
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get("auth") === "google_success") {
-        showToast("Signed in with Google successfully!");
-        fetchSession();
-        window.history.replaceState({}, "", "/");
-      } else if (url.searchParams.get("error")) {
-        const errorParam = url.searchParams.get("error");
-        if (errorParam === "google_cancelled") {
-          showToast("Google sign-in was cancelled.");
-        } else if (errorParam === "google_not_configured") {
-          showToast("Google OAuth is not configured in Google Cloud Console.");
-        } else if (errorParam === "invalid_oauth_state") {
-          showToast("Authentication security check failed (CSRF mismatch).");
-        } else if (errorParam === "unverified_google_email") {
-          showToast("Your Google account email is not verified.");
-        } else {
-          showToast("Google authentication failed. Please try again.");
-        }
-        setShowAuthModal(true);
-        window.history.replaceState({}, "", "/");
+    if (!isBusy && messages.length > 0) {
+      const last = messages[messages.length - 1];
+      if (last.role === "assistant") {
+        const timer = setTimeout(() => {
+          if (scRef.current) {
+            scRef.current.scrollTo({
+              top: scRef.current.scrollHeight + 300,
+              behavior: "smooth",
+            });
+          }
+        }, 80);
+        return () => clearTimeout(timer);
       }
     }
-  }, [fetchSession, fetchChats, fetchProjects, fetchCanvas, showToast]);
+  }, [isBusy, messages.length]);
 
-  // OTP resend countdown effect
+  // Guest 3-minute free preview session countdown
+  useEffect(() => {
+    if (guestTimeLeft === null || user) return;
+    if (guestTimeLeft <= 0) {
+      openAuthModal("up", "Your 3-minute free preview session has ended. Sign up or log in to keep chatting and save your conversation!");
+      return;
+    }
+    const t = setInterval(() => {
+      setGuestTimeLeft((p) => (p !== null ? p - 1 : null));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [guestTimeLeft, user, openAuthModal]);
+
+  // Unload guard: warn unauthenticated users that refreshing will clear their in-memory conversation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!user && messages.length > 0) {
+        e.preventDefault();
+        e.returnValue = "Are you sure you want to refresh? Your conversation will be lost unless you sign up.";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [user, messages.length]);
+
+  // OTP resend countdown
   useEffect(() => {
     if (authResendSeconds <= 0) return;
-    const timer = setInterval(() => {
-      setAuthResendSeconds(prev => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setAuthResendSeconds((p) => Math.max(0, p - 1)), 1000);
+    return () => clearInterval(t);
   }, [authResendSeconds]);
 
-  // Autosave Canvas with 450ms Debounce
-  const handleCanvasChange = (newTitle: string, newText: string) => {
-    setCanvasTitle(newTitle);
-    setCanvasText(newText);
-    if (canvasSaveTimerRef.current) clearTimeout(canvasSaveTimerRef.current);
-    canvasSaveTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/canvas", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: newTitle, content: newText }),
-        });
-        if (res.ok) {
-          setCanvasSavedNotice(true);
-          setTimeout(() => setCanvasSavedNotice(false), 1200);
-        }
-      } catch {}
-    }, 450);
-  };
-
-  // Touch Drag for Sidebar Drawer
-  useEffect(() => {
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1 || showAuthModal) return;
-      const t = e.touches[0];
-      const drawerW = drawerRef.current?.offsetWidth || 320;
-      if (!drawerOpen && t.clientX > 32) return;
-      touchStateRef.current = {
-        startX: t.clientX,
-        startY: t.clientY,
-        lastX: t.clientX,
-        lastTime: performance.now(),
-        vx: 0,
-        isOpen: drawerOpen,
-        drawerW,
-        active: false,
-      };
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!touchStateRef.current) return;
-      const t = e.touches[0];
-      const dx = t.clientX - touchStateRef.current.startX;
-      const dy = t.clientY - touchStateRef.current.startY;
-
-      if (!touchStateRef.current.active) {
-        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
-          touchStateRef.current = null;
-          return;
-        }
-        if (Math.abs(dx) > 8) {
-          touchStateRef.current.active = true;
-          setIsDragging(true);
-        } else {
-          return;
-        }
-      }
-
-      const now = performance.now();
-      const dt = Math.max(1, now - touchStateRef.current.lastTime);
-      touchStateRef.current.vx = (t.clientX - touchStateRef.current.lastX) / dt;
-      touchStateRef.current.lastX = t.clientX;
-      touchStateRef.current.lastTime = now;
-
-      const base = touchStateRef.current.isOpen ? 0 : -touchStateRef.current.drawerW;
-      const offset = Math.min(0, Math.max(-touchStateRef.current.drawerW, base + dx));
-      const progress = 1 + offset / touchStateRef.current.drawerW;
-
-      if (drawerRef.current) {
-        drawerRef.current.style.transform = `translate3d(${offset}px, 0, 0)`;
-      }
-      if (scrimRef.current) {
-        scrimRef.current.style.opacity = String(progress);
-      }
-    };
-
-    const onTouchEnd = () => {
-      if (!touchStateRef.current) return;
-      if (!touchStateRef.current.active) {
-        touchStateRef.current = null;
-        return;
-      }
-      const dx = touchStateRef.current.lastX - touchStateRef.current.startX;
-      const base = touchStateRef.current.isOpen ? 0 : -touchStateRef.current.drawerW;
-      const finalOffset = Math.min(0, Math.max(-touchStateRef.current.drawerW, base + dx));
-      const progress = 1 + finalOffset / touchStateRef.current.drawerW;
-
-      let shouldOpen = progress > 0.45;
-      if (Math.abs(touchStateRef.current.vx) > 0.35) {
-        shouldOpen = touchStateRef.current.vx > 0;
-      }
-      touchStateRef.current = null;
-      setIsDragging(false);
-      setDrawerOpen(shouldOpen);
-      if (drawerRef.current) drawerRef.current.style.transform = "";
-      if (appRef.current) appRef.current.style.transform = "";
-      if (scrimRef.current) scrimRef.current.style.opacity = "";
-    };
-
-    window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchmove", onTouchMove, { passive: true });
-    window.addEventListener("touchend", onTouchEnd);
-    return () => {
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMove);
-      window.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [drawerOpen, showAuthModal]);
-
-  // Synchronize drawer body class & empty state
-  useEffect(() => {
-    document.body.classList.toggle("open", drawerOpen);
-    document.body.classList.toggle("dragging", isDragging);
-    document.body.classList.toggle("empty", messages.length === 0);
-  }, [drawerOpen, isDragging, messages.length]);
-
-  // Keyboard Escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (showAuthModal) setShowAuthModal(false);
-        else if (activeSheet) setActiveSheet(null);
-        else if (drawerOpen) setDrawerOpen(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showAuthModal, activeSheet, drawerOpen]);
-
-  // Auto-scroll feed
+  // Auto-scroll Feed
   const scrollToBottom = useCallback((smooth = true) => {
-    if (feedRef.current) {
-      feedRef.current.scrollTo({
-        top: feedRef.current.scrollHeight + 1000,
+    if (scRef.current) {
+      scRef.current.scrollTo({
+        top: scRef.current.scrollHeight + 1000,
         behavior: smooth ? "smooth" : "auto",
       });
     }
   }, []);
 
-  // Monitor scroll for scrollDownBtn
-  const handleFeedScroll = () => {
-    if (!feedRef.current) return;
-    const dist = feedRef.current.scrollHeight - feedRef.current.scrollTop - feedRef.current.clientHeight;
-    setShowScrollDown(dist > 110);
+  const handleScroll = () => {
+    if (!scRef.current) return;
+    const dist = scRef.current.scrollHeight - scRef.current.scrollTop - scRef.current.clientHeight;
+    setShowScrollDown(dist > 260);
   };
 
-  // Fresh Chat (New Chat Trigger)
-  const startFreshChat = useCallback(() => {
-    if (isStreaming) return;
-    if (sheetWaveRef.current) {
-      sheetWaveRef.current.classList.remove("run");
-      void sheetWaveRef.current.offsetWidth;
-      sheetWaveRef.current.classList.add("run");
+  // 2. CONVERSATION MANAGEMENT
+  const startNewChat = useCallback(() => {
+    if (isBusy) {
+      showToast("Stop the current reply first");
+      return;
     }
-    setActiveChatId(null);
+    setActiveChat(null);
     setMessages([]);
-    setDrawerOpen(false);
-  }, [isStreaming]);
+    setAttachments([]);
+    setInputValue("");
+    setMobileOpen(false);
+  }, [isBusy, showToast]);
 
-  // Load existing chat
-  const loadChat = async (id: string) => {
-    if (isStreaming) return;
+  const loadChat = async (chat: ChatItem) => {
+    if (isBusy) {
+      showToast("Stop the current reply first");
+      return;
+    }
     try {
-      const res = await fetch(`/api/chats/${id}`);
+      const res = await fetch(`/api/chats/${chat.id}`);
       if (res.ok) {
         const data = await res.json();
-        setActiveChatId(id);
-        const rawMessages = data.messages || (data.chat && data.chat.messages) || [];
+        setActiveChat(chat);
+        const rawMsgs = data.messages || (data.chat && data.chat.messages) || [];
         setMessages(
-          rawMessages.map((m: any) => {
-            const atts = m.attachments || (m.attachment ? [m.attachment] : []);
-            const imgUrl = m.image || (atts.find((a: any) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url) || (atts[0]?.url);
-            return {
-              id: m.id || m._id,
-              role: m.role,
-              content: m.content || "",
-              image: imgUrl || undefined,
-              attachments: atts,
-            };
-          })
+          rawMsgs.map((m: any) => ({
+            id: m.id || m._id,
+            role: m.role,
+            content: m.content || "",
+            image: m.image,
+            attachments: m.attachments,
+            feedback: m.feedback,
+            fb: m.feedback === "up" ? "up" : m.feedback === "down" ? "dn" : null,
+          }))
         );
-        if (data.chat?.project_id) {
-          const matchedProj = projectsList.find(p => p.id === data.chat.project_id);
-          if (matchedProj) setActiveProject(matchedProj);
-        }
-        setDrawerOpen(false);
+        setMobileOpen(false);
+        setTimeout(() => scrollToBottom(false), 50);
       }
     } catch {
       showToast("Failed to load chat");
     }
   };
 
-  // Delete chat
-  const deleteChat = async (id: string, e: React.MouseEvent) => {
+  const handlePinChat = async (c: ChatItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      const res = await fetch(`/api/chats/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setChatsList(prev => prev.filter(c => c.id !== id));
-        if (activeChatId === id) {
-          startFreshChat();
-        }
-        showToast("Chat deleted");
-      } else {
-        showToast("Failed to delete chat");
-      }
-    } catch {
-      showToast("Error deleting chat");
-    }
+    const nextPinned = !c.pinned;
+    setChats((prev) =>
+      prev.map((item) => (item.id === c.id ? { ...item, pinned: nextPinned } : item))
+    );
+    showToast(nextPinned ? "Chat pinned" : "Chat unpinned");
+    await fetch(`/api/chats/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned: nextPinned }),
+    }).catch(() => {});
   };
 
-  // Stop Generation
-  const stopGeneration = async () => {
-    if (!activeChatId) return;
-    try {
-      await fetch(`/api/chats/${activeChatId}/stop`, { method: "POST" });
-    } catch {}
-    setIsStreaming(false);
-    setIsThinking(false);
-    setIsHidingTyping(false);
+  const handleStartRename = (c: ChatItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingId(c.id);
+    setRenameText(c.title);
   };
 
-  // Send Message Flow
-  const handleSend = async (overrideText?: string, baseHistory?: MessageItem[], overrideImage?: string) => {
-    const textToSend = (overrideText ?? inputVal).trim();
-    const imageToSend = overrideImage !== undefined ? overrideImage : attachedImage?.dataUrl;
-    if ((!textToSend && !imageToSend) || isStreaming) return;
-
-    setInputVal("");
-    setAttachedImage(null);
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
-    setStreamError(null);
-
-    // If transitioning from the empty hero view, execute smooth exit fade
-    const currentBase = baseHistory ?? messages;
-    if (currentBase.length === 0) {
-      setHeroBye(true);
-      await new Promise(r => setTimeout(r, 220));
-      setHeroBye(false);
+  const handleSaveRename = async (c: ChatItem, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    setRenamingId(null);
+    if (!trimmed || trimmed === c.title) return;
+    setChats((prev) =>
+      prev.map((item) => (item.id === c.id ? { ...item, title: trimmed } : item))
+    );
+    if (activeChat?.id === c.id) {
+      setActiveChat((prev) => (prev ? { ...prev, title: trimmed } : null));
     }
+    await fetch(`/api/chats/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: trimmed }),
+    }).catch(() => {});
+  };
 
-    // Optimistic user message (with image attached if present)
-    const newMsgList: MessageItem[] = [
-      ...currentBase,
-      { role: "user", content: textToSend, image: imageToSend || undefined },
-    ];
-    setMessages(newMsgList);
-    setIsStreaming(true);
-    setIsThinking(true);
-    setIsHidingTyping(false);
-    setTimeout(() => scrollToBottom(false), 30);
-
-    let chatId = activeChatId;
-    if (chatAbortRef.current) {
-      chatAbortRef.current.abort();
+  const handleDeleteChat = async (c: ChatItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isBusy && activeChat?.id === c.id) {
+      showToast("Wait for the reply to finish");
+      return;
     }
-    const abortCtrl = new AbortController();
-    chatAbortRef.current = abortCtrl;
+    const wasActive = activeChat?.id === c.id;
+    const removedIdx = chats.findIndex((item) => item.id === c.id);
+    setChats((prev) => prev.filter((item) => item.id !== c.id));
+    if (wasActive) startNewChat();
 
-    // Deep Research Mode Flow
-    if (deepMode) {
-      try {
-        const researchRes = await fetch("/api/research", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: textToSend, chat_id: chatId ?? undefined }),
-          signal: abortCtrl.signal,
+    // 6-Second Undo Toast
+    showToast("Chat deleted", {
+      label: "Undo",
+      fn: async () => {
+        setChats((prev) => {
+          const next = [...prev];
+          next.splice(Math.min(removedIdx, next.length), 0, c);
+          return next;
         });
+        if (wasActive) loadChat(c);
+        await fetch(`/api/chats/${c.id}/restore`, { method: "POST" }).catch(() => {});
+      },
+    });
 
-        if (!researchRes.ok) {
-          if (researchRes.status === 401) {
-            setShowAuthModal(true);
-            setIsStreaming(false);
-            setIsThinking(false);
-            return;
-          }
-          if (researchRes.status === 429) {
-            showToast("Daily research limit reached");
-            setIsStreaming(false);
-            setIsThinking(false);
-            return;
-          }
-          throw new Error("Research failed to start");
-        }
+    // Soft delete on backend
+    await fetch(`/api/chats/${c.id}`, { method: "DELETE" }).catch(() => {});
+  };
 
-        const reader = researchRes.body?.getReader();
-        if (!reader) throw new Error("No stream reader");
+  // 3. SEND & STREAMING FLOW
+  const stopGeneration = () => {
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort();
+      abortCtrlRef.current = null;
+    }
+    if (activeChat?.id) {
+      fetch(`/api/chats/${activeChat.id}/stop`, { method: "POST" }).catch(() => {});
+    }
+    setIsBusy(false);
+    setIsThinking(false);
+  };
 
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let currentStep = 1;
-        let subQuestions: string[] = [];
-        let reportText = "";
-
-        setIsThinking(false);
-        // Add research card to messages
-        setMessages(prev => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "",
-            research_card: { step: 1, subQuestions: [], status: "running" },
-          },
-        ]);
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split("\n\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const eventMatch = line.match(/^event: (.*)/m);
-            const dataMatch = line.match(/^data: (.*)/m);
-            if (!eventMatch || !dataMatch) continue;
-
-            const event = eventMatch[1].trim();
-            const data = JSON.parse(dataMatch[1].trim());
-
-            if (event === "start" && data.chat_id) {
-              chatId = data.chat_id;
-              setActiveChatId(chatId);
-              if (streamRafId) {
-        cancelAnimationFrame(streamRafId);
-        streamRafId = null;
+  const spinDownMark = (markEl: HTMLElement | null) => {
+    if (!markEl) return;
+    const logoImg = markEl.querySelector<HTMLElement>(".logo");
+    if (!logoImg) return;
+    try {
+      const mx = new DOMMatrix(getComputedStyle(logoImg).transform);
+      const angle = (Math.atan2(mx.b, mx.a) * (180 / Math.PI) + 360) % 360;
+      markEl.classList.remove("live");
+      logoImg.style.animation = "none";
+      let to = 360;
+      if (360 - angle < 110) to = 720;
+      logoImg.style.transform = `rotate(${to}deg)`;
+      if (logoImg.animate) {
+        logoImg.animate(
+          [{ transform: `rotate(${angle}deg)` }, { transform: `rotate(${to}deg)` }],
+          { duration: 1200, easing: "cubic-bezier(.16,1,.3,1)" }
+        );
       }
-      flushTokens();
-      fetchChats();
-            } else if (event === "plan") {
-              currentStep = 1;
-              subQuestions = data.subQuestions || [];
-              setMessages(prev => {
-                const next = [...prev];
-                const last = next[next.length - 1];
-                if (last && last.research_card) {
-                  last.research_card = { step: 1, subQuestions, status: "running" };
-                }
-                return next;
-              });
-            } else if (event === "search" || event === "read" || event === "verify") {
-              currentStep = event === "search" ? 2 : event === "read" ? 3 : 4;
-              setMessages(prev => {
-                const next = [...prev];
-                const last = next[next.length - 1];
-                if (last && last.research_card) {
-                  last.research_card = { step: currentStep, subQuestions, status: "running" };
-                }
-                return next;
-              });
-            } else if (event === "write") {
-              currentStep = 5;
-              setMessages(prev => {
-                const next = [...prev];
-                const last = next[next.length - 1];
-                if (last && last.research_card) {
-                  last.research_card = { step: 5, subQuestions, status: "done" };
-                }
-                return next;
-              });
-            } else if (event === "delta") {
-              reportText += data.chunk || "";
-              setMessages(prev => {
-                const next = [...prev];
-                const last = next[next.length - 1];
-                if (last) last.content = reportText;
-                return next;
-              });
-              requestAnimationFrame(() => scrollToBottom(false));
-            } else if (event === "done") {
-              setIsStreaming(false);
-              setIsThinking(false);
-              requestAnimationFrame(() => scrollToBottom(false));
-              fetchChats().catch(() => {});
-              try { await reader.cancel(); } catch {}
-              break;
-            }
-          }
-        }
-      } catch (err: any) {
-        if (err.name === "AbortError" || abortCtrl.signal.aborted) return;
-        console.error("Deep research stream error:", err);
-        setStreamError("Deep research failed. Click to retry.");
-      } finally {
-        setIsStreaming(false);
-        setIsThinking(false);
-        setIsHidingTyping(false);
-      }
+    } catch {}
+  };
+
+  const handleSend = async (overrideText?: string, baseHistory?: MessageItem[]) => {
+    // 0. Check guest session expiration
+    if (!user && guestTimeLeft !== null && guestTimeLeft <= 0) {
+      openAuthModal("up", "Your 3-minute free preview session has ended. Sign up or log in to keep chatting and save your conversation!");
       return;
     }
 
-    // Standard Chat Stream Flow
+    // 0b. Start 3-minute countdown on first guest interaction
+    if (!user && guestTimeLeft === null) {
+      setGuestTimeLeft(180);
+    }
+
+    const textToSend = (overrideText ?? inputValue).trim();
+    const filesToSend = attachments;
+    if ((!textToSend && !filesToSend.length) || isBusy) return;
+
+    if (micRecRef.current) {
+      try { micRecRef.current.stop(); } catch {}
+    }
+
+    setInputValue("");
+    setAttachments([]);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    // 1. Assign or reuse Chat
+    let chatId = activeChat?.id;
+    if (!chatId) {
+      const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, "0");
+      const randomHex = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+      chatId = (timestamp + randomHex).toLowerCase();
+      const newChatObj: ChatItem = {
+        id: chatId,
+        title: textToSend.slice(0, 42) || filesToSend[0]?.name || "New chat",
+      };
+      setActiveChat(newChatObj);
+      setChats((prev) => [newChatObj, ...prev]);
+    }
+
+    // 2. Add user message
+    const currentBase = baseHistory ?? messages;
+    const userMsg: MessageItem = {
+      role: "user",
+      content: textToSend,
+      files: filesToSend.map((f) => ({ name: f.name, type: f.type, url: f.url })),
+      image: filesToSend.find((f) => f.type.startsWith("image/"))?.dataUrl,
+    };
+    setMessages([...currentBase, userMsg]);
+    setIsBusy(true);
+    setIsThinking(true);
+    setTimeout(() => scrollToBottom(false), 30);
+
+    const abortCtrl = new AbortController();
+    abortCtrlRef.current = abortCtrl;
+
     try {
-      // 1. If no active chat, instantly assign client 24-hex MongoDB ObjectId and auto-create on server
-      if (!chatId) {
-        const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, "0");
-        const randomHex = Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-        chatId = (timestamp + randomHex).toLowerCase();
-        setActiveChatId(chatId);
-        // Sync chat list in the background without blocking the stream
-        setTimeout(() => fetchChats().catch(() => {}), 250);
-      }
-
-      const streamUrl = `/api/chats/${chatId}/messages`;
-
-      const res = await fetch(streamUrl, {
+      const streamRes = await fetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: textToSend, image: imageToSend || undefined }),
+        body: JSON.stringify({
+          content: textToSend,
+          image: userMsg.image,
+          fast: fastMode,
+          instructions: settings.instr,
+        }),
         signal: abortCtrl.signal,
       });
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          setShowAuthModal(true);
-          setIsStreaming(false);
+      if (!streamRes.ok) {
+        if (streamRes.status === 401) {
+          openAuthModal("in");
+          setIsBusy(false);
           setIsThinking(false);
           return;
         }
-        if (res.status === 429) {
+        if (streamRes.status === 429) {
           showToast("Slow down a moment");
-          setIsStreaming(false);
+          setIsBusy(false);
           setIsThinking(false);
           return;
         }
-        throw new Error(`Server returned ${res.status}`);
+        throw new Error(`HTTP ${streamRes.status}`);
       }
 
-      const reader = res.body?.getReader();
+      const reader = streamRes.body?.getReader();
       if (!reader) throw new Error("No readable stream");
 
       const decoder = new TextDecoder();
       let buffer = "";
       let accumulated = "";
-      let currentEvent = "";
       let firstChunkReceived = false;
 
       while (true) {
@@ -1139,227 +1024,197 @@ export function RockGPTApp() {
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
-        let isDone = false;
+        let streamFinished = false;
         for (const rawLine of lines) {
           const line = rawLine.trim();
-          if (!line) {
-            currentEvent = "";
-            continue;
-          }
+          if (!line) continue;
+
           if (line.startsWith("event:")) {
-            currentEvent = line.replace(/^event:\s*/, "");
-            if (currentEvent === "done") {
-              isDone = true;
-              break;
+            const ev = line.replace(/^event:\s*/, "");
+            if (ev === "done") {
+              streamFinished = true;
             }
           } else if (line.startsWith("data:")) {
-            const jsonStr = line.replace(/^data:\s*/, "");
+            const dataStr = line.replace(/^data:\s*/, "");
             try {
-              const data = JSON.parse(jsonStr);
-              if (data.done || data.message_id || currentEvent === "done") {
-                isDone = true;
+              const data = JSON.parse(dataStr);
+              if (data.message_id) {
+                setMessages((prev) => {
+                  const next = [...prev];
+                  const lastIdx = next.length - 1;
+                  if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
+                    next[lastIdx] = { ...next[lastIdx], id: data.message_id };
+                  }
+                  return next;
+                });
+                streamFinished = true;
                 break;
               }
-              if (data.chatId || data.chat_id) {
-                const incomingChatId = data.chatId || data.chat_id;
-                if (incomingChatId) {
-                  setActiveChatId(incomingChatId);
-                }
+              if (data.done) {
+                streamFinished = true;
+                break;
               }
               const chunk = data.chunk ?? data.text ?? "";
               if (chunk) {
                 if (!firstChunkReceived) {
                   firstChunkReceived = true;
-                  // Gracefully fade out 3D spheres before revealing reply
-                  setIsHidingTyping(true);
-                  await new Promise(r => setTimeout(r, 160));
                   setIsThinking(false);
-                  setIsHidingTyping(false);
                   accumulated += chunk;
-                  setMessages(prev => [...prev, { role: "assistant", content: accumulated }]);
+                  setMessages((prev) => [...prev, { role: "assistant", content: accumulated }]);
                 } else {
                   accumulated += chunk;
-                  setMessages(prev => {
-                    const updated = [...prev];
-                    const lastIdx = updated.length - 1;
-                    if (lastIdx >= 0 && updated[lastIdx].role === "assistant") {
-                      updated[lastIdx] = { ...updated[lastIdx], content: accumulated };
+                  setMessages((prev) => {
+                    const next = [...prev];
+                    const lastIdx = next.length - 1;
+                    if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
+                      next[lastIdx] = { ...next[lastIdx], content: accumulated };
                     }
-                    return updated;
+                    return next;
                   });
                 }
-                requestAnimationFrame(() => {
-                  if (feedRef.current) {
-                    const dist = feedRef.current.scrollHeight - feedRef.current.scrollTop - feedRef.current.clientHeight;
-                    if (dist < 160) {
-                      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+                if (settings.scroll) {
+                  requestAnimationFrame(() => {
+                    if (scRef.current) {
+                      scRef.current.scrollTop = scRef.current.scrollHeight;
                     }
-                  }
-                });
+                  });
+                }
               }
             } catch {}
           }
         }
-        if (isDone || currentEvent === "done") {
+        if (streamFinished) {
           try { await reader.cancel(); } catch {}
           break;
         }
       }
-
-      setIsStreaming(false);
-      setIsThinking(false);
-      setIsHidingTyping(false);
-      requestAnimationFrame(() => scrollToBottom(false));
-      fetchChats().catch(() => {});
-
     } catch (err: any) {
-      if (err.name === "AbortError" || abortCtrl.signal.aborted) return;
-      console.error("Chat streaming error:", err);
-      setStreamError("Something went wrong. Click to retry.");
+      if (err.name !== "AbortError") {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Couldn't reach ROCKGPT. Check your connection and try again." },
+        ]);
+      }
     } finally {
-      if (chatAbortRef.current === abortCtrl) chatAbortRef.current = null;
-      setIsStreaming(false);
+      setIsBusy(false);
       setIsThinking(false);
-      setIsHidingTyping(false);
+      abortCtrlRef.current = null;
+      spinDownMark(lastAiMarkRef.current);
+      fetchChats().catch(() => {});
     }
   };
 
-  const handleRegenerate = useCallback((assistantIndex: number) => {
-    if (isStreaming) return;
-    let userQuery = "";
-    let baseList: MessageItem[] = [];
-    for (let i = assistantIndex - 1; i >= 0; i--) {
-      if (messages[i].role === "user") {
-        userQuery = messages[i].content;
-        baseList = messages.slice(0, i);
-        break;
-      }
+  const handleRegenerate = () => {
+    if (isBusy || messages.length === 0) return;
+    let lastUserIdx = messages.length - 1;
+    while (lastUserIdx >= 0 && messages[lastUserIdx].role !== "user") {
+      lastUserIdx--;
     }
-    if (!userQuery) return;
+    if (lastUserIdx < 0) return;
+    const userQuery = messages[lastUserIdx].content;
+    const baseList = messages.slice(0, lastUserIdx);
     handleSend(userQuery, baseList);
-  }, [messages, isStreaming, handleSend]);
+  };
 
-  // Resend OTP Code
-  const handleResendOtp = async () => {
-    if (authResendSeconds > 0 || authLoading) return;
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const res = await fetch("/api/auth/resend-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail.trim().toLowerCase(), type: authTab === "reset" ? "reset" : "signup" }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setAuthResendSeconds(60);
-        if (data.message) {
-          showToast(data.message || "New 6-digit code sent!");
-        }
-      } else {
-        setAuthError(data.error?.message || "Failed to resend code");
-      }
-    } catch {
-      setAuthError("Network error. Please try again.");
-    } finally {
-      setAuthLoading(false);
+  const handleEditLast = () => {
+    if (isBusy || messages.length === 0) return;
+    let lastUserIdx = messages.length - 1;
+    while (lastUserIdx >= 0 && messages[lastUserIdx].role !== "user") {
+      lastUserIdx--;
+    }
+    if (lastUserIdx < 0) return;
+    const userQuery = messages[lastUserIdx].content;
+    setInputValue(userQuery);
+    setMessages(messages.slice(0, lastUserIdx));
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 140)}px`;
     }
   };
 
-  // Auth Submit (Signup with OTP / Login / Verify OTP / Forgot / Reset)
+  // Voice Input (SpeechRecognition)
+  const handleVoiceInput = () => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      showToast("Voice input not supported in this browser");
+      return;
+    }
+    if (micRecRef.current) {
+      micRecRef.current.stop();
+      micRecRef.current = null;
+      return;
+    }
+    try {
+      const rec = new SpeechRec();
+      rec.interimResults = true;
+      rec.lang = navigator.language || "en-US";
+      const base = inputValue;
+      rec.onresult = (e: any) => {
+        const transcript = [...e.results].map((r: any) => r[0].transcript).join("");
+        setInputValue((base ? `${base} ` : "") + transcript);
+      };
+      rec.onend = () => { micRecRef.current = null; };
+      rec.onerror = () => { micRecRef.current = null; };
+      rec.start();
+      micRecRef.current = rec;
+      showToast("Listening…");
+    } catch {
+      showToast("Microphone permission needed");
+    }
+  };
+
+  // File Upload Handling
+  const handleAddFiles = (fileList: FileList | File[]) => {
+    const arr = [...fileList];
+    arr.forEach((file) => {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("File must be smaller than 10MB");
+        return;
+      }
+      const reader = new FileReader();
+      const isImg = file.type.startsWith("image/");
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            type: file.type,
+            file,
+            url: isImg ? URL.createObjectURL(file) : undefined,
+            dataUrl,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Export Current Chat
+  const handleExportChat = () => {
+    if (!activeChat || messages.length === 0) return;
+    const md = `# ${activeChat.title}\n\n` +
+      messages.map((m) => `${m.role === "user" ? "**You**" : "**ROCKGPT**"}\n\n${m.content}`).join("\n\n---\n\n") +
+      "\n";
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(activeChat.title.replace(/[^\w]+/g, "-").slice(0, 40) || "chat")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Chat exported");
+  };
+
+  // 4. AUTHENTICATION HANDLERS
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setAuthLoading(true);
 
     try {
-      if (authTab === "signup") {
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: authName, email: authEmail, password: authPassword }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          if (data.alreadyActive && data.user) {
-            setCurrentUser(data.user);
-            setShowAuthModal(false);
-            setAuthPassword("");
-            fetchChats();
-            fetchProjects();
-            showToast("Welcome back! Signed in successfully.");
-            return;
-          }
-          setAuthTab("otp");
-          setAuthResendSeconds(60);
-          if (data.message) {
-            showToast(data.message || "Verification code sent to your email!");
-          }
-        } else {
-          setAuthError(data.error?.message || "Failed to create account");
-        }
-      } else if (authTab === "otp") {
-        const res = await fetch("/api/auth/verify-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail, code: authOtpCode, type: "signup" }),
-        });
-        const data = await res.json();
-        if (res.ok && data.user) {
-          setCurrentUser(data.user);
-          setShowAuthModal(false);
-          setAuthPassword("");
-          setAuthOtpCode("");
-          fetchChats();
-          fetchProjects();
-          showToast(`Welcome, ${data.user.name.split(" ")[0]}!`);
-        } else {
-          setAuthError(data.error?.message || "Invalid verification code");
-        }
-      } else if (authTab === "forgot") {
-        const res = await fetch("/api/auth/forgot-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail.trim().toLowerCase() }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setAuthTab("reset");
-          setAuthResendSeconds(60);
-          setAuthPassword("");
-          setAuthPasswordConfirm("");
-          if (data.message) {
-            showToast(data.message || "Password recovery code sent! Check your inbox.");
-          }
-        } else {
-          setAuthError(data.error?.message || "Failed to process request");
-        }
-      } else if (authTab === "reset") {
-        if (authPassword !== authPasswordConfirm) {
-          setAuthError("Passwords do not match");
-          setAuthLoading(false);
-          return;
-        }
-        const res = await fetch("/api/auth/reset-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail, code: authOtpCode, newPassword: authPassword }),
-        });
-        const data = await res.json();
-        if (res.ok && data.user) {
-          setCurrentUser(data.user);
-          setShowAuthModal(false);
-          setAuthPassword("");
-          setAuthPasswordConfirm("");
-          setAuthOtpCode("");
-          fetchChats();
-          fetchProjects();
-          showToast("Password reset successfully! You are signed in.");
-        } else {
-          setAuthError(data.error?.message || "Failed to reset password");
-        }
-      } else {
-        // Login
+      if (authMode === "in") {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1367,14 +1222,122 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok && data.user) {
-          setCurrentUser(data.user);
+          setUser(data.user);
+          setGuestTimeLeft(null);
           setShowAuthModal(false);
           setAuthPassword("");
-          fetchChats();
-          fetchProjects();
+          if (messages.length > 0) {
+            fetch("/api/chats/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chats: [
+                  {
+                    id: activeChat?.id || Date.now().toString(),
+                    title: activeChat?.title || "Conversation",
+                    messages: messages,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              }),
+            }).then(() => fetchChats()).catch(() => {});
+          } else {
+            fetchChats();
+          }
           showToast(`Welcome back, ${data.user.name.split(" ")[0]}!`);
         } else {
           setAuthError(data.error?.message || "Invalid email or password");
+        }
+      } else if (authMode === "up") {
+        if (authPassword !== authPassword2) {
+          setAuthError("Passwords do not match");
+          setAuthLoading(false);
+          return;
+        }
+        if (!authAgreeTos) {
+          setAuthError("Accept the Terms of Service to continue");
+          setAuthLoading(false);
+          return;
+        }
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: authName, email: authEmail, password: authPassword }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setAuthMode("code");
+          setAuthResendSeconds(60);
+          showToast(data.message || "Verification code sent to your email!");
+        } else {
+          setAuthError(data.error?.message || "Failed to create account");
+        }
+      } else if (authMode === "code") {
+        const res = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail, code: authOtpCode, type: "signup" }),
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setUser(data.user);
+          setGuestTimeLeft(null);
+          setShowAuthModal(false);
+          setAuthPassword("");
+          setAuthOtpCode("");
+          if (messages.length > 0) {
+            fetch("/api/chats/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chats: [
+                  {
+                    id: activeChat?.id || Date.now().toString(),
+                    title: activeChat?.title || "Conversation",
+                    messages: messages,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              }),
+            }).then(() => fetchChats()).catch(() => {});
+          } else {
+            fetchChats();
+          }
+          showToast(`Welcome, ${data.user.name.split(" ")[0]}!`);
+        } else {
+          setAuthError(data.error?.message || "Invalid verification code");
+        }
+      } else if (authMode === "forgot") {
+        const res = await fetch("/api/auth/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setAuthMode("reset");
+          setAuthResendSeconds(60);
+          showToast(data.message || "Recovery code sent to your inbox!");
+        } else {
+          setAuthError(data.error?.message || "Failed to send recovery code");
+        }
+      } else if (authMode === "reset") {
+        const res = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail, code: authOtpCode, newPassword: authPassword }),
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          setUser(data.user);
+          setGuestTimeLeft(null);
+          setShowAuthModal(false);
+          setAuthPassword("");
+          setAuthOtpCode("");
+          fetchChats();
+          showToast("Password updated successfully! You are signed in.");
+        } else {
+          setAuthError(data.error?.message || "Failed to reset password");
         }
       }
     } catch {
@@ -1384,1235 +1347,1498 @@ export function RockGPTApp() {
     }
   };
 
-  const handleContinueWithGoogle = () => {
-    setAuthLoading(true);
-    setAuthError(null);
-    window.location.href = "/api/auth/google";
-  };
-
-  // Logout
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      setCurrentUser(null);
-      setChatsList([]);
-      startFreshChat();
+      setUser(null);
+      setGuestTimeLeft(null);
+      setChats([]);
+      startNewChat();
       showToast("Logged out");
     } catch {
       showToast("Failed to log out");
     }
   };
 
-  // Speech Recognition (Voice Dictation)
-  const handleVoiceInput = () => {
-    const SpeechRecognition = (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
-      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+  // Grouping Chats into Temporal Buckets
+  const s0 = new Date().setHours(0, 0, 0, 0);
+  const D = 864e5;
+  const filteredChats = chats.filter(
+    (c) =>
+      !searchQuery ||
+      c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-    if (!SpeechRecognition) {
-      showToast("Voice input not supported in this browser");
-      return;
-    }
+  const pinnedChats = filteredChats.filter((c) => c.pinned);
+  const unpinnedChats = filteredChats.filter((c) => !c.pinned);
 
-    try {
-      const recognizer = new SpeechRecognition();
-      recognizer.onresult = (e: any) => {
-        const transcript = e.results[0][0].transcript;
-        setInputVal(prev => (prev ? `${prev} ` : "") + transcript);
-      };
-      recognizer.start();
-      showToast("Listening…");
-    } catch {
-      showToast("Microphone permission needed");
-    }
+  const getBucket = (c: ChatItem) => {
+    const t = c.t || (c.updatedAt ? new Date(c.updatedAt).getTime() : Date.now());
+    if (t >= s0) return "Today";
+    if (t >= s0 - D) return "Yesterday";
+    if (t >= s0 - 7 * D) return "Previous 7 days";
+    return "Older";
   };
 
-  // Copy Code block button delegate
-  const handleFeedClick = (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains("code-copy-btn")) {
-      const code = decodeURIComponent(target.dataset.copy || "");
-      if (code) {
-        navigator.clipboard.writeText(code).then(() => {
-          const oldText = target.textContent;
-          target.textContent = "Copied!";
-          setTimeout(() => (target.textContent = oldText), 1500);
-        });
-      }
-    }
-  };
+  const buckets = ["Today", "Yesterday", "Previous 7 days", "Older"] as const;
 
   const isFeedEmpty = messages.length === 0;
 
   return (
     <>
-      {/* SVG Sprite containing the full Origami ROCK Wordmark and Icons */}
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-        <defs>
-          <path id="ringO" fillRule="evenodd" d="M134 10h20a30 30 0 0 1 30 30v20a30 30 0 0 1-30 30h-20a30 30 0 0 1-30-30V40a30 30 0 0 1 30-30zM140 28a12 12 0 0 0-12 12v20a12 12 0 0 0 12 12h8a12 12 0 0 0 12-12V40a12 12 0 0 0-12-12z"/>
-          <path id="ringC" fillRule="evenodd" d="M232 10h20a30 30 0 0 1 30 30v20a30 30 0 0 1-30 30h-20a30 30 0 0 1-30-30V40a30 30 0 0 1 30-30zM238 28a12 12 0 0 0-12 12v20a12 12 0 0 0 12 12h8a12 12 0 0 0 12-12V40a12 12 0 0 0-12-12z"/>
-          <clipPath id="oL"><rect x="0" y="0" width="144.5" height="100"/></clipPath>
-          <clipPath id="oT"><rect x="143.5" y="0" width="60" height="50.5"/></clipPath>
-          <clipPath id="oB"><rect x="143.5" y="49.5" width="60" height="60"/></clipPath>
-          <clipPath id="cL"><rect x="0" y="0" width="242.5" height="100"/></clipPath>
-          <clipPath id="cT"><polygon points="241.5,0 300,0 300,22 262,50 241.5,50"/></clipPath>
-          <clipPath id="cB"><polygon points="241.5,100 300,100 300,78 262,50 241.5,50"/></clipPath>
-          <clipPath id="oIn"><use href="#ringO" clipRule="evenodd"/></clipPath>
-          <clipPath id="cIn"><use href="#ringC" clipRule="evenodd"/></clipPath>
-
-          <g id="a" fill="#fff">
-            <path d="M12 10h20v80H12z"/>
-            <use href="#ringO" clipPath="url(#oL)"/>
-            <use href="#ringC" clipPath="url(#cL)"/>
-            <path d="M298 10h20v80h-20z"/>
-          </g>
-          <g id="b" fill="#fff">
-            <path d="M32 10h22c20 0 28 12 28 26s-8 24-28 24H32V44h20c8 0 12-3 12-8s-4-10-12-10H32z"/>
-            <use href="#ringO" clipPath="url(#oT)"/>
-            <use href="#ringC" clipPath="url(#cT)"/>
-            <path d="M318 50L346 10h23l-28 40z"/>
-          </g>
-          <g id="c" fill="#fff">
-            <path d="M44 60h22l20 30H62z"/>
-            <use href="#ringO" clipPath="url(#oB)"/>
-            <use href="#ringC" clipPath="url(#cB)"/>
-            <path d="M318 50L346 90h23l-28-40z"/>
-          </g>
-          <g id="d" fill="#a8a8a8">
-            <path d="M32 44h20L32 60z"/>
-            <g clipPath="url(#oIn)"><path d="M104 10h32L104 42z"/></g>
-            <g clipPath="url(#cIn)"><path d="M202 10h32L202 42z"/></g>
-            <path d="M318 50h23L329.5 34z"/>
-          </g>
-          <g id="e" fill="#a8a8a8">
-            <path d="M44 60h22L54 76z"/>
-            <g clipPath="url(#oIn)"><path d="M184 90h-32l32-32z"/></g>
-            <g clipPath="url(#cIn)"><path d="M202 90h32l-32-32z"/></g>
-            <path d="M318 50h23l-11.500 16z"/>
-          </g>
-
-          <g id="R">
-            <use href="#a"/>
-            <use href="#b"/>
-            <use href="#c"/>
-            <use href="#d"/>
-            <use href="#e"/>
-          </g>
-
-          <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 9h16M4 15h10"/></symbol>
-          <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-          <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
-          <symbol id="i-wave" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4"/></symbol>
-          <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
-          <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
-          <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
-          <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
-          <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
-          <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
-          <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
-        </defs>
-      </svg>
-
-      {/* 1. INTRO SPLASH */}
-      {showSplash && (
-        <div id="intro" className={introOut ? "out" : ""} onClick={dismissSplash}>
-          <div className="stage">
-            <div className="mark">
-              <svg className="p1" viewBox="0 0 370 100"><use href="#a"/></svg>
-              <svg className="p2" viewBox="0 0 370 100"><use href="#b"/></svg>
-              <svg className="p3" viewBox="0 0 370 100"><use href="#c"/></svg>
-              <svg className="p4" viewBox="0 0 370 100"><use href="#d"/></svg>
-              <svg className="p5" viewBox="0 0 370 100"><use href="#e"/></svg>
+      {/* ═══ 1. INTRO SPLASH OVERLAY (MATCHING IMAGE 1 BRAND LOCKUP) ═══ */}
+      {showIntro && (
+        <div id="intro" className={flown ? "fly" : "go"} onClick={flyIn}>
+          <div id="iBg" />
+          <div id="introLockup">
+            <div id="stage">
+              <img
+                id="iIcon"
+                ref={introIconRef}
+                className="logo"
+                src="/assets/logo-lg.webp"
+                alt="RockGPT"
+                draggable="false"
+              />
             </div>
-            <div className="word" aria-label="RockGPT">
+            <div id="word" aria-label="RockGPT">
               {"ROCKGPT".split("").map((c, i) => (
-                <b key={i}><i style={{ ["--i" as string]: `${i}` }}>{c}</i></b>
+                <span key={i}>
+                  <i style={{ animationDelay: `${0.45 + i * 0.038}s` }}>{c}</i>
+                </span>
               ))}
-            </div>
-            <div className="ticker">
-              <div><p>Chat</p><p>Create</p><p>Code</p><p>Explore</p><p>Anything</p></div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. SIDEBAR DRAWER */}
-      <aside className="drawer" id="drawer" ref={drawerRef} aria-label="Sidebar navigation">
-        <div className="s-brand">
-          <div className="s-brand-left">
-            <svg className="logo-rock" viewBox="0 0 370 100" aria-label="ROCK"><use href="#R"/></svg>
-            <span className="gpt-tag">GPT</span>
-          </div>
-        </div>
-
-        <button className="new-chat-pill" id="newd" onClick={startFreshChat} type="button">
-          <svg className="i"><use href="#i-plus"/></svg>
-          <span>New chat</span>
-        </button>
-
-        <nav className="nav" aria-label="Tools">
-          <button
-            className={`nav-item ${activeProject ? "on" : ""}`}
-            style={{ ["--i" as string]: 0 }}
-            onClick={() => { setDrawerOpen(false); setActiveSheet("proj"); }}
-            type="button"
-          >
-            <span className="ni-ico">
-              <svg viewBox="0 0 24 24">
-                <path className="lid" d="M3 8V6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v1"/>
-                <path d="M3 10.5h18l-1.4 8a1.5 1.5 0 0 1-1.5 1.2H5.9a1.5 1.5 0 0 1-1.5-1.2z"/>
-              </svg>
-            </span>
-            <span className="ni-t">Projects</span>
-            <span className="ni-tag">{projectsList.length || ""}</span>
-          </button>
-
-          <button
-            className={`nav-item ${deepMode ? "on" : ""}`}
-            style={{ ["--i" as string]: 1 }}
-            onClick={() => {
-              const next = !deepMode;
-              setDeepMode(next);
-              showToast(next ? "Deep Research on" : "Deep Research off");
-              setTimeout(() => setDrawerOpen(false), 200);
-            }}
-            type="button"
-          >
-            <span className="ni-ico">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="8.5"/>
-                <circle cx="12" cy="12" r="3.5"/>
-                <path className="sweep" d="M12 12V3.5"/>
-              </svg>
-            </span>
-            <span className="ni-t">Deep Research</span>
-            <span className="ni-tag">{deepMode ? "On" : ""}</span>
-          </button>
-
-          <button
-            className="nav-item"
-            style={{ ["--i" as string]: 2 }}
-            onClick={() => { setDrawerOpen(false); setActiveSheet("canvas"); }}
-            type="button"
-          >
-            <span className="ni-ico">
-              <svg viewBox="0 0 24 24">
-                <path d="M5 4h9l5 5v11H5z"/>
-                <path d="M14 4v5h5"/>
-                <path className="pen" d="M8.5 15.5l5-5 1.8 1.8-5 5-2.3.5z"/>
-              </svg>
-            </span>
-            <span className="ni-t">Canvas</span>
-          </button>
-        </nav>
-
-        <div className="s-label">Recent</div>
-        <div id="list">
-          {isChatsLoading ? (
-            <div className="sidebar-skeleton-wrap" aria-label="Loading chat history">
-              <div className="sidebar-skeleton" style={{ width: "88%" }} />
-              <div className="sidebar-skeleton" style={{ width: "65%" }} />
-              <div className="sidebar-skeleton" style={{ width: "78%" }} />
-            </div>
-          ) : chatsList.length === 0 ? (
-            <p className="empty-note">Your chats will appear here</p>
-          ) : (
-            chatsList.map((chat, idx) => (
-              <div
-                key={chat.id}
-                className={`hist-row ${chat.id === activeChatId ? "active" : ""}`}
-                style={{ ["--i" as string]: Math.min(idx, 9) }}
-              >
-                <button
-                  className="hist-title"
-                  type="button"
-                  onClick={() => loadChat(chat.id)}
-                >
-                  {chat.title}
-                </button>
-                <button
-                  className="hist-del"
-                  type="button"
-                  aria-label="Delete chat"
-                  onClick={(e) => deleteChat(chat.id, e)}
-                >
-                  <svg className="i"><use href="#i-close"/></svg>
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="s-foot">
-          <div className="theme-card">
-            <div className="theme-label">
-              <svg className="i"><use href="#i-moon"/></svg>
-              <span>Theme</span>
-            </div>
-            <div className="theme-switch">
-              <button
-                className={`t-opt ${theme === "light" ? "active" : ""}`}
-                onClick={() => applyThemeMode("light")}
-                type="button"
-              >
-                <svg className="i"><use href="#i-sun"/></svg>
-                <span>Light</span>
-              </button>
-              <button
-                className={`t-opt ${theme === "dark" ? "active" : ""}`}
-                onClick={() => applyThemeMode("dark")}
-                type="button"
-              >
-                <svg className="i"><use href="#i-moon"/></svg>
-                <span>Dark</span>
-              </button>
-            </div>
-          </div>
-
-          {(() => {
-            const isGuest = !currentUser || (currentUser.email && currentUser.email.startsWith("guest-"));
-            return (
-              <div className="profile-card">
-                <div
-                  className="p-left"
-                  onClick={() => {
-                    if (isGuest) {
-                      setShowAuthModal(true);
-                    } else {
-                      showToast(`Signed in as ${currentUser?.name}`);
-                    }
-                  }}
-                >
-                  <div className="p-avatar">
-                    {isGuest ? "G" : (currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U")}
-                  </div>
-                  <div className="p-info">
-                    <div className="p-name">{isGuest ? "Guest User" : (currentUser?.name || "User")}</div>
-                    <div className="p-mail">{isGuest ? "Sign in to save & sync" : currentUser?.email}</div>
-                  </div>
-                </div>
-                <button
-                  className="p-auth-btn"
-                  id="authBtn"
-                  type="button"
-                  onClick={() => {
-                    if (isGuest) setShowAuthModal(true);
-                    else handleLogout();
-                  }}
-                >
-                  {isGuest ? "Sign in" : "Log out"}
-                </button>
-              </div>
-            );
-          })()}
-        </div>
-      </aside>
-
+      {/* ═══ 2. MAIN APPLICATION CONTAINER ═══ */}
       <div
-        className="app-scrim"
-        id="scrim"
-        ref={scrimRef}
-        onClick={() => setDrawerOpen(false)}
-      />
-      <div className="sheet-wave" id="sheetWave" ref={sheetWaveRef} />
+        id="app"
+        className={`${isFeedEmpty ? "is-empty" : ""} ${isBusy ? "busy" : ""} ${
+          collapsed ? "collapsed" : ""
+        } ${mobileOpen ? "m-open" : ""}`}
+      >
+        {/* Mobile Scrim / Backdrop */}
+        <div id="back" onClick={() => setMobileOpen(false)} />
 
-      {/* 3. MAIN APPLICATION COLUMN */}
-      <main className="app" id="app" ref={appRef}>
-        <header className="top rise">
-          <button
-            className="pill round"
-            id="menu"
-            aria-label="Open sidebar"
-            onClick={() => setDrawerOpen(true)}
-            type="button"
-          >
-            <svg className="i"><use href="#i-menu"/></svg>
-          </button>
-
-          <button
-            className="sym-btn"
-            id="newt"
-            aria-label="New chat"
-            title="Start new chat"
-            onClick={(e) => {
-              const btn = e.currentTarget;
-              btn.classList.add("flip");
-              setTimeout(() => btn.classList.remove("flip"), 500);
-              startFreshChat();
-            }}
-            type="button"
-          >
-            <svg viewBox="0 0 24 24">
-              <path className="sym-sheet" d="M11 4H6.8A2.8 2.8 0 0 0 4 6.8v10.4A2.8 2.8 0 0 0 6.8 20h10.4a2.8 2.8 0 0 0 2.8-2.8V13"/>
-              <path className="sym-nib" d="M13.5 10.5L19.2 4.8"/>
-              <path className="sym-spark" d="M18.5 2.2L19.4 4.6L21.8 5.5L19.4 6.4L18.5 8.8L17.6 6.4L15.2 5.5L17.6 4.6Z"/>
-            </svg>
-          </button>
-        </header>
-
-        {/* HERO SECTION */}
-        {isFeedEmpty && (
-          <section className={`hero ${heroBye ? "bye" : ""}`} id="hero" style={{ display: "flex" }}>
-            <svg className="logo-rock-hero hi" style={{ ["--d" as string]: ".1s" }} viewBox="0 0 370 100" aria-label="ROCK">
-              <use href="#R"/>
-            </svg>
-            <h1 id="heroGreeting">
-              <b className="hi" style={{ ["--d" as string]: ".2s", ["--i" as string]: 0 }}>Welcome</b>
-              <b className="hi" style={{ ["--d" as string]: ".2s", ["--i" as string]: 1 }}>
-                {currentUser?.name ? "back," : "back"}
-              </b>
-              <b className="hi" style={{ ["--d" as string]: ".2s", ["--i" as string]: 2 }}>
-                {currentUser?.name ? currentUser.name.split(" ")[0] : ""}
-              </b>
-            </h1>
-            <div className="chips">
-              <button
-                className="chip hi"
-                style={{ ["--i" as string]: 0 }}
-                onClick={() => handleSend("Plan my day")}
-                type="button"
-              >
-                Plan my day
-              </button>
-              <button
-                className="chip hi"
-                style={{ ["--i" as string]: 1 }}
-                onClick={() => handleSend("Help me learn coding")}
-                type="button"
-              >
-                Help me learn coding
-              </button>
-              <button
-                className="chip hi"
-                style={{ ["--i" as string]: 2 }}
-                onClick={() => handleSend("Give me a study tip")}
-                type="button"
-              >
-                Give me a study tip
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* CHAT FEED */}
-        {!isFeedEmpty && (
-          <div id="feed" ref={feedRef} onScroll={handleFeedScroll} onClick={handleFeedClick}>
-            {messages.map((msg, i) => (
-              <MemoizedMessageView
-                key={i}
-                msg={msg}
-                isStreaming={isStreaming}
-                isLast={i === messages.length - 1}
-                onRegenerate={() => handleRegenerate(i)}
-                onToast={showToast}
-              />
-            ))}
-
-            {/* Creative 3D Harmonic Waiting & Replying Indicator */}
-            {isStreaming && (isThinking || (!messages[messages.length - 1] || messages[messages.length - 1].role === "user")) && (
-              <div className="m bot">
-                <div className={`typing-3d ${isHidingTyping ? "gone" : ""}`} role="status" aria-label="RockGPT is thinking">
-                  <span className="orb-wrap"><i className="orb"/><span className="orb-shadow"/></span>
-                  <span className="orb-wrap"><i className="orb"/><span className="orb-shadow"/></span>
-                  <span className="orb-wrap"><i className="orb"/><span className="orb-shadow"/></span>
-                  <span className="typing-status-text">Thinking</span>
+        {/* ═══ SIDEBAR ═══ */}
+        <aside id="side" aria-label="Sidebar navigation">
+          <div className="sin">
+            <div className="stop">
+              <div className="brand">
+                <div className="bm fly-target" id="sMark" ref={sMarkRef}>
+                  <img className="logo" src="/assets/logo-sm.webp" alt="RockGPT" draggable="false" />
                 </div>
+                <span>ROCKGPT</span>
               </div>
-            )}
-
-            {streamError && (
-              <div className="m bot" style={{ color: "#ef4444" }}>
-                <span>{streamError}</span>
-                <button
-                  type="button"
-                  style={{ marginLeft: 8, textDecoration: "underline", cursor: "pointer" }}
-                  onClick={() => {
-                    const lastUserMsg = messages.filter(m => m.role === "user").pop();
-                    if (lastUserMsg) handleSend(lastUserMsg.content);
-                  }}
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Scroll-to-bottom Floating Button */}
-        <button
-          className={`scroll-down ${showScrollDown ? "on" : ""}`}
-          id="scrollDownBtn"
-          aria-label="Scroll to bottom"
-          onClick={() => scrollToBottom(true)}
-          type="button"
-        >
-          <svg className="i"><use href="#i-down"/></svg>
-        </button>
-
-        {/* Message Composer Bar */}
-        <div className="comp rise" style={{ ["--d" as string]: ".35s" }}>
-          <div className="mode-row" id="modeRow">
-            {activeProject && (
-              <div className="mchip">
-                <svg className="i" viewBox="0 0 24 24">
-                  <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2.5h8.5A1.5 1.5 0 0 1 21 10v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/>
-                </svg>
-                <span>{activeProject.name}</span>
-                <button
-                  type="button"
-                  aria-label="Leave project"
-                  onClick={() => setActiveProject(null)}
-                >
-                  <svg className="i"><use href="#i-close"/></svg>
-                </button>
-              </div>
-            )}
-            {deepMode && (
-              <div className="mchip deep">
-                <span className="dot" />
-                <span>Deep Research</span>
-                <button
-                  type="button"
-                  aria-label="Disable deep research"
-                  onClick={() => setDeepMode(false)}
-                >
-                  <svg className="i"><use href="#i-close"/></svg>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {attachedImage && (
-            <div className="composer-attached-preview">
-              <img src={attachedImage.dataUrl} alt={attachedImage.name} />
-              <span className="composer-attached-name">{attachedImage.name}</span>
               <button
                 type="button"
-                className="composer-attached-remove"
-                onClick={() => setAttachedImage(null)}
-                aria-label="Remove image"
-                title="Remove image"
+                className="sbtn"
+                id="sqb"
+                title="Search chats"
+                aria-label="Search chats"
+                onClick={() => setShowSearchInput((prev) => !prev)}
               >
-                ×
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
               </button>
             </div>
-          )}
 
-          <div className={`box ${(inputVal.trim() || attachedImage) ? "has" : ""}`} id="box">
-            <button
-              className="ic"
-              id="plus"
-              aria-label="Attach file"
-              type="button"
-              onClick={() => {
-                const el = document.getElementById("file-input");
-                el?.click();
-              }}
-            >
-              <svg className="i"><use href="#i-plus"/></svg>
+            <button type="button" className="nrow" id="new" onClick={startNewChat}>
+              <svg viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>New chat</span>
             </button>
 
-            <textarea
-              id="in"
-              ref={textareaRef}
-              rows={1}
-              value={inputVal}
-              placeholder={deepMode ? "What should I research?" : "Reply to RockGPT"}
-              onChange={(e) => {
-                setInputVal(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 132)}px`;
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-            />
-
-            {!inputVal.trim() && (
-              <button
-                className="ic"
-                id="mic"
-                aria-label="Voice input"
-                type="button"
-                onClick={handleVoiceInput}
-              >
-                <svg className="i"><use href="#i-mic"/></svg>
-              </button>
+            {showSearchInput && (
+              <input
+                id="sq"
+                type="text"
+                placeholder="Search chats..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+              />
             )}
 
-            <button
-              className={`go ${isStreaming ? "stop-mode" : ""}`}
-              id="go"
-              aria-label={isStreaming ? "Stop generation" : "Send message"}
-              type="button"
-              onClick={isStreaming ? stopGeneration : () => handleSend()}
-            >
-              {isStreaming ? (
-                <svg className="i stp" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="7" y="7" width="10" height="10" rx="2" />
-                </svg>
-              ) : (
+            {/* Chat List Grouping */}
+            <div id="hist">
+              {pinnedChats.length > 0 && (
                 <>
-                  <svg className="i wav"><use href="#i-wave"/></svg>
-                  <svg className="i snd"><use href="#i-up"/></svg>
+                  <div className="hl">Pinned</div>
+                  {pinnedChats.map((c) => (
+                    <div
+                      key={c.id}
+                      className={`it pinned ${activeChat?.id === c.id ? "on" : ""}`}
+                      onClick={() => loadChat(c)}
+                    >
+                      {renamingId === c.id ? (
+                        <input
+                          className="rn"
+                          value={renameText}
+                          onChange={(e) => setRenameText(e.target.value)}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") handleSaveRename(c, renameText);
+                            if (e.key === "Escape") setRenamingId(null);
+                          }}
+                          onBlur={() => handleSaveRename(c, renameText)}
+                          autoFocus
+                        />
+                      ) : (
+                        <span>{c.title}</span>
+                      )}
+                      <button
+                        type="button"
+                        className="ia"
+                        data-a="pin"
+                        title="Unpin"
+                        aria-label="Unpin"
+                        onClick={(e) => handlePinChat(c, e)}
+                      >
+                        {PIN_SVG}
+                      </button>
+                      <button
+                        type="button"
+                        className="ia"
+                        data-a="ren"
+                        title="Rename"
+                        aria-label="Rename"
+                        onClick={(e) => handleStartRename(c, e)}
+                      >
+                        {REN_SVG}
+                      </button>
+                      <button
+                        type="button"
+                        className="ia"
+                        data-a="del"
+                        title="Delete"
+                        aria-label="Delete"
+                        onClick={(e) => handleDeleteChat(c, e)}
+                      >
+                        {BIN_SVG}
+                      </button>
+                    </div>
+                  ))}
                 </>
               )}
-            </button>
+
+              {buckets.map((b) => {
+                const bucketChats = unpinnedChats.filter((c) => getBucket(c) === b);
+                if (bucketChats.length === 0) return null;
+                return (
+                  <React.Fragment key={b}>
+                    <div className="hl">{b}</div>
+                    {bucketChats.map((c) => (
+                      <div
+                        key={c.id}
+                        className={`it ${activeChat?.id === c.id ? "on" : ""}`}
+                        onClick={() => loadChat(c)}
+                      >
+                        {renamingId === c.id ? (
+                          <input
+                            className="rn"
+                            value={renameText}
+                            onChange={(e) => setRenameText(e.target.value)}
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === "Enter") handleSaveRename(c, renameText);
+                              if (e.key === "Escape") setRenamingId(null);
+                            }}
+                            onBlur={() => handleSaveRename(c, renameText)}
+                            autoFocus
+                          />
+                        ) : (
+                          <span>{c.title}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="ia"
+                          data-a="pin"
+                          title="Pin"
+                          aria-label="Pin"
+                          onClick={(e) => handlePinChat(c, e)}
+                        >
+                          {PIN_SVG}
+                        </button>
+                        <button
+                          type="button"
+                          className="ia"
+                          data-a="ren"
+                          title="Rename"
+                          aria-label="Rename"
+                          onClick={(e) => handleStartRename(c, e)}
+                        >
+                          {REN_SVG}
+                        </button>
+                        <button
+                          type="button"
+                          className="ia"
+                          data-a="del"
+                          title="Delete"
+                          aria-label="Delete"
+                          onClick={(e) => handleDeleteChat(c, e)}
+                        >
+                          {BIN_SVG}
+                        </button>
+                      </div>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+
+              {filteredChats.length === 0 && (
+                <div className="nores">
+                  {searchQuery ? "No matching chats" : "Your chats will appear here"}
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="sfoot">
+              <div className="theme">
+                <div className="tl">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z" />
+                  </svg>
+                  <span>Theme</span>
+                </div>
+                <div className="seg">
+                  <button
+                    type="button"
+                    className={theme === "light" ? "on" : ""}
+                    onClick={() => applyTheme("light")}
+                  >
+                    Light
+                  </button>
+                  <button
+                    type="button"
+                    className={theme === "dark" ? "on" : ""}
+                    onClick={() => applyTheme("dark")}
+                  >
+                    Dark
+                  </button>
+                </div>
+              </div>
+
+              {user ? (
+                <div className="me">
+                  <div className="av">{(user.name || "U")[0].toUpperCase()}</div>
+                  <div>
+                    <span>{user.name}</span>
+                    <small>{user.email}</small>
+                  </div>
+                  <button type="button" onClick={() => setShowSettingsModal(true)} title="Settings">
+                    ⚙
+                  </button>
+                  <button type="button" onClick={handleLogout} title="Log out">
+                    Log out
+                  </button>
+                </div>
+              ) : (
+                <div className="auth">
+                  <button
+                    type="button"
+                    onClick={() => openAuthModal("in")}
+                  >
+                    Log in
+                  </button>
+                  <button
+                    type="button"
+                    className="fill"
+                    onClick={() => openAuthModal("up")}
+                  >
+                    Sign up
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+          {/* Resize Handle */}
+          <div
+            id="rs"
+            onPointerDown={(e) => {
+              const target = e.currentTarget;
+              target.setPointerCapture(e.pointerId);
+              const onMove = (ev: PointerEvent) => {
+                const w = Math.min(420, Math.max(240, ev.clientX));
+                document.documentElement.style.setProperty("--sw", `${w}px`);
+              };
+              const onUp = () => {
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+              };
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            }}
+          />
+        </aside>
 
-        <input
-          type="file"
-          id="file-input"
-          accept="image/*"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (!f) return;
-            if (f.size > 10 * 1024 * 1024) {
-              showToast("Image must be smaller than 10MB");
-              return;
-            }
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64 = reader.result as string;
-              setAttachedImage({ name: f.name, dataUrl: base64 });
-              showToast(`Attached image: ${f.name}`);
-            };
-            reader.readAsDataURL(f);
-            e.target.value = "";
-          }}
-        />
-      </main>
+        {/* ═══ MAIN CHAT COLUMN ═══ */}
+        <main id="main">
+          {/* Header */}
+          <header>
+            <button
+              type="button"
+              className="ib"
+              id="menu"
+              aria-label="Toggle menu"
+              onClick={() => {
+                if (window.innerWidth <= 820) {
+                  setMobileOpen((p) => !p);
+                } else {
+                  setCollapsed((p) => !p);
+                }
+              }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M4 9h16M4 15h10" />
+              </svg>
+            </button>
 
-      {/* 4. PROJECTS SHEET */}
-      <section
-        className={`sheet ${activeSheet === "proj" ? "on" : ""}`}
-        id="shProj"
-        aria-hidden={activeSheet !== "proj"}
-        aria-label="Projects"
-      >
-        <header className="sh-top">
+            <div className="hbrand fly-target" id="hMark" ref={hMarkRef}>
+              <div className="hm">
+                <img className="logo" src="/assets/logo-sm.webp" alt="RockGPT" draggable="false" />
+              </div>
+              <span>ROCKGPT</span>
+            </div>
+
+            <div id="ctitle">{activeChat?.title || ""}</div>
+
+            {activeChat && messages.length > 0 && (
+              <button
+                type="button"
+                className="ib"
+                id="exp"
+                title="Export chat as Markdown"
+                aria-label="Export chat"
+                onClick={handleExportChat}
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 15V4M8 8l4-4 4 4M5 13v5a2 2 0 002 2h10a2 2 0 002-2v-5" />
+                </svg>
+              </button>
+            )}
+
+            {guestTimeLeft !== null && !user && (
+              <button
+                type="button"
+                className="guest-pill"
+                title="Free trial preview. Click to sign up and save your chats."
+                onClick={() => openAuthModal("up")}
+              >
+                <span>Free session</span>
+                <span className="gtimer">
+                  {Math.floor(guestTimeLeft / 60)}:{String(guestTimeLeft % 60).padStart(2, "0")}
+                </span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="newbtn"
+              id="new2"
+              title="New chat"
+              onClick={(e) => {
+                const btn = e.currentTarget;
+                btn.classList.add("pop");
+                setTimeout(() => btn.classList.remove("pop"), 550);
+                startNewChat();
+              }}
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>New chat</span>
+            </button>
+          </header>
+
+          {/* Empty State: Centred Knot Logo + Heading + Dock */}
+          {isFeedEmpty && (
+            <>
+              <div id="empty">
+                <div className="em" id="eMark">
+                  <img className="logo" src="/assets/logo-lg.webp" alt="RockGPT" draggable="false" />
+                </div>
+                <h2>
+                  {user
+                    ? `What should we work on, ${user.name?.split(" ")[0]}?`
+                    : "What should we work on?"}
+                </h2>
+              </div>
+
+              <div id="dock">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => handleSend("Plan my day")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <span>Plan my day</span>
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => handleSend("Help me learn coding")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
+                  <span>Help me learn coding</span>
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => handleSend("Give me a study tip")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  <span>Give me a study tip</span>
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Message Feed */}
+          <div id="sc" ref={scRef} onScroll={handleScroll}>
+            <div id="list">
+              {messages.map((m, i) => {
+                const isUser = m.role === "user";
+                const isLastMsg = i === messages.length - 1;
+                const isLastUser = isUser && !messages.slice(i + 1).some((x) => x.role === "user");
+
+                if (isUser) {
+                  return (
+                    <div
+                      key={i}
+                      className={`msg user ${isLastUser && !isBusy ? "canedit" : ""}`}
+                    >
+                      {m.image && (
+                        <div className="att">
+                          <img src={m.image} alt="Upload preview" />
+                        </div>
+                      )}
+                      {m.files && m.files.length > 0 && !m.image && (
+                        <div className="att">
+                          {m.files.map((f, fi) => (
+                            <div key={fi} className="fc">
+                              <span>{f.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {m.content && <div className="bub">{m.content}</div>}
+                      {isLastUser && !isBusy && (
+                        <button
+                          type="button"
+                          className="ued"
+                          aria-label="Edit message"
+                          title="Edit message"
+                          onClick={handleEditLast}
+                        >
+                          {EDIT_SVG}
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Assistant Message View
+                return (
+                  <div key={i} className="msg ai-msg">
+                    <div
+                      className={`ai-mark ${isBusy && isLastMsg ? "live" : ""}`}
+                      ref={isLastMsg ? lastAiMarkRef : undefined}
+                      aria-hidden="true"
+                    >
+                      <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+                    </div>
+                    <div className="ai-content">
+                      <div className="body">
+                        {m.content ? (
+                          <div
+                            dangerouslySetInnerHTML={{
+                              __html: renderMarkdown(
+                                m.content,
+                                isBusy && isLastMsg
+                              ),
+                            }}
+                          />
+                        ) : isBusy && isLastMsg ? (
+                          <div className="thinking">
+                            <span className="dots">
+                              <i />
+                              <i />
+                              <i />
+                            </span>
+                            <span className="tlabel">Thinking</span>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {/* Response Action Buttons Toolbar */}
+                      {m.content && !(isBusy && isLastMsg) && (
+                        <>
+                          <ResponseActionsBar
+                            messageId={m.id}
+                            content={m.content}
+                            feedback={m.feedback}
+                            onFeedbackChange={(val) => {
+                              setMessages((prev) => {
+                                const next = [...prev];
+                                next[i] = { ...next[i], feedback: val, fb: val === "up" ? "up" : val === "down" ? "dn" : null };
+                                return next;
+                              });
+                            }}
+                            isLast={isLastMsg}
+                            isStreaming={isBusy && isLastMsg}
+                            onRegenerate={handleRegenerate}
+                            onToast={showToast}
+                          />
+
+                          {/* 4 Follow-up Chips on the Last Assistant Message */}
+                          {isLastMsg && !isBusy && (
+                            <div className="fups">
+                              {FUP_OPTIONS.map((fupText) => (
+                                <button
+                                  key={fupText}
+                                  type="button"
+                                  className="fup"
+                                  onClick={() => handleSend(fupText)}
+                                >
+                                  <svg viewBox="0 0 24 24">
+                                    <path d="M5 5v6a3 3 0 003 3h11M15 9l4 5-4 5" />
+                                  </svg>
+                                  <span>{fupText}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Floating Scroll-to-Bottom Button */}
           <button
-            className="sh-back"
             type="button"
-            aria-label="Back"
-            onClick={() => setActiveSheet(null)}
+            id="tobot"
+            className={showScrollDown ? "show" : ""}
+            onClick={() => scrollToBottom(true)}
+            aria-label="Scroll to bottom"
           >
-            <svg className="i"><use href="#i-back"/></svg>
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14M6 13l6 6 6-6" />
+            </svg>
           </button>
-          <h2>Projects</h2>
-          <button
-            className="sh-act"
-            type="button"
-            onClick={() => setShowNewProjForm(prev => !prev)}
-          >
-            + New
-          </button>
-        </header>
-        <div className="sh-body">
-          {showNewProjForm && (
-            <div className="pf on">
-              <input
-                type="text"
-                maxLength={28}
-                placeholder="Project name"
-                value={newProjName}
-                onChange={(e) => setNewProjName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (!newProjName.trim()) {
-                      showToast("Give it a name");
-                      return;
-                    }
-                    fetch("/api/projects", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ name: newProjName.trim() }),
-                    })
-                      .then(res => res.json())
-                      .then(d => {
-                        if (d.project) {
-                          setProjectsList(prev => [d.project, ...prev]);
-                          setNewProjName("");
-                          setShowNewProjForm(false);
-                          showToast("Project created");
+
+          {/* Composer Footer */}
+          <footer>
+            <div
+              className={`composer ${isDragOver ? "over" : ""}`}
+              id="comp"
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                if (e.dataTransfer.files?.length) {
+                  handleAddFiles(e.dataTransfer.files);
+                }
+              }}
+            >
+              {/* Attachments Tray */}
+              {attachments.length > 0 && (
+                <div id="tray">
+                  {attachments.map((att, attIdx) => (
+                    <div key={attIdx} className="pv">
+                      {att.dataUrl ? (
+                        <img src={att.dataUrl} alt={att.name} />
+                      ) : (
+                        <div className="fc">
+                          <span>{att.name}</span>
+                        </div>
+                      )}
+                      <i
+                        onClick={() =>
+                          setAttachments((prev) => prev.filter((_, idx) => idx !== attIdx))
                         }
-                      });
+                      >
+                        ×
+                      </i>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Textarea */}
+              <textarea
+                id="in"
+                ref={textareaRef}
+                rows={1}
+                placeholder="Reply to RockGPT"
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    if (settings.enter) {
+                      e.preventDefault();
+                      handleSend();
+                    } else if (e.ctrlKey || e.metaKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }
+                }}
+                onPaste={(e) => {
+                  if (e.clipboardData.files?.length) {
+                    e.preventDefault();
+                    handleAddFiles(e.clipboardData.files);
                   }
                 }}
               />
-              <div className="row">
-                <button type="button" onClick={() => { setShowNewProjForm(false); setNewProjName(""); }}>Cancel</button>
-                <button
-                  type="button"
-                  className="pri"
-                  onClick={async () => {
-                    if (!newProjName.trim()) {
-                      showToast("Give it a name");
-                      return;
-                    }
-                    const res = await fetch("/api/projects", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ name: newProjName.trim() }),
-                    });
-                    if (res.ok) {
-                      const d = await res.json();
-                      setProjectsList(prev => [d.project, ...prev]);
-                      setNewProjName("");
-                      setShowNewProjForm(false);
-                      showToast("Project created");
-                    }
-                  }}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          )}
 
-          {projectsList.length === 0 ? (
-            <div className="empty-art">
-              <svg viewBox="0 0 24 24">
-                <path d="M3 8V6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v1"/>
-                <path d="M3 10.5h18l-1.4 8a1.5 1.5 0 0 1-1.5 1.2H5.9a1.5 1.5 0 0 1-1.5-1.2z"/>
-              </svg>
-              <br />
-              Group related chats into a project, then start any new chat inside it.
-            </div>
-          ) : (
-            projectsList.map((p, pIdx) => {
-              const isExpanded = expandedProjId === p.id;
-              const isProjActive = activeProject?.id === p.id;
-              const projChats = chatsList.filter(c => c.project_id === p.id);
-
-              return (
-                <div
-                  key={p.id}
-                  className={`proj ${isProjActive ? "act" : ""} ${isExpanded ? "open" : ""}`}
-                  style={{ ["--i" as string]: pIdx }}
-                >
+              {/* Bottom Controls Row */}
+              <div className="crow">
+                <div className="cl">
                   <button
-                    className="proj-h"
                     type="button"
-                    onClick={() => setExpandedProjId(isExpanded ? null : p.id)}
+                    className="sbtn"
+                    id="clip"
+                    title="Attach file"
+                    aria-label="Attach file"
+                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <span className="proj-tile">{p.name.charAt(0).toUpperCase()}</span>
-                    <span className="proj-n">
-                      <b>{p.name}</b>
-                      <span>{p.chat_count} chats{isProjActive ? " · active" : ""}</span>
-                    </span>
-                    <svg className="i proj-chev"><use href="#i-chev"/></svg>
+                    <svg viewBox="0 0 24 24">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
                   </button>
 
-                  <div className="proj-more">
-                    <div>
-                      <div className="proj-in">
-                        {projChats.length === 0 ? (
-                          <div className="proj-empty-note">No chats yet. Make this the active project and send a message.</div>
-                        ) : (
-                          projChats.map(c => (
-                            <button
-                              key={c.id}
-                              className="proj-chat"
-                              type="button"
-                              onClick={() => { setActiveSheet(null); loadChat(c.id); }}
-                            >
-                              {c.title}
-                            </button>
-                          ))
-                        )}
-                        <div className="proj-btns">
-                          <button
-                            type="button"
-                            className="pri"
-                            onClick={() => {
-                              setActiveProject(isProjActive ? null : p);
-                              showToast(isProjActive ? "Left project" : `Project active: ${p.name}`);
-                              setActiveSheet(null);
-                            }}
-                          >
-                            {isProjActive ? "Leave project" : "Use project"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              await fetch(`/api/projects/${p.id}`, { method: "DELETE" });
-                              setProjectsList(prev => prev.filter(x => x.id !== p.id));
-                              if (activeProject?.id === p.id) setActiveProject(null);
-                              showToast("Project deleted");
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    className={`pill ${fastMode ? "on" : ""}`}
+                    id="fast"
+                    onClick={() => {
+                      const next = !fastMode;
+                      setFastMode(next);
+                      localStorage.setItem("rockgpt_fast", next ? "1" : "0");
+                      showToast(next ? "Fast mode enabled" : "Fast mode disabled");
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                    <span>Fast</span>
+                  </button>
                 </div>
-              );
-            })
-          )}
-        </div>
-      </section>
 
-      {/* 5. CANVAS SHEET */}
-      <section
-        className={`sheet ${activeSheet === "canvas" ? "on" : ""}`}
-        id="shCanvas"
-        aria-hidden={activeSheet !== "canvas"}
-        aria-label="Canvas"
-      >
-        <header className="sh-top">
-          <button
-            className="sh-back"
-            type="button"
-            aria-label="Back"
-            onClick={() => setActiveSheet(null)}
-          >
-            <svg className="i"><use href="#i-back"/></svg>
-          </button>
-          <h2>Canvas</h2>
-          <button
-            className="sh-act"
-            type="button"
-            onClick={() => {
-              handleCanvasChange("", "");
-              showToast("Canvas cleared");
-            }}
-          >
-            Clear
-          </button>
-        </header>
-        <div className="sh-body" style={{ gap: 6 }}>
+                <div className="cr">
+                  {!inputValue.trim() && attachments.length === 0 && (
+                    <button
+                      type="button"
+                      className="sbtn"
+                      id="mic"
+                      title="Voice dictation"
+                      aria-label="Voice dictation"
+                      onClick={handleVoiceInput}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <rect x="9" y="3" width="6" height="11" rx="3" />
+                        <path d="M5 11a7 7 0 0014 0M12 18v3" />
+                      </svg>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    id="send"
+                    className={`${(inputValue.trim() || attachments.length) && !isBusy ? "on" : ""} ${
+                      isBusy ? "stop" : ""
+                    }`}
+                    aria-label={isBusy ? "Stop generating" : "Send message"}
+                    onClick={isBusy ? stopGeneration : () => handleSend()}
+                  >
+                    {isBusy ? (
+                      <svg className="sq" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="7" y="7" width="10" height="10" rx="2" />
+                      </svg>
+                    ) : (inputValue.trim() || attachments.length) ? (
+                      <svg className="up" viewBox="0 0 24 24">
+                        <path d="M12 19V5M6 11l6-6 6 6" />
+                      </svg>
+                    ) : (
+                      <svg className="wav" viewBox="0 0 24 24">
+                        <path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="note">RockGPT can make mistakes. Verify important info.</div>
+          </footer>
+
           <input
-            className="cv-title"
-            placeholder="Untitled"
-            maxLength={60}
-            value={canvasTitle}
-            onChange={(e) => handleCanvasChange(e.target.value, canvasText)}
+            type="file"
+            ref={fileInputRef}
+            hidden
+            multiple
+            onChange={(e) => {
+              if (e.target.files?.length) {
+                handleAddFiles(e.target.files);
+                e.target.value = "";
+              }
+            }}
           />
-          <textarea
-            className="cv-text"
-            placeholder="Write, outline or draft anything. It saves as you type."
-            value={canvasText}
-            onChange={(e) => handleCanvasChange(canvasTitle, e.target.value)}
-          />
-          <div className="cv-bar">
-            <span>
-              {(canvasText.trim().match(/\S+/g) || []).length} words
-            </span>
-            <span className={`cv-saved ${canvasSavedNotice ? "on" : ""}`}>Saved</span>
-            <span className="sp" />
-            <button
-              type="button"
-              onClick={() => {
-                const combined = (canvasTitle ? `${canvasTitle}\n\n` : "") + canvasText;
-                navigator.clipboard.writeText(combined).then(() => showToast("Copied"));
-              }}
-            >
-              Copy
-            </button>
-            <button
-              type="button"
-              className="pri"
-              onClick={() => {
-                const combined = (canvasTitle ? `${canvasTitle}\n\n` : "") + canvasText;
-                if (!combined.trim()) return showToast("Canvas is empty");
-                setInputVal(combined);
-                setActiveSheet(null);
-                showToast("Added to composer");
-              }}
-            >
-              Send to chat
-            </button>
-          </div>
-        </div>
-      </section>
+        </main>
+      </div>
 
-      {/* 6. AUTHENTICATION MODAL */}
+      {/* ═══ 3. AUTHENTICATION MODAL (SIGN IN / CREATE ACCOUNT / 6-BOX OTP) ═══ */}
       <div
-        className={`auth-modal ${showAuthModal ? "on" : ""}`}
+        id="modal"
+        className={showAuthModal ? "on" : ""}
         role="dialog"
         aria-modal="true"
         onClick={(e) => {
-          if ((e.target as HTMLElement).classList.contains("auth-modal")) {
+          if (e.target === e.currentTarget) {
             setShowAuthModal(false);
+            setAuthEmail("");
+            setAuthPassword("");
+            setAuthPassword2("");
+            setAuthName("");
+            setAuthOtpCode("");
+            setAuthError(null);
           }
         }}
       >
-        <form className="auth-box" onSubmit={handleAuthSubmit}>
-          <div className="auth-head">
-            <h2>
-              {authTab === "signup" && "Create Account"}
-              {authTab === "login" && "Sign in to RockGPT"}
-              {authTab === "otp" && "Verify Email"}
-              {authTab === "forgot" && "Reset Password"}
-              {authTab === "reset" && "Enter Recovery Code"}
-              {authTab === "google_select" && "Sign in with Google"}
-            </h2>
+        <div className="card">
+          <div className="mh">
+            <span className="lg">
+              <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+            </span>
+            <span>ROCKGPT AUTH</span>
             <button
               type="button"
-              className="auth-close"
+              className="ib"
+              id="mx"
+              onClick={() => {
+                setShowAuthModal(false);
+                setAuthEmail("");
+                setAuthPassword("");
+                setAuthPassword2("");
+                setAuthName("");
+                setAuthOtpCode("");
+                setAuthError(null);
+              }}
               aria-label="Close"
-              onClick={() => { setShowAuthModal(false); setAuthError(null); }}
             >
-              <svg className="i"><use href="#i-close"/></svg>
+              ×
             </button>
           </div>
 
-          {(authTab === "login" || authTab === "signup") && (
-            <div className="auth-tabs">
+          {(authMode === "in" || authMode === "up") && (
+            <div className="tabs" data-m={authMode}>
               <button
                 type="button"
-                className={`auth-tab ${authTab === "login" ? "active" : ""}`}
-                onClick={() => { setAuthTab("login"); setAuthError(null); }}
+                className={authMode === "in" ? "on" : ""}
+                onClick={() => {
+                  setAuthMode("in");
+                  setAuthError(null);
+                  setAuthEmail("");
+                  setAuthPassword("");
+                  setAuthPassword2("");
+                  setAuthName("");
+                  setAuthOtpCode("");
+                }}
               >
                 Sign in
               </button>
               <button
                 type="button"
-                className={`auth-tab ${authTab === "signup" ? "active" : ""}`}
-                onClick={() => { setAuthTab("signup"); setAuthError(null); }}
+                className={authMode === "up" ? "on" : ""}
+                onClick={() => {
+                  setAuthMode("up");
+                  setAuthError(null);
+                  setAuthEmail("");
+                  setAuthPassword("");
+                  setAuthPassword2("");
+                  setAuthName("");
+                  setAuthOtpCode("");
+                }}
               >
-                Create Account
+                Sign up
               </button>
             </div>
           )}
 
-          {authError && (
-            <p style={{ color: "#ef4444", fontSize: 13.5, margin: "2px 0" }}>{authError}</p>
-          )}
+          <form onSubmit={handleAuthSubmit} autoComplete="off">
+            {/* Decoy hidden inputs to prevent browser password managers from auto-filling */}
+            <input type="text" name="decoy_user" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="off" />
+            <input type="password" name="decoy_pw" style={{ display: "none" }} tabIndex={-1} aria-hidden="true" autoComplete="new-password" />
 
-          {/* Mode 1: Sign Up */}
-          {authTab === "signup" && (
-            <>
-              <div className="auth-field">
-                <label>Your Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Suman Mansuri"
-                  required
-                  value={authName}
-                  onChange={(e) => setAuthName(e.target.value)}
-                />
-              </div>
-              <div className="auth-field">
-                <label>Email Address</label>
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  required
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
-              </div>
-              <div className="auth-field">
-                <label>Password (min 8 chars)</label>
-                <div className="auth-input-wrap">
-                  <input
-                    type={authShowPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="auth-eye"
-                    onClick={() => setAuthShowPassword(!authShowPassword)}
-                    aria-label="Toggle password"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
+            {authError && <div className="err">{authError}</div>}
+            {authSuccessMsg && <div className="err ok">{authSuccessMsg}</div>}
+
+            {/* SIGN IN VIEW */}
+            {authMode === "in" && (
+              <>
+                <div className="hero">
+                  <ShieldLogo />
+                  <h3>Welcome Back</h3>
+                  <p>Sign in with your email and password to access your chats.</p>
                 </div>
-              </div>
-              <button type="submit" className="auth-submit" disabled={authLoading}>
-                {authLoading ? "Sending Verification Code…" : "Send Verification Code →"}
-              </button>
-            </>
-          )}
 
-          {/* Mode 2: Sign In */}
-          {authTab === "login" && (
-            <>
-              <div className="auth-field">
-                <label>Email Address</label>
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  required
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
-              </div>
-              <div className="auth-field">
-                <label>Password</label>
-                <div className="auth-input-wrap">
-                  <input
-                    type={authShowPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    required
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="auth-eye"
-                    onClick={() => setAuthShowPassword(!authShowPassword)}
-                    aria-label="Toggle password"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <div className="auth-links">
-                <span />
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={() => { setAuthTab("forgot"); setAuthError(null); }}
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <button type="submit" className="auth-submit" disabled={authLoading}>
-                {authLoading ? "Signing in…" : "Sign in"}
-              </button>
-            </>
-          )}
-
-          {/* Mode 3: OTP Verification */}
-          {authTab === "otp" && (
-            <>
-              <div className="auth-badge">
-                <div className="shield-icon">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="M3 7l9 6 9-6" />
                   </svg>
-                </div>
-                <h3>Check your inbox</h3>
-                <p>We sent a 6-digit verification code to <b>{authEmail}</b>.</p>
-                <button
-                  type="button"
-                  className="auth-link"
-                  style={{ fontSize: "12.5px", marginTop: "4px" }}
-                  onClick={() => { setAuthTab("signup"); setAuthError(null); }}
-                >
-                  ← Change email or password
-                </button>
-              </div>
-              <div className="auth-field">
-                <label style={{ textAlign: "center", marginBottom: 2 }}>Enter 6-Digit Code</label>
-                <OtpBoxes value={authOtpCode} onChange={setAuthOtpCode} disabled={authLoading} />
-              </div>
-              <button type="submit" className="auth-submit" disabled={authLoading || authOtpCode.length < 6}>
-                {authLoading ? (
-                  <>
-                    <span className="btn-spinner" aria-hidden="true" />
-                    <span>Verifying…</span>
-                  </>
-                ) : (
-                  <span>Verify Code & Sign In →</span>
-                )}
-              </button>
-              <div className="auth-links" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                <div className="auth-resend-countdown-wrap">
-                  {authResendSeconds > 0 ? (
-                    <span className="auth-resend-countdown" aria-live="polite">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <circle cx="12" cy="12" r="10" />
-                        <polyline points="12 6 12 12 16 14" />
-                      </svg>
-                      Resend code in <b>{authResendSeconds}s</b>
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="auth-link resend-active"
-                      onClick={handleResendOtp}
-                      disabled={authLoading}
-                    >
-                      Resend code now
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={() => { setAuthTab("signup"); setAuthError(null); }}
-                >
-                  Change email
-                </button>
-              </div>
-            </>
-          )}
+                  <input
+                    type="email"
+                    name="rockgpt_login_email"
+                    id="rockgpt_login_email"
+                    placeholder="Email Address"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck="false"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                  />
+                </label>
 
-          {/* Mode 4: Forgot Password */}
-          {authTab === "forgot" && (
-            <>
-              <div className="auth-badge">
-                <div className="shield-icon">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="8" cy="15" r="4" />
                     <path d="M11 12l9-9M16 7l3 3" />
                   </svg>
-                </div>
-                <h3>Forgot password?</h3>
-                <p>Enter your email to receive a 6-digit recovery code.</p>
-              </div>
-              <div className="auth-field">
-                <label>Email Address</label>
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  required
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck="false"
-                />
-              </div>
-              <button type="submit" className="auth-submit" disabled={authLoading}>
-                {authLoading ? "Sending OTP Code…" : "Send OTP / Recovery Code →"}
-              </button>
-              <div className="auth-links" style={{ justifyContent: "center" }}>
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={() => { setAuthTab("login"); setAuthError(null); }}
-                >
-                  Back to Sign In
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Mode 5: Reset Password */}
-          {authTab === "reset" && (
-            <>
-              <div className="auth-badge">
-                <div className="shield-icon">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
-                  </svg>
-                </div>
-                <h3>Create New Password</h3>
-                <p>Enter the 6-digit code sent to <b>{authEmail}</b>.</p>
-              </div>
-              <div className="auth-field">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="123456"
-                  className="auth-otp-input"
-                  required
-                  value={authOtpCode}
-                  onChange={(e) => setAuthOtpCode(e.target.value.replace(/\D/g, ""))}
-                />
-              </div>
-              <div className="auth-field">
-                <label>New Password (min 8 chars)</label>
-                <div className="auth-input-wrap">
                   <input
-                    type={authShowPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    type={authShowPw ? "text" : "password"}
+                    name="rockgpt_login_password"
+                    id="rockgpt_login_password"
+                    placeholder="Password"
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
                     required
-                    minLength={8}
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
                   />
                   <button
                     type="button"
-                    className="auth-eye"
-                    onClick={() => setAuthShowPassword(!authShowPassword)}
-                    aria-label="Toggle password"
+                    className="eye"
+                    onClick={() => setAuthShowPw((p) => !p)}
+                    aria-label="Toggle password visibility"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
+                    👁
+                  </button>
+                </label>
+
+                <div className="chk">
+                  <label>
+                    <input type="checkbox" defaultChecked />
+                    <span>Remember session</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="lk"
+                    onClick={() => {
+                      setAuthMode("forgot");
+                      setAuthError(null);
+                      setAuthEmail("");
+                    }}
+                  >
+                    Forgot password?
                   </button>
                 </div>
-              </div>
-              <div className="auth-field">
-                <label>Confirm Password</label>
-                <div className="auth-input-wrap">
-                  <input
-                    type={authShowPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                    value={authPasswordConfirm}
-                    onChange={(e) => setAuthPasswordConfirm(e.target.value)}
-                  />
-                </div>
-              </div>
-              <button type="submit" className="auth-submit" disabled={authLoading || authOtpCode.length < 6}>
-                {authLoading ? "Resetting…" : "Reset Password & Log In →"}
-              </button>
-              <div className="auth-links">
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={handleResendOtp}
-                  disabled={authResendSeconds > 0 || authLoading}
-                >
-                  {authResendSeconds > 0 ? `Resend in ${authResendSeconds}s` : "Resend code"}
-                </button>
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={() => { setAuthTab("login"); setAuthError(null); }}
-                >
-                  Back to Sign In
-                </button>
-              </div>
-            </>
-          )}
 
-          {/* Google Sign In Button (shown on login & signup tabs) */}
-          {(authTab === "login" || authTab === "signup") && (
-            <button
-              type="button"
-              className="google-btn"
-              onClick={handleContinueWithGoogle}
-              disabled={authLoading}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18">
-                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
-                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.14-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
-                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-              </svg>
-              <span>Continue with Google</span>
-            </button>
-          )}
-        </form>
+                <button type="submit" className="pbtn" disabled={authLoading}>
+                  {authLoading ? "Signing In…" : "Sign In →"}
+                </button>
+
+                <div className="or">OR CONTINUE WITH</div>
+                <button
+                  type="button"
+                  className="pbtn g"
+                  onClick={() => {
+                    window.location.href = "/api/auth/google";
+                  }}
+                >
+                  {GOOGLE_SVG}
+                  <span>Continue with Google</span>
+                </button>
+
+                <div className="sw">
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    className="lk"
+                    onClick={() => {
+                      setAuthMode("up");
+                      setAuthError(null);
+                      setAuthEmail("");
+                      setAuthPassword("");
+                      setAuthPassword2("");
+                      setAuthName("");
+                    }}
+                  >
+                    Sign Up
+                  </button>
+                </div>
+                <div className="sw">
+                  <button
+                    type="button"
+                    className="lk quiet"
+                    onClick={() => {
+                      setShowAuthModal(false);
+                      setAuthError(null);
+                    }}
+                  >
+                    Stay logged out (Continue as guest)
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SIGN UP VIEW */}
+            {authMode === "up" && (
+              <>
+                <div className="hero">
+                  <ShieldLogo />
+                  <h3>Create Your Account</h3>
+                  <p>Create an account to unlock cloud sync, personal memory & higher limits.</p>
+                </div>
+
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-1a4 4 0 00-4-4H8a4 4 0 00-4 4v1" />
+                    <circle cx="12" cy="8" r="4" />
+                  </svg>
+                  <input
+                    type="text"
+                    name="rockgpt_signup_name"
+                    id="rockgpt_signup_name"
+                    placeholder="Full Name"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                  />
+                </label>
+
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="M3 7l9 6 9-6" />
+                  </svg>
+                  <input
+                    type="email"
+                    name="rockgpt_signup_email"
+                    id="rockgpt_signup_email"
+                    placeholder="Email Address"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck="false"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                  />
+                </label>
+
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="8" cy="15" r="4" />
+                    <path d="M11 12l9-9M16 7l3 3" />
+                  </svg>
+                  <input
+                    type={authShowPw ? "text" : "password"}
+                    name="rockgpt_signup_password"
+                    id="rockgpt_signup_password"
+                    placeholder="Password (min 8 chars)"
+                    minLength={8}
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="eye"
+                    onClick={() => setAuthShowPw((p) => !p)}
+                    aria-label="Toggle password visibility"
+                  >
+                    👁
+                  </button>
+                </label>
+
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="8" cy="15" r="4" />
+                    <path d="M11 12l9-9M16 7l3 3" />
+                  </svg>
+                  <input
+                    type={authShowPw ? "text" : "password"}
+                    name="rockgpt_signup_password2"
+                    id="rockgpt_signup_password2"
+                    placeholder="Confirm Password"
+                    minLength={8}
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authPassword2}
+                    onChange={(e) => setAuthPassword2(e.target.value)}
+                  />
+                </label>
+
+                <div className="chk">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={authAgreeTos}
+                      onChange={(e) => setAuthAgreeTos(e.target.checked)}
+                    />
+                    <span>I agree to the Terms of Service and Privacy Policy.</span>
+                  </label>
+                </div>
+
+                <button type="submit" className="pbtn" disabled={authLoading}>
+                  {authLoading ? "Sending Code…" : "Send Verification Code →"}
+                </button>
+
+                <div className="or">OR CONTINUE WITH</div>
+                <button
+                  type="button"
+                  className="pbtn g"
+                  onClick={() => {
+                    window.location.href = "/api/auth/google";
+                  }}
+                >
+                  {GOOGLE_SVG}
+                  <span>Continue with Google</span>
+                </button>
+
+                <div className="sw">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    className="lk"
+                    onClick={() => {
+                      setAuthMode("in");
+                      setAuthError(null);
+                      setAuthEmail("");
+                      setAuthPassword("");
+                      setAuthPassword2("");
+                      setAuthName("");
+                    }}
+                  >
+                    Sign In
+                  </button>
+                </div>
+                <div className="sw">
+                  <button
+                    type="button"
+                    className="lk quiet"
+                    onClick={() => {
+                      setShowAuthModal(false);
+                      setAuthError(null);
+                    }}
+                  >
+                    Stay logged out (Continue as guest)
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* 6-BOX OTP VERIFICATION VIEW */}
+            {authMode === "code" && (
+              <>
+                <div className="hero">
+                  <ShieldLogo />
+                  <h3>Check your email</h3>
+                  <p>Enter the 6-digit verification code sent to {authEmail}.</p>
+                </div>
+
+                <OtpBoxes
+                  value={authOtpCode}
+                  onChange={setAuthOtpCode}
+                  disabled={authLoading}
+                />
+
+                <button
+                  type="submit"
+                  className="pbtn"
+                  disabled={authLoading || authOtpCode.length < 6}
+                >
+                  {authLoading ? "Verifying…" : "Verify & Create Account"}
+                </button>
+
+                <div className="sw">
+                  {authResendSeconds > 0 ? (
+                    <span>Resend code in {authResendSeconds}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="lk"
+                      onClick={async () => {
+                        setAuthLoading(true);
+                        try {
+                          await fetch("/api/auth/resend-otp", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email: authEmail, type: "signup" }),
+                          });
+                          setAuthResendSeconds(60);
+                          showToast("New 6-digit code sent!");
+                        } catch {
+                          setAuthError("Failed to resend code");
+                        } finally {
+                          setAuthLoading(false);
+                        }
+                      }}
+                    >
+                      Resend code
+                    </button>
+                  )}
+                </div>
+
+                <div className="sw">
+                  Wrong email?{" "}
+                  <button
+                    type="button"
+                    className="lk"
+                    onClick={() => {
+                      setAuthMode("up");
+                      setAuthOtpCode("");
+                    }}
+                  >
+                    Go back
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* FORGOT PASSWORD VIEW */}
+            {authMode === "forgot" && (
+              <>
+                <div className="hero">
+                  <ShieldLogo />
+                  <h3>Reset Password</h3>
+                  <p>Enter your email to receive a 6-digit recovery code.</p>
+                </div>
+
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="M3 7l9 6 9-6" />
+                  </svg>
+                  <input
+                    type="email"
+                    name="rockgpt_forgot_email"
+                    id="rockgpt_forgot_email"
+                    placeholder="Email Address"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck="false"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                  />
+                </label>
+
+                <button type="submit" className="pbtn" disabled={authLoading}>
+                  {authLoading ? "Sending Recovery Code…" : "Send Recovery Code →"}
+                </button>
+
+                <div className="sw">
+                  <button
+                    type="button"
+                    className="lk"
+                    onClick={() => setAuthMode("in")}
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* RESET PASSWORD VIEW */}
+            {authMode === "reset" && (
+              <>
+                <div className="hero">
+                  <ShieldLogo />
+                  <h3>Enter Recovery Code</h3>
+                  <p>Enter the 6-digit code sent to {authEmail} and your new password.</p>
+                </div>
+
+                <OtpBoxes
+                  value={authOtpCode}
+                  onChange={setAuthOtpCode}
+                  disabled={authLoading}
+                />
+
+                <label className="fld">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="8" cy="15" r="4" />
+                    <path d="M11 12l9-9M16 7l3 3" />
+                  </svg>
+                  <input
+                    type={authShowPw ? "text" : "password"}
+                    name="rockgpt_reset_password"
+                    id="rockgpt_reset_password"
+                    placeholder="New Password (min 8 chars)"
+                    minLength={8}
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className="pbtn"
+                  disabled={authLoading || authOtpCode.length < 6}
+                >
+                  {authLoading ? "Updating…" : "Update Password"}
+                </button>
+              </>
+            )}
+          </form>
+        </div>
       </div>
 
-      {/* 7. TOAST NOTIFICATION */}
-      <div className={`toast ${toastMsg ? "on" : ""}`} id="toast">
-        {toastMsg}
+      {/* ═══ 4. SETTINGS MODAL ═══ */}
+      <div
+        id="smodal"
+        className={showSettingsModal ? "on" : ""}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowSettingsModal(false);
+        }}
+      >
+        <div className="card">
+          <div className="mh">
+            <span className="lg">
+              <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+            </span>
+            <span>SETTINGS</span>
+            <button
+              type="button"
+              className="ib"
+              id="sx"
+              onClick={() => setShowSettingsModal(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="sg" style={{ marginTop: 4 }}>Preferences</div>
+
+          <label className="tgr">
+            <span>
+              Enter to send
+              <small>Off: Ctrl+Enter sends. Shift+Enter is always a new line.</small>
+            </span>
+            <input
+              type="checkbox"
+              className="tg"
+              checked={settings.enter}
+              onChange={(e) => updateSettings({ enter: e.target.checked })}
+            />
+          </label>
+
+          <label className="tgr">
+            <span>Auto-scroll while replying</span>
+            <input
+              type="checkbox"
+              className="tg"
+              checked={settings.scroll}
+              onChange={(e) => updateSettings({ scroll: e.target.checked })}
+            />
+          </label>
+
+          <label className="tgr">
+            <span>Show intro animation</span>
+            <input
+              type="checkbox"
+              className="tg"
+              checked={settings.intro}
+              onChange={(e) => updateSettings({ intro: e.target.checked })}
+            />
+          </label>
+
+          <div className="tgr" style={{ cursor: "default" }}>
+            <span>Text size</span>
+            <div className="seg">
+              {(["s", "m", "l"] as const).map((z) => (
+                <button
+                  key={z}
+                  type="button"
+                  className={settings.size === z ? "on" : ""}
+                  onClick={() => updateSettings({ size: z })}
+                >
+                  {z === "s" ? "Small" : z === "m" ? "Normal" : "Large"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sg">Custom instructions</div>
+          <textarea
+            id="instr"
+            maxLength={600}
+            placeholder="Tell ROCKGPT how to answer. e.g. Use simple English and keep replies short."
+            value={settings.instr}
+            onChange={(e) => {
+              const val = e.target.value;
+              updateSettings({ instr: val });
+              fetch("/api/me/settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ instructions: val }),
+              }).catch(() => {});
+            }}
+          />
+
+          <div className="sg">Data</div>
+          <div className="btnrow">
+            <button
+              type="button"
+              className="sbt"
+              onClick={() => {
+                if (!chats.length) return showToast("No chats to export");
+                const json = JSON.stringify(chats, null, 2);
+                const blob = new Blob([json], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "rockgpt-chats.json";
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast("Chats exported");
+              }}
+            >
+              Export all chats
+            </button>
+            <button
+              type="button"
+              className="sbt"
+              onClick={() => {
+                sessionStorage.setItem("rg_force", "1");
+                window.location.reload();
+              }}
+            >
+              Replay intro
+            </button>
+            <button
+              type="button"
+              className="sbt dg"
+              onClick={async () => {
+                if (isBusy) return showToast("Wait for the reply to finish");
+                if (window.confirm("Delete all chats? This cannot be undone.")) {
+                  setChats([]);
+                  startNewChat();
+                  setShowSettingsModal(false);
+                  showToast("All chats deleted");
+                }
+              }}
+            >
+              Clear all chats
+            </button>
+          </div>
+
+          <div className="sg">Shortcuts</div>
+          <div className="keys">
+            {[
+              ["New chat", "Ctrl Shift O"],
+              ["Search chats", "Ctrl K"],
+              ["Toggle sidebar", "Ctrl B"],
+              ["Settings", "Ctrl ,"],
+              ["Focus message box", "/"],
+              ["Stop generating", "Esc"],
+              ["New line", "Shift Enter"],
+            ].map(([label, shortcut], idx) => (
+              <div key={idx}>
+                <span>{label}</span>
+                <span>
+                  {shortcut.split(" ").map((k, ki) => (
+                    <kbd key={ki}>{k}</kbd>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="ver">ROCKGPT · Suman Mansuri</div>
+        </div>
+      </div>
+
+      {/* ═══ 5. DRAG AND DROP FULLSCREEN OVERLAY ═══ */}
+      <div id="drop" className={isDragOver ? "on" : ""}>
+        <div>Drop files to add to message</div>
+      </div>
+
+      {/* ═══ 6. TOAST NOTIFICATIONS ═══ */}
+      <div id="toasts">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast">
+            <span>{t.msg}</span>
+            {t.act && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.act?.fn();
+                  setToasts((prev) => prev.filter((x) => x.id !== t.id));
+                }}
+              >
+                {t.act.label}
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     </>
   );

@@ -22,6 +22,21 @@ const chatSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    lastMessageAt: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+    clientId: {
+      type: String,
+      default: null,
+      sparse: true,
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -39,7 +54,10 @@ const chatSchema = new mongoose.Schema(
 );
 
 // Compound index for fast queries: newest user chats first
+chatSchema.index({ userId: 1, lastMessageAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
+chatSchema.index({ userId: 1, clientId: 1 }, { unique: true, sparse: true });
+chatSchema.index({ title: "text" });
 
 const Chat = mongoose.models.Chat || mongoose.model("Chat", chatSchema);
 export default Chat;

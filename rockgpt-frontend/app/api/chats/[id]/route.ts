@@ -7,6 +7,7 @@ import { proxyBackendRequest } from "@/lib/backend-auth";
 const patchChatSchema = z.object({
   title: z.string().trim().min(1).max(120).optional(),
   project_id: z.string().uuid().nullable().optional(),
+  pinned: z.boolean().optional(),
 });
 
 export async function GET(
@@ -105,11 +106,15 @@ export async function PATCH(
     const json = await request.json().catch(() => ({}));
     const parsed = patchChatSchema.parse(json);
 
-    // 1. Rename in persistent MongoDB Atlas via Render Backend
-    if (parsed.title) {
+    // 1. Rename or Pin in persistent MongoDB Atlas via Render Backend
+    const patchBody: Record<string, any> = {};
+    if (parsed.title !== undefined) patchBody.title = parsed.title;
+    if (parsed.pinned !== undefined) patchBody.pinned = parsed.pinned;
+
+    if (Object.keys(patchBody).length > 0) {
       await proxyBackendRequest(`/api/chats/${id}`, {
         method: "PATCH",
-        body: { title: parsed.title },
+        body: patchBody,
         user,
       });
     }
@@ -118,11 +123,12 @@ export async function PATCH(
     if (chat) {
       if (parsed.title !== undefined) chat.title = parsed.title;
       if (parsed.project_id !== undefined) chat.project_id = parsed.project_id;
+      if (parsed.pinned !== undefined) (chat as any).pinned = parsed.pinned;
       chat.updated_at = new Date();
     }
 
     return NextResponse.json({
-      chat: chat || { id, title: parsed.title || "Renamed chat" },
+      chat: chat || { id, title: parsed.title || "Updated chat", pinned: parsed.pinned },
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

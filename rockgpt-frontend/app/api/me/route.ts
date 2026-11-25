@@ -10,11 +10,10 @@ const patchMeSchema = z.object({
 
 export async function GET() {
   const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: { code: "unauthorized", message: "Not authenticated" } },
-      { status: 401 }
-    );
+  if (!user || user.email.startsWith("guest-")) {
+    return NextResponse.json({
+      user: null,
+    });
   }
 
   return NextResponse.json({

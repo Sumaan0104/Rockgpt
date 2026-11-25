@@ -38,6 +38,16 @@ const messageSchema = new mongoose.Schema(
       kind: { type: String, default: "" },
       dataUrl: { type: String, default: "" },
     },
+    feedback: {
+      type: String,
+      enum: ["up", "down", null],
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: ["complete", "stopped", "error"],
+      default: "complete",
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -52,6 +62,7 @@ const messageSchema = new mongoose.Schema(
 // Compound indexes for instant chronological message loading across both chatId and legacy conversationId
 messageSchema.index({ chatId: 1, createdAt: 1 });
 messageSchema.index({ conversationId: 1, createdAt: 1 });
+messageSchema.index({ content: "text" });
 
 const Message = mongoose.models.Message || mongoose.model("Message", messageSchema);
 export default Message;

@@ -65,6 +65,22 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    settings: {
+      instructions: {
+        type: String,
+        maxlength: 600,
+        default: "",
+      },
+      fast: {
+        type: Boolean,
+        default: false,
+      },
+      textSize: {
+        type: String,
+        enum: ["s", "m", "l"],
+        default: "m",
+      },
+    },
     createdAt: {
       type: Date,
       default: Date.now,

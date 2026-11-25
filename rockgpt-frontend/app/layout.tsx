@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL || "https://rockgpt-ten.vercel.app"),
-  title: "RockGPT (Rock GPT) – Next-Gen AI Assistant & Workspace",
-  description: "RockGPT (Rock GPT) is the official next-generation AI assistant for chat, code, documents and vision. Ultra-fast streaming engineered by Suman Mansuri.",
+  title: "RockGPT – Next-Gen AI Assistant & Workspace",
+  description: "RockGPT is the official next-generation AI assistant for chat, code, documents and vision. Ultra-fast streaming engineered by Suman Mansuri.",
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -37,8 +37,28 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap"
           rel="stylesheet"
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var root = document.documentElement;
+                  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+                    root.classList.add('app-mode');
+                  }
+                  var t = localStorage.getItem('rockgpt_theme') || 'dark';
+                  root.dataset.theme = t;
+                  var s = JSON.parse(localStorage.getItem('rockgpt_set') || '{}');
+                  if (s.size) root.dataset.size = s.size;
+                  var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+                  root.style.setProperty('--vh', h + 'px');
+                } catch(e) {}
+              })();
+            `,
+          }}
         />
       </head>
       <body className="antialiased">

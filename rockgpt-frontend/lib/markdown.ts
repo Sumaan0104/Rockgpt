@@ -21,7 +21,7 @@ export function renderMarkdown(content: string, isStreaming = false): string {
       .replace(/&amp;/g, "&");
     const placeholder = `%%ROCKGPT_CB_${codeBlocks.length}%%`;
     codeBlocks.push(
-      `<div class="code-block-wrapper"><div class="code-block-header"><span>${language}</span><button type="button" class="code-copy-btn" data-copy="${encodeURIComponent(rawCodeForCopy)}">Copy</button></div><pre><code class="language-${language}">${trimmedCode}</code></pre></div>`
+      `<pre><div class="ph"><span>${language}</span><button type="button" class="cc code-copy-btn" data-copy="${encodeURIComponent(rawCodeForCopy)}">Copy</button></div><code class="language-${language}">${trimmedCode}</code></pre>`
     );
     return `\n\n${placeholder}\n\n`;
   });

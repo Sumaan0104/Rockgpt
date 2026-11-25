@@ -340,60 +340,61 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       }
     }
 
-    // Set immediate SSE headers
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
+    // 1. Fetch user custom settings & fast mode from database (never trust client settings directly)
+    let userCustomInstructions = "";
+    let effectiveFast = Boolean(fast);
 
-    const lastMessage = messages[messages.length - 1];
+    if (req.user && mongoose.Types.ObjectId.isValid(req.user._id)) {
+      try {
+        const uDoc = await User.findById(req.user._id).select("settings").lean();
+        if (uDoc?.settings) {
+          if (uDoc.settings.instructions) userCustomInstructions = uDoc.settings.instructions.trim();
+          if (typeof uDoc.settings.fast === "boolean") effectiveFast = uDoc.settings.fast;
+        }
+      } catch (_) {}
+    }
 
-    // Find existing chat or automatically create one concurrently alongside AI streaming
+    // 2. Trim context to last 12 messages (+ system prompt)
+    const trimmedMessages = messages.slice(-12);
+    const lastMessage = trimmedMessages[trimmedMessages.length - 1];
+
+    // Find existing chat or automatically create one server-side for authenticated users
     let targetChat = null;
-    const dbPromise = (async () => {
-      if (!req.user || !mongoose.Types.ObjectId.isValid(req.user._id)) return null;
+    let savedUserMsg = false;
+
+    if (req.user && mongoose.Types.ObjectId.isValid(req.user._id)) {
+      const userObjectId = new mongoose.Types.ObjectId(req.user._id);
       try {
         if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
           const objId = new mongoose.Types.ObjectId(chatId);
-          const userObjectId = mongoose.Types.ObjectId.isValid(req.user._id) ? new mongoose.Types.ObjectId(req.user._id) : req.user._id;
-          const userFilter = { $or: [{ userId: userObjectId }, { userId: String(req.user._id) }] };
-          targetChat = await Chat.findOne({ _id: objId, ...userFilter });
-          if (!targetChat) {
-            targetChat = await Conversation.findOne({ _id: objId, ...userFilter });
-          }
+          targetChat = await Chat.findOne({ _id: objId, userId: userObjectId, deletedAt: null });
         }
         if (!targetChat && lastMessage) {
           const titleText = (typeof lastMessage.content === "string" ? lastMessage.content : "New Conversation").slice(0, 60).trim();
+          const now = new Date();
           targetChat = await Chat.create({
-            userId: req.user._id,
+            userId: userObjectId,
             title: titleText || "New Chat",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          // Mirror to Conversation in background
-          Conversation.create({
-            _id: targetChat._id,
-            userId: req.user._id,
-            title: titleText || "New Chat",
-            model: "RockGPT Flash",
             pinned: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }).catch(() => {});
+            deletedAt: null,
+            lastMessageAt: now,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        // Expose X-Chat-Id header for the client
+        if (targetChat) {
+          res.setHeader("X-Chat-Id", targetChat._id.toString());
         }
 
-        if (targetChat && !isClosed) {
-          res.write(`data: ${JSON.stringify({ chatId: targetChat._id.toString() })}\n\n`);
-        }
-
+        // Save user message in DB BEFORE calling AI model
         if (targetChat && lastMessage && lastMessage.role === "user") {
           const now = new Date();
           await Promise.all([
             Message.create({
               chatId: targetChat._id,
               conversationId: targetChat._id,
-              userId: req.user._id,
+              userId: userObjectId,
               role: "user",
               content: typeof lastMessage.content === "string" ? lastMessage.content : "",
               attachments: (lastMessage.attachments || []).map((a) => ({
@@ -401,19 +402,32 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
                 type: a.type || "",
                 url: a.url || "",
               })),
+              status: "complete",
             }),
-            Chat.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
-            Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
+            Chat.updateOne({ _id: targetChat._id }, { $set: { lastMessageAt: now, updatedAt: now } }).catch(() => {}),
           ]);
+          savedUserMsg = true;
         }
-        return targetChat;
       } catch (dbErr) {
-        console.warn("DB user message save warning:", dbErr.message);
-        return targetChat;
+        console.warn("Pre-generation chat setup warning:", dbErr.message);
       }
-    })();
+    }
 
-    const systemPrompt = buildSystemPrompt(fast);
+    // Set immediate SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    if (targetChat && !isClosed) {
+      res.write(`data: ${JSON.stringify({ chatId: targetChat._id.toString() })}\n\n`);
+    }
+
+    let systemPrompt = buildSystemPrompt(effectiveFast);
+    if (userCustomInstructions) {
+      systemPrompt += `\n\nUser Custom Instructions:\n${userCustomInstructions}`;
+    }
     let fullAssistantResponse = "";
 
     // 1. Check if message has image attachments -> try Gemini vision first
@@ -547,21 +561,22 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       }
     }
 
-    // 3. Save assistant message to MongoDB ONLY if real generation succeeded
-    await dbPromise.catch(() => {});
-    if (targetChat && isAiSuccess && fullAssistantResponse.trim()) {
+    // 3. Save assistant message to MongoDB with status (complete / stopped / error)
+    if (targetChat && fullAssistantResponse.trim()) {
       try {
         const now = new Date();
+        const finalStatus = isClosed || clientAbortController.signal.aborted ? "stopped" : isAiSuccess ? "complete" : "error";
         await Promise.all([
           Message.create({
             chatId: targetChat._id,
             conversationId: targetChat._id,
-            userId: req.user ? (mongoose.Types.ObjectId.isValid(req.user._id) ? new mongoose.Types.ObjectId(req.user._id) : req.user._id) : undefined,
+            userId: targetChat.userId,
             role: "assistant",
             content: fullAssistantResponse,
+            status: finalStatus,
+            createdAt: now,
           }),
-          Chat.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
-          Conversation.updateOne({ _id: targetChat._id }, { $set: { updatedAt: now } }).catch(() => {}),
+          Chat.updateOne({ _id: targetChat._id }, { $set: { lastMessageAt: now, updatedAt: now } }).catch(() => {}),
         ]);
       } catch (err) {
         console.warn("Failed to persist assistant reply:", err.message);

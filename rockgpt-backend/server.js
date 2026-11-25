@@ -103,6 +103,7 @@ app.use(
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
+    exposedHeaders: ["X-Chat-Id"],
   })
 );
 
@@ -141,6 +142,57 @@ app.use("/api/chats", chatsRoutes);
 app.use("/api/conversations", chatsRoutes); // Backward-compatibility alias
 app.use("/api/chat", chatRoutes);
 app.use("/api/admin", adminRoutes);
+
+// ═══ SETTINGS ROUTES (/api/me/settings) ═══
+app.get("/api/me/settings", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) return res.status(401).json({ error: "Unauthorized" });
+    const user = await User.findById(req.user._id).select("settings").lean();
+    res.json({ settings: user?.settings || { instructions: "", fast: false, textSize: "m" } });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch settings" });
+  }
+});
+
+app.put("/api/me/settings", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) return res.status(401).json({ error: "Unauthorized" });
+    const { instructions, fast, textSize } = req.body || {};
+    const update = {};
+    if (typeof instructions === "string") update["settings.instructions"] = instructions.slice(0, 600);
+    if (typeof fast === "boolean") update["settings.fast"] = fast;
+    if (["s", "m", "l"].includes(textSize)) update["settings.textSize"] = textSize;
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true }).select("settings").lean();
+    res.json({ success: true, settings: user?.settings || {} });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update settings" });
+  }
+});
+
+// ═══ MESSAGE FEEDBACK (/api/messages/:id/feedback) ═══
+app.patch("/api/messages/:id/feedback", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) return res.status(401).json({ error: "Unauthorized" });
+    const { feedback } = req.body;
+    if (!["up", "down", null].includes(feedback)) {
+      return res.status(400).json({ error: "Invalid feedback value. Must be 'up', 'down', or null." });
+    }
+    const msgId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(msgId)) {
+      return res.status(404).json({ error: "Message not found." });
+    }
+    const Message = mongoose.models.Message;
+    const msg = await Message.findOneAndUpdate(
+      { _id: new mongoose.Types.ObjectId(msgId), userId: req.user._id },
+      { $set: { feedback } },
+      { new: true }
+    );
+    if (!msg) return res.status(404).json({ error: "Message not found." });
+    res.json({ success: true, feedback: msg.feedback });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update feedback." });
+  }
+});
 
 // ═══ HEALTH CHECKS ═══
 app.get("/api/version", (req, res) => {

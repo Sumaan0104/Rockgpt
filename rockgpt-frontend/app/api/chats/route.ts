@@ -14,11 +14,12 @@ const createChatSchema = z.object({
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json(
-      { error: { code: "unauthorized", message: "Not authenticated" } },
-      { status: 401 }
-    );
+  if (!user || user.email.startsWith("guest-")) {
+    // Unauthenticated visitors and guest users start with a clean local state; only authenticated users load from MongoDB Atlas
+    return NextResponse.json({
+      chats: [],
+      nextCursor: null,
+    });
   }
 
   // 1. Fetch from persistent MongoDB database via Render backend
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(true);
   if (!user) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
@@ -85,16 +86,19 @@ export async function POST(request: Request) {
     const json = await request.json().catch(() => ({}));
     const { title, project_id, mode, id } = createChatSchema.parse(json);
 
-    // 1. Create in persistent MongoDB database via Render backend
-    const backendResult = await proxyBackendRequest("/api/chats", {
-      method: "POST",
-      body: { title, id },
-      user,
-    });
+    let chatId = id || generateUUID();
 
-    const chatId = (backendResult.ok && (backendResult.data?.id || backendResult.data?._id))
-      ? (backendResult.data.id || backendResult.data._id)
-      : (id || generateUUID());
+    // Only sync to MongoDB backend for real authenticated accounts, keeping guest chats local-only
+    if (!user.email.startsWith("guest-")) {
+      const backendResult = await proxyBackendRequest("/api/chats", {
+        method: "POST",
+        body: { title, id: chatId },
+        user,
+      });
+      if (backendResult.ok && (backendResult.data?.id || backendResult.data?._id)) {
+        chatId = backendResult.data.id || backendResult.data._id;
+      }
+    }
 
     const newChat = globalStore.saveChat({
       id: chatId,
