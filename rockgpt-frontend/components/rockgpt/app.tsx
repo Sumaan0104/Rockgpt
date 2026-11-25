@@ -534,6 +534,7 @@ export function RockGPTApp() {
 
   // Chats & Active Conversation
   const [chats, setChats] = useState<ChatItem[]>([]);
+  const [chatNextCursor, setChatNextCursor] = useState<string | null>(null);
   const [activeChat, setActiveChat] = useState<ChatItem | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [isBusy, setIsBusy] = useState(false);
@@ -590,6 +591,7 @@ export function RockGPTApp() {
   const introRanRef = useRef(false);
   const flyInRanRef = useRef(false);
   const guestExpiryPopupFiredRef = useRef(false);
+  const coldStartNoticedRef = useRef(false);
   const streamTargetRef = useRef("");
   const streamShownLenRef = useRef(0);
   const streamDoneRef = useRef(false);
@@ -604,6 +606,29 @@ export function RockGPTApp() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, duration);
   }, []);
+
+  // Credentialed fetch wrapper with Render cold-start "waking up" notice when first request is slow (>2.8s)
+  const apiFetch = useCallback(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      let wakeTimer: ReturnType<typeof setTimeout> | null = null;
+      if (!coldStartNoticedRef.current) {
+        wakeTimer = setTimeout(() => {
+          if (!coldStartNoticedRef.current) {
+            coldStartNoticedRef.current = true;
+            showToast("Server is waking up, please wait a moment…");
+          }
+        }, 2800);
+      }
+      try {
+        const res = await fetch(input, { credentials: "include", ...init });
+        coldStartNoticedRef.current = true;
+        return res;
+      } finally {
+        if (wakeTimer) clearTimeout(wakeTimer);
+      }
+    },
+    [showToast]
+  );
 
   // Auth Mode Switcher (Clears all password/OTP/toggle fields so zero credentials ever leak across views)
   const switchAuthMode = useCallback(
@@ -940,7 +965,7 @@ export function RockGPTApp() {
   const fetchSession = useCallback(async () => {
     let serverGuest: { remainingSeconds?: number; expired?: boolean } | undefined;
     try {
-      const res = await fetch("/api/me");
+      const res = await apiFetch("/api/me");
       if (res.ok) {
         const data = await res.json();
         if (data.guest) serverGuest = data.guest;
@@ -966,19 +991,33 @@ export function RockGPTApp() {
       }
     } catch {}
     initGuestTimer(serverGuest);
-  }, [updateSettings, initGuestTimer]);
+  }, [apiFetch, updateSettings, initGuestTimer]);
 
-  const fetchChats = useCallback(async (q = "") => {
-    try {
-      const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
-      const res = await fetch(`/api/chats${qs}`);
-      if (res.ok) {
-        const data = await res.json();
-        const list: ChatItem[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
-        setChats(list);
-      }
-    } catch {}
-  }, []);
+  const fetchChats = useCallback(
+    async (q = "", cursor = "") => {
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", "30");
+        if (q.trim()) params.set("q", q.trim());
+        if (cursor) params.set("cursor", cursor);
+        const res = await apiFetch(`/api/chats?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          const list: ChatItem[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
+          setChatNextCursor(data.nextCursor || null);
+          if (cursor) {
+            setChats((prev) => {
+              const seen = new Set(prev.map((c) => c.id));
+              return [...prev, ...list.filter((c) => !seen.has(c.id))];
+            });
+          } else {
+            setChats(list);
+          }
+        }
+      } catch {}
+    },
+    [apiFetch]
+  );
 
   useEffect(() => {
     fetchSession();
@@ -1395,7 +1434,7 @@ export function RockGPTApp() {
     };
 
     try {
-      const streamRes = await fetch(`/api/chats/${chatId}/messages`, {
+      const streamRes = await apiFetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1886,7 +1925,12 @@ export function RockGPTApp() {
 
     try {
       if (authMode === "in") {
-        const res = await fetch("/api/auth/login", {
+        if (!authEmail.trim() || !authPassword) {
+          setAuthError("Email and password are required.");
+          setAuthLoading(false);
+          return;
+        }
+        const res = await apiFetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: authEmail, password: authPassword, remember: authRememberSession }),
@@ -1895,7 +1939,7 @@ export function RockGPTApp() {
         if (res.ok && data.user) {
           finishAuthSuccess(data.user, `Welcome back, ${(data.user.name || "User").split(" ")[0]}!`);
         } else {
-          setAuthError(data.error?.message || "Invalid email or password");
+          setAuthError(data.error?.message || data.error || "Invalid email or password");
         }
       } else if (authMode === "up") {
         if (authPassword !== authPassword2) {
@@ -1908,25 +1952,21 @@ export function RockGPTApp() {
           setAuthLoading(false);
           return;
         }
-        const res = await fetch("/api/auth/signup", {
+        const res = await apiFetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: authName, email: authEmail, password: authPassword }),
         });
         const data = await res.json();
         if (res.ok) {
-          if (data.alreadyActive && data.user) {
-            finishAuthSuccess(data.user, `Welcome back, ${(data.user.name || "User").split(" ")[0]}!`);
-          } else {
-            switchAuthMode("code", true);
-            setAuthResendSeconds(60);
-            showToast(data.message || "Verification code sent to your email!");
-          }
+          switchAuthMode("code", true);
+          setAuthResendSeconds(60);
+          showToast(data.message || "Verification code sent to your email!");
         } else {
-          setAuthError(data.error?.message || "Failed to create account");
+          setAuthError(data.error?.message || data.error || "Failed to create account");
         }
       } else if (authMode === "code") {
-        const res = await fetch("/api/auth/verify-otp", {
+        const res = await apiFetch("/api/auth/verify-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: authEmail, code: authOtpCode, type: "signup" }),
@@ -1935,10 +1975,10 @@ export function RockGPTApp() {
         if (res.ok && data.user) {
           finishAuthSuccess(data.user, `Welcome, ${(data.user.name || "User").split(" ")[0]}!`);
         } else {
-          setAuthError(data.error?.message || "Invalid verification code");
+          setAuthError(data.error?.message || data.error || "Invalid verification code");
         }
       } else if (authMode === "forgot") {
-        const res = await fetch("/api/auth/forgot-password", {
+        const res = await apiFetch("/api/auth/forgot-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: authEmail }),
@@ -1949,10 +1989,10 @@ export function RockGPTApp() {
           setAuthResendSeconds(60);
           showToast(data.message || "Recovery code sent to your inbox!");
         } else {
-          setAuthError(data.error?.message || "Failed to send recovery code");
+          setAuthError(data.error?.message || data.error || "Failed to send recovery code");
         }
       } else if (authMode === "reset") {
-        const res = await fetch("/api/auth/reset-password", {
+        const res = await apiFetch("/api/auth/reset-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: authEmail, code: authOtpCode, newPassword: authPassword }),
@@ -1961,7 +2001,7 @@ export function RockGPTApp() {
         if (res.ok && data.user) {
           finishAuthSuccess(data.user, "Password updated successfully! You are signed in.");
         } else {
-          setAuthError(data.error?.message || "Failed to reset password");
+          setAuthError(data.error?.message || data.error || "Failed to reset password");
         }
       }
     } catch {
@@ -1973,9 +2013,11 @@ export function RockGPTApp() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await apiFetch("/api/auth/logout", { method: "POST" });
       setUser(null);
       setChats([]);
+      setChatNextCursor(null);
+      setSearchQuery("");
       startNewChat();
       guestExpiryPopupFiredRef.current = false;
       try {
@@ -2235,6 +2277,17 @@ export function RockGPTApp() {
                 <div className="nores">
                   {searchQuery ? "No matching chats" : "Your chats will appear here"}
                 </div>
+              )}
+
+              {chatNextCursor && user && (
+                <button
+                  type="button"
+                  className="lk"
+                  style={{ width: "100%", padding: "8px 10px", textAlign: "center", fontSize: "12px", opacity: 0.75 }}
+                  onClick={() => fetchChats(searchQuery, chatNextCursor)}
+                >
+                  Load older chats
+                </button>
               )}
             </div>
 

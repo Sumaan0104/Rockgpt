@@ -203,21 +203,6 @@ export async function POST(
           encoder.encode(`event: start\ndata: ${JSON.stringify({ chat_id: chatId })}\n\n`)
         );
 
-        // Ensure MongoDB user message upsert completes BEFORE LLM/assistant save to prevent E11000 race & block foreign chat IDs
-        if (userSavePromise) {
-          const userSaveRes = await userSavePromise;
-          if (!userSaveRes.ok && (userSaveRes.status === 401 || userSaveRes.status === 403 || userSaveRes.status === 404)) {
-            controller.enqueue(
-              encoder.encode(
-                `event: error\ndata: ${JSON.stringify({
-                  message: userSaveRes.data?.error || "Conversation access denied.",
-                })}\n\n`
-              )
-            );
-            return;
-          }
-        }
-
         // Security & Personal Privacy Guardrail check before LLM invocation
         const securityRefusal = detectSecurityOrPersonalConcern(content);
         if (securityRefusal) {
@@ -231,7 +216,7 @@ export async function POST(
         } else {
           const prevMessages = globalStore
             .getMessages(chatId)
-            .slice(-12)
+            .slice(-20)
             .map((m: StoredMessage) => ({
               role: m.role as "user" | "assistant",
               content: m.content,
@@ -267,8 +252,24 @@ export async function POST(
           }
         }
 
+        // Ensure parallel user message save finished (no DB write blocks first token; sequentialized before assistant save)
+        let userSaveAllowed = true;
+        if (userSavePromise) {
+          const userSaveRes = await userSavePromise;
+          if (!userSaveRes.ok && (userSaveRes.status === 401 || userSaveRes.status === 403 || userSaveRes.status === 404)) {
+            userSaveAllowed = false;
+            controller.enqueue(
+              encoder.encode(
+                `event: error\ndata: ${JSON.stringify({
+                  message: userSaveRes.data?.error || "Conversation access denied.",
+                })}\n\n`
+              )
+            );
+          }
+        }
+
         const finalText = generationRecord.text.trim();
-        if (finalText && !aborted) {
+        if (finalText && !aborted && userSaveAllowed) {
           let assistantMsgId = generateUUID();
 
           if (!user.email.startsWith("guest-")) {

@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       response.cookies.delete(OTP_COOKIE_NAME);

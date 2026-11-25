@@ -41,7 +41,7 @@ app.set("trust proxy", 1);
 const PORT = process.env.PORT || 5000;
 
 // ═══ MONGODB CONNECTION WITH HIGH-PERFORMANCE CONNECTION POOLING ═══
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 if (MONGODB_URI) {
   mongoose
     .connect(MONGODB_URI, {
@@ -85,10 +85,13 @@ const defaultAllowedOrigins = [
   "http://127.0.0.1:3000",
   "http://127.0.0.1:5173",
 ];
+const envClientUrl = (process.env.CLIENT_URL || "").trim();
 const envAllowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
   : [];
-const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envAllowedOrigins]));
+const allowedOrigins = Array.from(
+  new Set([...defaultAllowedOrigins, ...(envClientUrl ? [envClientUrl] : []), ...envAllowedOrigins])
+);
 
 app.use(
   cors({
@@ -192,6 +195,21 @@ app.patch("/api/messages/:id/feedback", authMiddleware, async (req, res) => {
   }
 });
 
+// ═══ SESSION RESTORE ALIAS (/me) ═══
+app.get("/me", authMiddleware, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Not authenticated." });
+  }
+  res.json({
+    user: {
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+      plan: req.user.plan || "free",
+    },
+  });
+});
+
 // ═══ HEALTH CHECKS ═══
 app.get("/api/version", (req, res) => {
   res.json({
@@ -238,7 +256,7 @@ if (process.env.NODE_ENV !== "test") {
   const KEEP_ALIVE_URL = process.env.RENDER_EXTERNAL_URL || "https://rockgpt.onrender.com";
   setInterval(async () => {
     try {
-      await fetch(`${KEEP_ALIVE_URL}/api/version`);
+      await fetch(`${KEEP_ALIVE_URL}/health`);
     } catch {
       /* ignore background ping failure */
     }

@@ -54,47 +54,6 @@ export async function POST(request: Request) {
 
     if (backendResult.ok && backendResult.data?.success) {
       const data = backendResult.data;
-      const userId = data.user?.id || generateUUID();
-      const localHash = await hash(password, 10);
-
-      // Handle alreadyActive accounts (user already registered & verified with matching password)
-      if (data.alreadyActive && data.user) {
-        const userRecord = {
-          id: userId,
-          email: normalizedEmail,
-          name: data.user.name || name,
-          password_hash: localHash,
-          avatar_url: data.user.avatar_url || null,
-          theme: "dark",
-          created_at: new Date(),
-          backend_token: data.token || null,
-        };
-        globalStore.saveUser(userRecord);
-        const sessionToken = createSignedSessionTokenForUser(userRecord);
-
-        const response = NextResponse.json({
-          success: true,
-          alreadyActive: true,
-          message: data.message || "Account already exists with this password. Signed in successfully!",
-          user: {
-            id: userRecord.id,
-            email: userRecord.email,
-            name: userRecord.name,
-            theme: userRecord.theme,
-            avatar_url: userRecord.avatar_url,
-          },
-        });
-
-        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        response.cookies.delete(OTP_COOKIE_NAME);
-        return response;
-      }
 
       const otpToken = signToken({
         email: normalizedEmail,

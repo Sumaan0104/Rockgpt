@@ -138,7 +138,10 @@ async function runAuthOtpTests() {
   });
 
   assert(wrongPassRes.status === 401, `Invalid password returns HTTP 401 (got ${wrongPassRes.status})`);
-  assert(wrongPassRes.body?.error?.includes("remaining"), "Returns informative message with remaining attempts");
+  assert(
+    wrongPassRes.body?.error === "Incorrect password. Please try again.",
+    "Returns 'Incorrect password. Please try again.'"
+  );
 
   // ─── TEST 4: OTP VERIFICATION ENDPOINT ───
   console.log("\n--- 4. OTP Verification & Single-Use Destruction ---");

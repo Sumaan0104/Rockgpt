@@ -31,13 +31,25 @@ export const globalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Per-minute IP limiter for auth endpoints
+// Per-minute IP limiter for auth endpoints (OTP/refresh/Google)
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 60, // 60 auth requests per 15 min per IP
   keyGenerator: (req) => getClientIpFromReq(req),
   validate: { keyGeneratorIpFallback: false },
   message: { error: "Too many authentication requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Strict brute-force limiter on login & signup (10 attempts per 15 min per IP)
+export const loginSignupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skip: (req) => process.env.NODE_ENV === "test" && req.headers["x-test-rate-limit"] !== "true",
+  keyGenerator: (req) => getClientIpFromReq(req),
+  validate: { keyGeneratorIpFallback: false },
+  message: { error: "Too many login or signup attempts. Please wait 15 minutes and try again." },
   standardHeaders: true,
   legacyHeaders: false,
 });

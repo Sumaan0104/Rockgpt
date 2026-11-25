@@ -11,7 +11,7 @@ import User from "../models/User.js";
 import OtpVerification from "../models/OtpVerification.js";
 import OtpRateLimit from "../models/OtpRateLimit.js";
 import RefreshToken from "../models/RefreshToken.js";
-import { authLimiter, getClientIpFromReq } from "../middleware/limit.js";
+import { authLimiter, loginSignupLimiter, getClientIpFromReq } from "../middleware/limit.js";
 import { authMiddleware, requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -171,6 +171,37 @@ export function timingSafeEqualString(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+function setJwtCookie(res, token, req) {
+  if (!res || !res.cookie || !token) return;
+  const isCrossSiteHttps = Boolean(
+    req?.secure ||
+      req?.headers?.["x-forwarded-proto"] === "https" ||
+      process.env.NODE_ENV === "production"
+  );
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: isCrossSiteHttps,
+    sameSite: isCrossSiteHttps ? "none" : "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+}
+
+function clearJwtCookie(res, req) {
+  if (!res || !res.clearCookie) return;
+  const isCrossSiteHttps = Boolean(
+    req?.secure ||
+      req?.headers?.["x-forwarded-proto"] === "https" ||
+      process.env.NODE_ENV === "production"
+  );
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: isCrossSiteHttps,
+    sameSite: isCrossSiteHttps ? "none" : "lax",
+    path: "/",
+  });
+}
+
 function generateToken(user) {
   return jwt.sign(
     {
@@ -181,7 +212,7 @@ function generateToken(user) {
       scope: "access",
     },
     JWT_SECRET,
-    { algorithm: "HS256", expiresIn: "15m" }
+    { algorithm: "HS256", expiresIn: "7d" }
   );
 }
 
@@ -440,7 +471,7 @@ function getOtpEmailTemplate(code, title, subtitle) {
 }
 
 // 1. Sign Up (Immediately creates/stores user data & password in MongoDB + dispatches OTP)
-router.post("/signup", authLimiter, async (req, res) => {
+router.post("/signup", loginSignupLimiter, async (req, res) => {
   try {
     const parseResult = signupSchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -457,33 +488,10 @@ router.post("/signup", authLimiter, async (req, res) => {
       if (lockCheck.isLocked) {
         return res.status(429).json({ error: lockCheck.message, locked: true });
       }
-      if (existing.googleId && !existing.passwordHash) {
+      if (existing.isVerified || (existing.googleId && !existing.passwordHash)) {
         return res.status(409).json({
-          error: "An account with this email was registered using Google Sign-In. Please sign in with 'Continue with Google', or use 'Forgot password?' to set a password.",
-          isGoogleAccount: true,
-        });
-      }
-      if (existing.isVerified) {
-        const isMatch = existing.passwordHash ? await bcrypt.compare(password, existing.passwordHash) : false;
-        if (isMatch) {
-          const token = generateToken(existing);
-          const refreshToken = await issueRefreshToken(existing._id, res);
-          return res.json({
-            success: true,
-            alreadyActive: true,
-            message: "Account already exists with this password. Signed in successfully!",
-            user: {
-              id: existing._id,
-              name: existing.name,
-              email: existing.email,
-              plan: formatPlanName(existing.plan),
-            },
-            token,
-            refreshToken,
-          });
-        }
-        return res.status(409).json({
-          error: "An account with this email already exists. Please Sign In with your password, or use 'Forgot password?' to reset.",
+          error: "An account with this email already exists.",
+          ...(existing.googleId && !existing.passwordHash ? { isGoogleAccount: true } : {}),
         });
       }
     }
@@ -523,6 +531,7 @@ router.post("/signup", authLimiter, async (req, res) => {
 
     const token = generateToken(user);
     const refreshToken = await issueRefreshToken(user._id, res);
+    setJwtCookie(res, token, req);
 
     // Cryptographic 6-digit OTP stored ONLY as HMAC hash
     const code = generateOtpCode();
@@ -682,6 +691,7 @@ router.post("/verify", authLimiter, async (req, res) => {
 
     const token = generateToken(user);
     const refreshToken = await issueRefreshToken(user._id, res);
+    setJwtCookie(res, token, req);
 
     res.json({
       success: true,
@@ -703,6 +713,17 @@ router.post("/verify", authLimiter, async (req, res) => {
 
 async function handleSignIn(req, res) {
   try {
+    const rawEmail = req.body?.email;
+    const rawPassword = req.body?.password;
+    if (
+      typeof rawEmail !== "string" ||
+      !rawEmail.trim() ||
+      typeof rawPassword !== "string" ||
+      !rawPassword
+    ) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+
     const parseResult = signinSchema.safeParse(req.body);
     if (!parseResult.success) {
       return res.status(400).json({ error: "Email and password are required." });
@@ -713,8 +734,7 @@ async function handleSignIn(req, res) {
 
     const user = await findUserByEmail(cleanEmail);
     if (!user) {
-      // Generic error message: prevent user enumeration
-      return res.status(401).json({ error: "Invalid email or password." });
+      return res.status(401).json({ error: "No account found with this email." });
     }
 
     if (!user.passwordHash && !user.password) {
@@ -761,9 +781,8 @@ async function handleSignIn(req, res) {
         });
       }
       await user.save();
-      const remaining = 5 - user.failedOtpAttempts;
       return res.status(401).json({
-        error: `Invalid email or password. (${remaining} attempt${remaining === 1 ? "" : "s"} remaining)`,
+        error: "Incorrect password. Please try again.",
       });
     }
 
@@ -789,6 +808,7 @@ async function handleSignIn(req, res) {
 
     const token = generateToken(user);
     const refreshToken = await issueRefreshToken(user._id, res);
+    setJwtCookie(res, token, req);
 
     res.json({
       success: true,
@@ -807,8 +827,8 @@ async function handleSignIn(req, res) {
   }
 }
 
-router.post("/signin", authLimiter, handleSignIn);
-router.post("/login", authLimiter, handleSignIn);
+router.post("/signin", loginSignupLimiter, handleSignIn);
+router.post("/login", loginSignupLimiter, handleSignIn);
 
 // 4. Resend OTP Endpoint
 router.post("/resend-otp", authLimiter, async (req, res) => {
@@ -1109,6 +1129,7 @@ router.post("/reset-password", authLimiter, async (req, res) => {
 
     const token = generateToken(user);
     const refreshToken = await issueRefreshToken(user._id, res);
+    setJwtCookie(res, token, req);
 
     res.json({
       success: true,
@@ -1308,6 +1329,7 @@ router.post("/google", authLimiter, async (req, res) => {
 
     const token = generateToken(user);
     const refreshToken = await issueRefreshToken(user._id, res);
+    setJwtCookie(res, token, req);
 
     res.json({
       success: true,
@@ -1394,6 +1416,7 @@ router.post("/verify-2fa", authLimiter, async (req, res) => {
     await user.save();
 
     const token = generateToken(user);
+    setJwtCookie(res, token, req);
     res.json({
       success: true,
       message: "Two-factor authentication verified.",
@@ -1471,6 +1494,9 @@ router.post("/refresh", authLimiter, async (req, res) => {
     setTimeout(() => activeRefreshPromises.delete(tokenHash), 5000);
 
     const result = await refreshPromise;
+    if (result.status === 200 && result.body?.token) {
+      setJwtCookie(res, result.body.token, req);
+    }
     return res.status(result.status).json(result.body);
   } catch (err) {
     console.error("Refresh token error:", err.message);
@@ -1489,9 +1515,11 @@ router.post("/logout", async (req, res) => {
     if (req.user?._id) {
       await RefreshToken.deleteMany({ userId: req.user._id });
     }
+    clearJwtCookie(res, req);
     res.clearCookie("refreshToken", { path: "/api/auth" });
     return res.json({ success: true, message: "Logged out successfully." });
   } catch (err) {
+    clearJwtCookie(res, req);
     res.clearCookie("refreshToken", { path: "/api/auth" });
     return res.json({ success: true, message: "Logged out." });
   }

@@ -43,6 +43,10 @@ export async function authMiddleware(req, res, next) {
     let token = null;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       token = authHeader.split(" ")[1];
+    } else if (req.cookies?.token) {
+      token = req.cookies.token;
+    } else if (req.cookies?.rockgpt_token) {
+      token = req.cookies.rockgpt_token;
     }
 
     if (token) {

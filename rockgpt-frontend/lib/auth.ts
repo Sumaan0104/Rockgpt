@@ -8,7 +8,7 @@ import type { User } from "./db/schema";
 export const SESSION_COOKIE_NAME = "rockgpt_session";
 export const OTP_COOKIE_NAME = "rockgpt_otp_pending";
 export const GUEST_TRIAL_SECONDS = 180;
-const SESSION_DURATION_DAYS = 30;
+const SESSION_DURATION_DAYS = 7;
 const MAX_RATE_LIMIT_KEYS = 10_000;
 
 function getSecret(): string {

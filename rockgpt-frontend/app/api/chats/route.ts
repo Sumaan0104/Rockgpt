@@ -24,11 +24,12 @@ export async function GET(request: Request) {
 
   const urlObj = new URL(request.url);
   const q = urlObj.searchParams.get("q") || "";
-  const limit = urlObj.searchParams.get("limit") || "50";
+  const limit = urlObj.searchParams.get("limit") || "30";
+  const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 30, 1), 100);
   const cursor = urlObj.searchParams.get("cursor") || "";
 
   const qs = new URLSearchParams();
-  if (limit) qs.set("limit", limit);
+  qs.set("limit", String(parsedLimit));
   if (cursor) qs.set("cursor", cursor);
   if (q) qs.set("q", q);
 
@@ -67,9 +68,15 @@ export async function GET(request: Request) {
       });
     }
 
+    const lastChat = backendChats[backendChats.length - 1];
+    const nextCursor =
+      backendChats.length >= parsedLimit && lastChat
+        ? lastChat.lastMessageAt || lastChat.updated_at
+        : null;
+
     return NextResponse.json({
       chats: backendChats,
-      nextCursor: null,
+      nextCursor,
     });
   }
 

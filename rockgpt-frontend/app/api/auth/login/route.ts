@@ -15,10 +15,10 @@ const loginSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  const ipLimit = checkRateLimit(`login:ip:${ip}`, 25, 15 * 60_000);
+  const ipLimit = checkRateLimit(`login:ip:${ip}`, 10, 15 * 60_000);
   if (!ipLimit.allowed) {
     return NextResponse.json(
-      { error: { code: "rate_limited", message: "Too many login attempts. Please wait a few minutes and try again." } },
+      { error: { code: "rate_limited", message: "Too many login attempts. Please wait 15 minutes and try again." } },
       { status: 429, headers: { "Retry-After": String(ipLimit.retryAfter ?? 60) } }
     );
   }
@@ -26,13 +26,24 @@ export async function POST(request: Request) {
   try {
     const rawJson = await request.json();
     const json = sanitizePayload(rawJson);
+    if (
+      typeof json?.email !== "string" ||
+      !json.email.trim() ||
+      typeof json?.password !== "string" ||
+      !json.password
+    ) {
+      return NextResponse.json(
+        { error: { code: "invalid_input", message: "Email and password are required." } },
+        { status: 400 }
+      );
+    }
     const { email, password, remember } = loginSchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
-    const accountLimit = checkRateLimit(`login:acct:${normalizedEmail}:${ip}`, 15, 15 * 60_000);
+    const accountLimit = checkRateLimit(`login:acct:${normalizedEmail}:${ip}`, 10, 15 * 60_000);
     if (!accountLimit.allowed) {
       return NextResponse.json(
-        { error: { code: "rate_limited", message: "Too many attempts for this account. Please try again shortly." } },
+        { error: { code: "rate_limited", message: "Too many attempts for this account. Please try again in 15 minutes." } },
         { status: 429, headers: { "Retry-After": String(accountLimit.retryAfter ?? 60) } }
       );
     }
@@ -49,7 +60,7 @@ export async function POST(request: Request) {
       const data = backendResult.data;
       const bUser = data.user;
       const userId = bUser?.id || generateUUID();
-      const localHash = await hash(password, 10);
+      const localHash = await hash(password, 12);
 
       const userRecord = {
         id: userId,
@@ -82,7 +93,7 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        ...(remember ? { expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } : {}),
+        ...(remember ? { expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } : {}),
       });
 
       return response;
@@ -135,7 +146,7 @@ export async function POST(request: Request) {
             secure: false,
             sameSite: "lax",
             path: "/",
-            ...(remember ? { expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) } : {}),
+            ...(remember ? { expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } : {}),
           });
           return response;
         }

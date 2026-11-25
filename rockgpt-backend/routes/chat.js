@@ -379,13 +379,14 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       } catch (_) {}
     }
 
-    // 2. Trim context to last 12 messages (+ system prompt)
-    const trimmedMessages = messages.slice(-12);
+    // 2. Trim context to last 20 messages (+ system prompt)
+    const trimmedMessages = messages.slice(-20);
     const lastMessage = trimmedMessages[trimmedMessages.length - 1];
 
     // Find existing chat or automatically create one server-side for authenticated users
     let targetChat = null;
     let savedUserMsg = false;
+    let userSavePromise = null;
 
     if (req.user && mongoose.Types.ObjectId.isValid(req.user._id)) {
       const userObjectId = new mongoose.Types.ObjectId(req.user._id);
@@ -412,10 +413,10 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
           res.setHeader("X-Chat-Id", targetChat._id.toString());
         }
 
-        // Save user message in DB BEFORE calling AI model
+        // Start saving user message in parallel without blocking SSE headers or model streaming
         if (targetChat && lastMessage && lastMessage.role === "user") {
-          const now = new Date();
-          await Promise.all([
+          const saveNow = new Date();
+          userSavePromise = Promise.all([
             Message.create({
               chatId: targetChat._id,
               conversationId: targetChat._id,
@@ -428,9 +429,10 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
                 url: a.url || "",
               })),
               status: "complete",
+              createdAt: saveNow,
             }),
-            Chat.updateOne({ _id: targetChat._id }, { $set: { lastMessageAt: now, updatedAt: now } }).catch(() => {}),
-          ]);
+            Chat.updateOne({ _id: targetChat._id }, { $set: { lastMessageAt: saveNow, updatedAt: saveNow } }).catch(() => {}),
+          ]).catch((e) => console.warn("Async user msg save warning:", e.message));
           savedUserMsg = true;
         }
       } catch (dbErr) {
@@ -470,8 +472,10 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       return;
     }
 
+    const recentMessages = Array.isArray(messages) ? messages.slice(-20) : [];
+
     // 1. Check if message has image attachments -> try Gemini vision first
-    const hasMedia = messages.some(
+    const hasMedia = recentMessages.some(
       (m) =>
         (m.attachments && m.attachments.some((a) => a.dataUrl)) ||
         (Array.isArray(m.content) && m.content.some((c) => c.type === "image_url"))
@@ -481,7 +485,7 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
     let isAiSuccess = false;
     if (hasMedia && ACTIVE_GEMINI_KEY) {
       try {
-        handledByGemini = await streamGeminiChat(messages, systemPrompt, fast, res, clientAbortController.signal);
+        handledByGemini = await streamGeminiChat(recentMessages, systemPrompt, fast, res, clientAbortController.signal);
         if (handledByGemini) isAiSuccess = true;
       } catch (gemErr) {
         console.warn("Gemini stream error:", gemErr.message);
@@ -493,10 +497,10 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       const groqModels = ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"];
       let stream = null;
 
-      // Format messages for Groq OpenAI compatibility
+      // Format messages for Groq OpenAI compatibility (last ~20 messages)
       const groqMessages = [
         { role: "system", content: systemPrompt },
-        ...messages.map((m) => {
+        ...recentMessages.map((m) => {
           let text = "";
           if (typeof m.content === "string") text = m.content;
           else if (Array.isArray(m.content)) {
@@ -601,7 +605,10 @@ router.post("/", authMiddleware, chatRateLimiter, dailyUsageLimit, async (req, r
       }
     }
 
-    // 3. Save assistant message to MongoDB with status (complete / stopped / error)
+    // 3. Save assistant message to MongoDB after ensuring parallel user message save finished
+    if (userSavePromise) {
+      await userSavePromise;
+    }
     if (targetChat && fullAssistantResponse.trim()) {
       try {
         const now = new Date();
