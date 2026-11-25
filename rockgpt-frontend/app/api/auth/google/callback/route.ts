@@ -35,11 +35,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${appUrl}?error=invalid_oauth_state`);
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const clientId = (
+    process.env.GOOGLE_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    process.env.VITE_GOOGLE_CLIENT_ID ||
+    ""
+  ).trim();
+  const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
 
-  if (!clientId || !clientSecret) {
-    console.error("Google OAuth client ID or secret is not configured in environment variables.");
+  if (!clientId) {
+    console.error("Google OAuth client ID is not configured in environment variables.");
     return NextResponse.redirect(`${appUrl}?error=google_not_configured`);
   }
 
@@ -49,6 +54,41 @@ export async function GET(request: Request) {
 
   try {
     const redirectUri = `${appUrl}/api/auth/google/callback`;
+
+    if (!clientSecret) {
+      const bRes = await proxyAuthRequest("google", { code, redirectUri }, 25_000);
+      if (!bRes.ok || !bRes.data?.user) {
+        console.error("Backend Google OAuth code exchange failed:", bRes.status, bRes.data);
+        return NextResponse.redirect(`${appUrl}?error=token_exchange_failed`);
+      }
+
+      const bUser = bRes.data.user;
+      const userRecord: StoredUser = {
+        id: bUser.id || generateUUID(),
+        email: (bUser.email || "").toLowerCase().trim(),
+        name: bUser.name || "Google User",
+        password_hash: null,
+        avatar_url: bUser.avatar_url || bUser.picture || "https://lh3.googleusercontent.com/a/default-user",
+        theme: "dark",
+        created_at: new Date(),
+        backend_token: bRes.data.token || null,
+        backend_refresh_token: bRes.data.refreshToken || null,
+      };
+      globalStore.saveUser(userRecord);
+      const sessionToken = createSignedSessionTokenForUser(userRecord);
+      globalStore.createSession(userRecord.id);
+
+      const response = NextResponse.redirect(`${appUrl}?auth=google_success`);
+      response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+      response.cookies.delete(OAUTH_STATE_COOKIE);
+      return response;
+    }
 
     // 3. Exchange authorization code for tokens
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -121,6 +161,9 @@ export async function GET(request: Request) {
       });
       if (bRes.ok && bRes.data?.token) {
         userRecord.backend_token = bRes.data.token;
+        if (bRes.data.refreshToken) {
+          userRecord.backend_refresh_token = bRes.data.refreshToken;
+        }
         globalStore.saveUser(userRecord);
       }
     } catch {

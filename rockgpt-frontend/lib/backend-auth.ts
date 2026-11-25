@@ -77,7 +77,12 @@ export async function proxyBackendRequest(
   options: {
     method?: string;
     body?: any;
-    user?: { id?: string; email?: string; backend_token?: string | null } | null;
+    user?: {
+      id?: string;
+      email?: string;
+      backend_token?: string | null;
+      backend_refresh_token?: string | null;
+    } | null;
     timeoutMs?: number;
     clientIp?: string;
   } = {}
@@ -85,36 +90,63 @@ export async function proxyBackendRequest(
   const { method = "GET", body, user, timeoutMs = 25000, clientIp } = options;
   try {
     const backendUrl = await getBackendUrl();
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (process.env.INTERNAL_SERVICE_KEY) {
-      headers["x-service-key"] = process.env.INTERNAL_SERVICE_KEY;
-    }
-    if (clientIp) {
-      headers["x-forwarded-client-ip"] = clientIp;
-    }
-    if (user?.id) {
-      headers["x-user-id"] = user.id;
-    }
-    if (user?.email) {
-      headers["x-user-email"] = user.email;
-    }
-    if (user?.backend_token) {
-      headers["Authorization"] = `Bearer ${user.backend_token}`;
-    }
+    const buildHeaders = (bearer?: string | null) => {
+      const h: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.INTERNAL_SERVICE_KEY) {
+        h["x-service-key"] = process.env.INTERNAL_SERVICE_KEY;
+      }
+      if (clientIp) {
+        h["x-forwarded-client-ip"] = clientIp;
+      }
+      if (user?.id) {
+        h["x-user-id"] = user.id;
+      }
+      if (user?.email) {
+        h["x-user-email"] = user.email;
+      }
+      if (bearer) {
+        h["Authorization"] = `Bearer ${bearer}`;
+      }
+      return h;
+    };
 
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     const url = `${backendUrl}${cleanPath}`;
 
-    const fetchOpts: RequestInit = {
-      method,
-      headers,
-      signal: AbortSignal.timeout(timeoutMs),
+    const makeFetchOpts = (bearer?: string | null): RequestInit => {
+      const opts: RequestInit = {
+        method,
+        headers: buildHeaders(bearer),
+        signal: AbortSignal.timeout(timeoutMs),
+      };
+      if (body !== undefined && method !== "GET" && method !== "HEAD") {
+        opts.body = JSON.stringify(body);
+      }
+      return opts;
     };
-    if (body !== undefined && method !== "GET" && method !== "HEAD") {
-      fetchOpts.body = JSON.stringify(body);
+
+    let res = await fetch(url, makeFetchOpts(user?.backend_token));
+
+    // Auto-refresh short-lived 15m backend JWT using stored refresh token if backend returns 401
+    if (res.status === 401 && user?.backend_refresh_token) {
+      try {
+        const refreshRes = await fetch(`${backendUrl}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: user.backend_refresh_token }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json().catch(() => ({}));
+          if (refreshData?.token) {
+            user.backend_token = refreshData.token;
+            if (refreshData.refreshToken) user.backend_refresh_token = refreshData.refreshToken;
+            res = await fetch(url, makeFetchOpts(refreshData.token));
+          }
+        }
+      } catch {}
     }
 
-    const res = await fetch(url, fetchOpts);
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, data };
   } catch (err: any) {

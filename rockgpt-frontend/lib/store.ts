@@ -11,6 +11,7 @@ export type StoredUser = {
   theme: string;
   created_at: Date;
   backend_token?: string | null;
+  backend_refresh_token?: string | null;
 };
 
 export type StoredSession = {

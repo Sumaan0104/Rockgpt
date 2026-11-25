@@ -435,9 +435,14 @@ html.landed .fly-target {
 }
 
 .av {
-  flex: none;
+  flex: 0 0 34px;
   width: 34px;
   height: 34px;
+  min-width: 34px;
+  max-width: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: var(--inv);
   color: var(--invt);
@@ -445,9 +450,10 @@ html.landed .fly-target {
   place-items: center;
   font-weight: 600;
   font-size: 14px;
+  line-height: 1;
 }
 
-.me div {
+.me > div:not(.av) {
   flex: 1;
   min-width: 0;
   line-height: 1.25;

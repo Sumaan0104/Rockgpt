@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 import { proxyBackendRequest } from "@/lib/backend-auth";
+import { getClientIp } from "@/lib/security";
 
 const patchChatSchema = z.object({
   title: z.string().trim().min(1).max(120).optional(),
@@ -11,7 +12,7 @@ const patchChatSchema = z.object({
 });
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSessionUser(false);
@@ -23,50 +24,75 @@ export async function GET(
   }
 
   const { id } = await params;
+  const clientIp = getClientIp(request);
 
-  // 1. Fetch from persistent MongoDB Atlas via Render Backend
-  const backendResult = await proxyBackendRequest(`/api/chats/${id}`, {
-    method: "GET",
-    user,
-  });
+  // 1. Fetch from persistent MongoDB Atlas via Backend (for authenticated accounts)
+  if (!user.email.startsWith("guest-")) {
+    const backendResult = await proxyBackendRequest(`/api/chats/${id}`, {
+      method: "GET",
+      user,
+      clientIp,
+    });
 
-  if (backendResult.ok && backendResult.data) {
-    const data = backendResult.data;
-    const chat = {
-      id: data.id || data._id || id,
-      title: data.title || "Untitled Conversation",
-      user_id: user.id,
-      project_id: null,
-      mode: "chat" as const,
-      created_at: data.createdAt ? new Date(data.createdAt) : new Date(),
-      updated_at: data.updatedAt ? new Date(data.updatedAt) : new Date(),
-    };
-    const messages = (data.messages || []).map((m: any) => {
-      const atts = m.attachments || (m.attachment ? [m.attachment] : []);
-      const imgUrl = m.image || (atts.find((a: any) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url) || (atts[0]?.url);
-      return {
-        id: m.id || m._id,
-        chat_id: id,
-        role: m.role,
-        content: typeof m.content === "string" ? m.content : (m.content ? JSON.stringify(m.content) : ""),
-        image: imgUrl || undefined,
-        attachments: atts,
-        feedback: m.feedback ?? null,
-        created_at: m.createdAt ? new Date(m.createdAt) : new Date(),
+    if (backendResult.ok && backendResult.data) {
+      const data = backendResult.data;
+      const chat = {
+        id: data.id || data._id || id,
+        title: data.title || "Untitled Conversation",
+        user_id: user.id,
+        project_id: null,
+        mode: "chat" as const,
+        created_at: data.createdAt ? new Date(data.createdAt) : new Date(),
+        updated_at: data.updatedAt ? new Date(data.updatedAt) : new Date(),
       };
-    });
+      const messages = (data.messages || []).map((m: any) => {
+        const atts = m.attachments || (m.attachment ? [m.attachment] : []);
+        const imgUrl = m.image || (atts.find((a: any) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url) || (atts[0]?.url);
+        return {
+          id: m.id || m._id,
+          chat_id: id,
+          role: m.role,
+          content: typeof m.content === "string" ? m.content : (m.content ? JSON.stringify(m.content) : ""),
+          image: imgUrl || undefined,
+          attachments: atts,
+          feedback: m.feedback ?? null,
+          created_at: m.createdAt ? new Date(m.createdAt) : new Date(),
+        };
+      });
 
-    // Cache locally
-    globalStore.saveChat(chat);
-    messages.forEach((m: any) => globalStore.saveMessage(m));
+      // Cache locally
+      globalStore.saveChat(chat);
+      messages.forEach((m: any) => globalStore.saveMessage(m));
 
-    return NextResponse.json({
-      chat,
-      messages,
-    });
+      return NextResponse.json({
+        chat,
+        messages,
+      });
+    }
+
+    if (backendResult.status === 401) {
+      return NextResponse.json(
+        { error: { code: "unauthorized", message: "Session expired. Please sign in again." } },
+        { status: 401 }
+      );
+    }
+
+    if (backendResult.status === 403 || backendResult.status === 404) {
+      return NextResponse.json(
+        { error: { code: "not_found", message: "Chat not found" } },
+        { status: 404 }
+      );
+    }
+
+    if (backendResult.status !== 503) {
+      return NextResponse.json(
+        { error: { code: "backend_error", message: backendResult.data?.error || "Failed to load chat." } },
+        { status: backendResult.status || 502 }
+      );
+    }
   }
 
-  // 2. Fallback to local store if backend is sleeping or offline
+  // 2. Fallback to local store for guests or when backend is unreachable (503)
   const chat = globalStore.getChat(id);
   if (!chat) {
     return NextResponse.json(
@@ -112,12 +138,20 @@ export async function PATCH(
     if (parsed.title !== undefined) patchBody.title = parsed.title;
     if (parsed.pinned !== undefined) patchBody.pinned = parsed.pinned;
 
-    if (Object.keys(patchBody).length > 0) {
-      await proxyBackendRequest(`/api/chats/${id}`, {
+    if (Object.keys(patchBody).length > 0 && !user.email.startsWith("guest-")) {
+      const clientIp = getClientIp(request);
+      const bRes = await proxyBackendRequest(`/api/chats/${id}`, {
         method: "PATCH",
         body: patchBody,
         user,
+        clientIp,
       });
+      if (!bRes.ok && bRes.status !== 503) {
+        return NextResponse.json(
+          { error: { code: "update_failed", message: bRes.data?.error || "Chat not found or permission denied" } },
+          { status: bRes.status }
+        );
+      }
     }
 
     const chat = globalStore.getChat(id);
@@ -146,7 +180,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getSessionUser(false);
@@ -159,11 +193,20 @@ export async function DELETE(
 
   const { id } = await params;
 
-  // Delete from persistent MongoDB Atlas via Render Backend
-  await proxyBackendRequest(`/api/chats/${id}`, {
-    method: "DELETE",
-    user,
-  });
+  if (!user.email.startsWith("guest-")) {
+    const clientIp = getClientIp(request);
+    const bRes = await proxyBackendRequest(`/api/chats/${id}`, {
+      method: "DELETE",
+      user,
+      clientIp,
+    });
+    if (!bRes.ok && bRes.status !== 503) {
+      return NextResponse.json(
+        { error: { code: "delete_failed", message: bRes.data?.error || "Chat not found or permission denied" } },
+        { status: bRes.status }
+      );
+    }
+  }
 
   globalStore.deleteChat(id);
   return NextResponse.json({ success: true, message: "Chat deleted successfully." });

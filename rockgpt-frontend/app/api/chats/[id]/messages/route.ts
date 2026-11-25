@@ -110,6 +110,42 @@ export async function POST(
     );
   }
 
+  const isAuthenticatedUser = !user.email.startsWith("guest-");
+
+  // Hydrate existing multi-turn conversation from MongoDB when Lambda instance doesn't have it cached
+  if (!chat && isAuthenticatedUser) {
+    try {
+      const hydrateRes = await proxyBackendRequest(`/api/chats/${chatId}`, {
+        method: "GET",
+        user,
+        timeoutMs: 6000,
+        clientIp,
+      });
+      if (hydrateRes.ok && hydrateRes.data) {
+        const hData = hydrateRes.data;
+        chat = globalStore.saveChat({
+          id: hData.id || hData._id || chatId,
+          user_id: user.id,
+          title: hData.title || (content || attachments?.[0]?.name || "Conversation").slice(0, 42),
+          mode: "chat",
+          created_at: hData.createdAt ? new Date(hData.createdAt) : new Date(),
+          updated_at: hData.updatedAt ? new Date(hData.updatedAt) : new Date(),
+        });
+        for (const m of hData.messages || []) {
+          globalStore.saveMessage({
+            id: m.id || m._id || generateUUID(),
+            chat_id: chatId,
+            role: m.role,
+            content: typeof m.content === "string" ? m.content : JSON.stringify(m.content ?? ""),
+            attachments: m.attachments || (m.attachment ? [m.attachment] : []),
+            feedback: m.feedback ?? null,
+            created_at: m.createdAt ? new Date(m.createdAt) : new Date(),
+          });
+        }
+      }
+    } catch {}
+  }
+
   if (!chat) {
     chat = globalStore.saveChat({
       id: chatId,
@@ -137,14 +173,15 @@ export async function POST(
     created_at: new Date(),
   });
 
-  if (!user.email.startsWith("guest-")) {
-    proxyBackendRequest(`/api/chats/${chatId}/messages`, {
-      method: "POST",
-      user,
-      body: { role: "user", content, image, attachments: storedAttachments },
-      clientIp,
-    }).catch(() => {});
-  }
+  const userSavePromise = isAuthenticatedUser
+    ? proxyBackendRequest(`/api/chats/${chatId}/messages`, {
+        method: "POST",
+        user,
+        body: { role: "user", content, image, attachments: storedAttachments },
+        timeoutMs: 8000,
+        clientIp,
+      })
+    : null;
 
   const encoder = new TextEncoder();
   let aborted = false;
@@ -165,6 +202,21 @@ export async function POST(
         controller.enqueue(
           encoder.encode(`event: start\ndata: ${JSON.stringify({ chat_id: chatId })}\n\n`)
         );
+
+        // Ensure MongoDB user message upsert completes BEFORE LLM/assistant save to prevent E11000 race & block foreign chat IDs
+        if (userSavePromise) {
+          const userSaveRes = await userSavePromise;
+          if (!userSaveRes.ok && (userSaveRes.status === 401 || userSaveRes.status === 403 || userSaveRes.status === 404)) {
+            controller.enqueue(
+              encoder.encode(
+                `event: error\ndata: ${JSON.stringify({
+                  message: userSaveRes.data?.error || "Conversation access denied.",
+                })}\n\n`
+              )
+            );
+            return;
+          }
+        }
 
         // Security & Personal Privacy Guardrail check before LLM invocation
         const securityRefusal = detectSecurityOrPersonalConcern(content);
@@ -225,7 +277,7 @@ export async function POST(
                 method: "POST",
                 user,
                 body: { role: "assistant", content: finalText },
-                timeoutMs: 2500,
+                timeoutMs: 8000,
                 clientIp,
               });
               if (saved.ok && (saved.data?.id || saved.data?._id)) {

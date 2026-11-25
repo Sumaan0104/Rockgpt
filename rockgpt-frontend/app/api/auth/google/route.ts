@@ -9,11 +9,24 @@ import { getClientIp, sanitizePayload } from "@/lib/security";
 export const OAUTH_STATE_COOKIE = "rockgpt_oauth_state";
 
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
   const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
   const appUrl = process.env.APP_URL || (host ? `${proto}://${host}` : "https://rockgpt-ten.vercel.app");
 
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const clientId = (
+    process.env.GOOGLE_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    process.env.VITE_GOOGLE_CLIENT_ID ||
+    ""
+  ).trim();
+
+  if (searchParams.get("mode") === "config") {
+    return NextResponse.json({
+      configured: Boolean(clientId),
+      clientId: clientId || null,
+    });
+  }
 
   if (!clientId) {
     console.warn("Google OAuth Client ID is not configured.");
@@ -57,9 +70,14 @@ export async function POST(request: Request) {
   try {
     const rawBody = await request.json();
     const body = sanitizePayload(rawBody);
-    const { code, credential, idToken } = body;
+    const { code, credential, idToken, redirectUri } = body;
     const tokenToVerify = credential || idToken;
-    const configuredClientId = (process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
+    const configuredClientId = (
+      process.env.GOOGLE_CLIENT_ID ||
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+      process.env.VITE_GOOGLE_CLIENT_ID ||
+      ""
+    ).trim();
 
     if (tokenToVerify) {
       const verifyRes = await fetch(
@@ -107,6 +125,7 @@ export async function POST(request: Request) {
         theme: "dark",
         created_at: new Date(),
         backend_token: bRes.ok ? bRes.data?.token || null : null,
+        backend_refresh_token: bRes.ok ? bRes.data?.refreshToken || null : null,
       };
       globalStore.saveUser(userRecord);
 
@@ -136,7 +155,8 @@ export async function POST(request: Request) {
     }
 
     if (code) {
-      const backendRes = await proxyAuthRequest("google", { code }, 25_000, ip);
+      const backendPayload = redirectUri ? { code, redirectUri } : { code };
+      const backendRes = await proxyAuthRequest("google", backendPayload, 25_000, ip);
       if (backendRes.ok && backendRes.data?.user) {
         const bUser = backendRes.data.user;
         const userRecord: StoredUser = {
@@ -148,6 +168,7 @@ export async function POST(request: Request) {
           theme: "dark",
           created_at: new Date(),
           backend_token: backendRes.data.token || null,
+          backend_refresh_token: backendRes.data.refreshToken || null,
         };
 
         globalStore.saveUser(userRecord);

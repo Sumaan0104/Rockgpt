@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { globalStore, type StoredChat, type StoredMessage } from "@/lib/store";
 import { proxyBackendRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
+import { getClientIp } from "@/lib/security";
 
 const createChatSchema = z.object({
   title: z.string().trim().min(1).max(120).optional().default("New chat"),
@@ -32,9 +33,11 @@ export async function GET(request: Request) {
   if (q) qs.set("q", q);
 
   // 1. Fetch from persistent MongoDB database via Backend
+  const clientIp = getClientIp(request);
   const backendResult = await proxyBackendRequest(`/api/chats?${qs.toString()}`, {
     method: "GET",
     user,
+    clientIp,
   });
 
   if (backendResult.ok && Array.isArray(backendResult.data)) {
@@ -70,7 +73,20 @@ export async function GET(request: Request) {
     });
   }
 
-  // 2. Fallback to local store if backend is offline/sleeping
+  if (backendResult.status === 401) {
+    return NextResponse.json(
+      { error: { code: "unauthorized", message: "Session expired. Please sign in again." } },
+      { status: 401 }
+    );
+  }
+
+  // 2. Fallback to strict owner-scoped local store ONLY if backend is unreachable (503)
+  if (backendResult.status !== 503) {
+    return NextResponse.json(
+      { error: { code: "backend_error", message: backendResult.data?.error || "Failed to load chats." } },
+      { status: backendResult.status || 502 }
+    );
+  }
   const qLower = q.trim().toLowerCase();
   const userChats = globalStore.getChats(user.id).filter((c: StoredChat) => {
     if (!qLower) return true;

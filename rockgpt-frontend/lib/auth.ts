@@ -108,6 +108,7 @@ export function createSignedSessionTokenForUser(user: {
   avatar_url?: string | null;
   theme?: string;
   backend_token?: string | null;
+  backend_refresh_token?: string | null;
   guest_started_at?: number;
   guest_expires_at?: number;
 }): string {
@@ -124,6 +125,7 @@ export function createSignedSessionTokenForUser(user: {
     avatar_url: user.avatar_url || null,
     theme: user.theme || "dark",
     backend_token: user.backend_token || null,
+    backend_refresh_token: user.backend_refresh_token || null,
     is_guest: isGuest,
     ...(isGuest
       ? {
@@ -168,7 +170,7 @@ export async function createSession(userId: string): Promise<string> {
 }
 
 export type SessionStateResult = {
-  user: (User & { backend_token?: string | null }) | null;
+  user: (User & { backend_token?: string | null; backend_refresh_token?: string | null }) | null;
   isGuest: boolean;
   guestExpired: boolean;
   guestRemainingSeconds: number | null;
@@ -188,6 +190,7 @@ export async function getSessionState(createGuestIfMissing = false): Promise<Ses
         avatar_url?: string | null;
         theme?: string;
         backend_token?: string | null;
+        backend_refresh_token?: string | null;
         is_guest?: boolean;
         guest_started_at?: number;
         guest_expires_at?: number;
@@ -215,6 +218,7 @@ export async function getSessionState(createGuestIfMissing = false): Promise<Ses
             avatar_url: verified.avatar_url || null,
             theme: verified.theme || "dark",
             backend_token: verified.backend_token || null,
+            backend_refresh_token: verified.backend_refresh_token || null,
             created_at: new Date(),
           });
         }
@@ -228,6 +232,7 @@ export async function getSessionState(createGuestIfMissing = false): Promise<Ses
             avatar_url: verified.avatar_url || null,
             theme: verified.theme || "dark",
             backend_token: verified.backend_token || (existing ? existing.backend_token : null),
+            backend_refresh_token: verified.backend_refresh_token || (existing ? existing.backend_refresh_token : null),
             created_at: existing ? existing.created_at : new Date(),
           } as any,
           isGuest,

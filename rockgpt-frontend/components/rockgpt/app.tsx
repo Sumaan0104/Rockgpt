@@ -605,6 +605,24 @@ export function RockGPTApp() {
     }, duration);
   }, []);
 
+  // Auth Mode Switcher (Clears all password/OTP/toggle fields so zero credentials ever leak across views)
+  const switchAuthMode = useCallback(
+    (mode: "in" | "up" | "code" | "forgot" | "reset", preserveEmail = false) => {
+      setAuthMode(mode);
+      setAuthError(null);
+      setAuthSuccessMsg(null);
+      setAuthPassword("");
+      setAuthPassword2("");
+      setAuthOtpCode("");
+      setAuthShowPw(false);
+      if (!preserveEmail) {
+        setAuthEmail("");
+        setAuthName("");
+      }
+    },
+    []
+  );
+
   // Auth Modal Opener (Guarantees fresh state, zero prefill, and optional session-ended notice)
   const openAuthModal = useCallback(
     (mode: "in" | "up" = "in", errorMsg?: string, endedNotice = false) => {
@@ -614,6 +632,7 @@ export function RockGPTApp() {
       setAuthPassword2("");
       setAuthName("");
       setAuthOtpCode("");
+      setAuthShowPw(false);
       setAuthError(errorMsg || null);
       setAuthSuccessMsg(null);
       setSessionEndedNotice(endedNotice);
@@ -964,7 +983,30 @@ export function RockGPTApp() {
   useEffect(() => {
     fetchSession();
     fetchChats();
-  }, [fetchSession, fetchChats]);
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const errParam = sp.get("error");
+      const authParam = sp.get("auth");
+      if (errParam) {
+        const errorMap: Record<string, string> = {
+          google_not_configured: "Google Sign-In is currently unavailable. Please sign in with email and password.",
+          google_cancelled: "Google Sign-In was cancelled.",
+          invalid_oauth_state: "Google security session expired. Please try again.",
+          token_exchange_failed: "Could not complete Google login. Please try again.",
+          user_info_failed: "Could not read your Google profile. Please try again.",
+          unverified_google_email: "Please use a Google account with a verified email address.",
+          no_email_provided: "No email was shared by Google.",
+          missing_auth_code: "Google login did not return an authorization code.",
+          server_error: "Google Sign-In failed on the server. Please try again.",
+        };
+        openAuthModal("in", errorMap[errParam] || "Authentication could not be completed. Please try again.");
+        window.history.replaceState({}, "", window.location.pathname);
+      } else if (authParam === "google_success") {
+        showToast("Signed in with Google!");
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, [fetchSession, fetchChats, openAuthModal, showToast]);
 
   // Debounced server + local search query sync when signed in
   useEffect(() => {
@@ -1696,6 +1738,8 @@ export function RockGPTApp() {
   };
 
   const finishAuthSuccess = (loggedUser: UserData, toastMessage: string) => {
+    const isSwitchingAccount = Boolean(user && user.id !== loggedUser.id);
+    const shouldImportGuestChat = !user && messages.length > 0;
     setUser(loggedUser);
     setGuestTimeLeft(null);
     setSessionEndedNotice(false);
@@ -1707,8 +1751,15 @@ export function RockGPTApp() {
     setAuthPassword("");
     setAuthPassword2("");
     setAuthOtpCode("");
+    setAuthShowPw(false);
 
-    if (messages.length > 0) {
+    if (isSwitchingAccount) {
+      setActiveChat(null);
+      setMessages([]);
+      setChats([]);
+    }
+
+    if (shouldImportGuestChat) {
       fetch("/api/chats/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1730,6 +1781,101 @@ export function RockGPTApp() {
       fetchChats();
     }
     showToast(toastMessage);
+  };
+
+  // Google OAuth popup + redirect fallback handler
+  const handleGoogleSignIn = async () => {
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      const cfgRes = await fetch("/api/auth/google?mode=config");
+      const cfg = await cfgRes.json().catch(() => ({}));
+      if (!cfg?.configured || !cfg?.clientId) {
+        setAuthError("Google Sign-In is currently unavailable. Please sign in with email.");
+        setAuthLoading(false);
+        return;
+      }
+
+      const loadGsiScript = () =>
+        new Promise<void>((resolve, reject) => {
+          const w = window as any;
+          if (w.google?.accounts?.oauth2) {
+            resolve();
+            return;
+          }
+          const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+          if (existing) {
+            existing.addEventListener("load", () => resolve(), { once: true });
+            existing.addEventListener("error", () => reject(new Error("GSI script failed")), { once: true });
+            setTimeout(() => {
+              if ((window as any).google?.accounts?.oauth2) resolve();
+              else reject(new Error("GSI script timeout"));
+            }, 3500);
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = "https://accounts.google.com/gsi/client";
+          script.async = true;
+          script.defer = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("GSI script failed"));
+          document.head.appendChild(script);
+        });
+
+      try {
+        await loadGsiScript();
+        const googleOAuth2 = (window as any).google?.accounts?.oauth2;
+        if (googleOAuth2?.initCodeClient) {
+          const client = googleOAuth2.initCodeClient({
+            client_id: cfg.clientId,
+            scope: "openid email profile",
+            ux_mode: "popup",
+            error_callback: (err: any) => {
+              setAuthLoading(false);
+              if (err?.type === "popup_closed") {
+                setAuthError("Google sign-in popup was closed.");
+              } else {
+                // Fall back seamlessly to standard OAuth redirect flow
+                window.location.href = "/api/auth/google";
+              }
+            },
+            callback: async (response: { code?: string; error?: string }) => {
+              if (!response?.code) {
+                setAuthLoading(false);
+                setAuthError(response?.error ? "Google sign-in was cancelled." : "No Google authorization code received.");
+                return;
+              }
+              try {
+                const postRes = await fetch("/api/auth/google", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ code: response.code, redirectUri: "postmessage" }),
+                });
+                const postData = await postRes.json().catch(() => ({}));
+                if (postRes.ok && postData?.user) {
+                  finishAuthSuccess(postData.user, `Welcome, ${(postData.user.name || "User").split(" ")[0]}!`);
+                } else {
+                  setAuthError(postData?.error?.message || "Google authentication failed.");
+                }
+              } catch {
+                setAuthError("Network error during Google Sign-In.");
+              } finally {
+                setAuthLoading(false);
+              }
+            },
+          });
+          client.requestCode();
+          return;
+        }
+      } catch {
+        // Fallback to server-side OAuth redirect flow if GSI popup library cannot load
+      }
+
+      window.location.href = "/api/auth/google";
+    } catch {
+      setAuthLoading(false);
+      setAuthError("Could not start Google Sign-In. Please try again.");
+    }
   };
 
   // 4. AUTHENTICATION HANDLERS
@@ -1772,7 +1918,7 @@ export function RockGPTApp() {
           if (data.alreadyActive && data.user) {
             finishAuthSuccess(data.user, `Welcome back, ${(data.user.name || "User").split(" ")[0]}!`);
           } else {
-            setAuthMode("code");
+            switchAuthMode("code", true);
             setAuthResendSeconds(60);
             showToast(data.message || "Verification code sent to your email!");
           }
@@ -1799,7 +1945,7 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok) {
-          setAuthMode("reset");
+          switchAuthMode("reset", true);
           setAuthResendSeconds(60);
           showToast(data.message || "Recovery code sent to your inbox!");
         } else {
@@ -2704,30 +2850,14 @@ export function RockGPTApp() {
               <button
                 type="button"
                 className={authMode === "in" ? "on" : ""}
-                onClick={() => {
-                  setAuthMode("in");
-                  setAuthError(null);
-                  setAuthEmail("");
-                  setAuthPassword("");
-                  setAuthPassword2("");
-                  setAuthName("");
-                  setAuthOtpCode("");
-                }}
+                onClick={() => switchAuthMode("in")}
               >
                 Sign in
               </button>
               <button
                 type="button"
                 className={authMode === "up" ? "on" : ""}
-                onClick={() => {
-                  setAuthMode("up");
-                  setAuthError(null);
-                  setAuthEmail("");
-                  setAuthPassword("");
-                  setAuthPassword2("");
-                  setAuthName("");
-                  setAuthOtpCode("");
-                }}
+                onClick={() => switchAuthMode("up")}
               >
                 Sign up
               </button>
@@ -2757,6 +2887,7 @@ export function RockGPTApp() {
                     <path d="M3 7l9 6 9-6" />
                   </svg>
                   <input
+                    key="login-email"
                     type="email"
                     name="rockgpt_login_email"
                     id="rockgpt_login_email"
@@ -2779,6 +2910,7 @@ export function RockGPTApp() {
                     <path d="M11 12l9-9M16 7l3 3" />
                   </svg>
                   <input
+                    key="login-password"
                     type={authShowPw ? "text" : "password"}
                     name="rockgpt_login_password"
                     id="rockgpt_login_password"
@@ -2812,11 +2944,7 @@ export function RockGPTApp() {
                   <button
                     type="button"
                     className="lk"
-                    onClick={() => {
-                      setAuthMode("forgot");
-                      setAuthError(null);
-                      setAuthEmail("");
-                    }}
+                    onClick={() => switchAuthMode("forgot")}
                   >
                     Forgot password?
                   </button>
@@ -2830,9 +2958,8 @@ export function RockGPTApp() {
                 <button
                   type="button"
                   className="pbtn g"
-                  onClick={() => {
-                    window.location.href = "/api/auth/google";
-                  }}
+                  disabled={authLoading}
+                  onClick={handleGoogleSignIn}
                 >
                   {GOOGLE_SVG}
                   <span>Continue with Google</span>
@@ -2843,14 +2970,7 @@ export function RockGPTApp() {
                   <button
                     type="button"
                     className="lk"
-                    onClick={() => {
-                      setAuthMode("up");
-                      setAuthError(null);
-                      setAuthEmail("");
-                      setAuthPassword("");
-                      setAuthPassword2("");
-                      setAuthName("");
-                    }}
+                    onClick={() => switchAuthMode("up")}
                   >
                     Sign Up
                   </button>
@@ -2885,6 +3005,7 @@ export function RockGPTApp() {
                     <circle cx="12" cy="8" r="4" />
                   </svg>
                   <input
+                    key="signup-name"
                     type="text"
                     name="rockgpt_signup_name"
                     id="rockgpt_signup_name"
@@ -2906,6 +3027,7 @@ export function RockGPTApp() {
                     <path d="M3 7l9 6 9-6" />
                   </svg>
                   <input
+                    key="signup-email"
                     type="email"
                     name="rockgpt_signup_email"
                     id="rockgpt_signup_email"
@@ -2928,6 +3050,7 @@ export function RockGPTApp() {
                     <path d="M11 12l9-9M16 7l3 3" />
                   </svg>
                   <input
+                    key="signup-password"
                     type={authShowPw ? "text" : "password"}
                     name="rockgpt_signup_password"
                     id="rockgpt_signup_password"
@@ -2956,6 +3079,7 @@ export function RockGPTApp() {
                     <path d="M11 12l9-9M16 7l3 3" />
                   </svg>
                   <input
+                    key="signup-password2"
                     type={authShowPw ? "text" : "password"}
                     name="rockgpt_signup_password2"
                     id="rockgpt_signup_password2"
@@ -2999,9 +3123,8 @@ export function RockGPTApp() {
                 <button
                   type="button"
                   className="pbtn g"
-                  onClick={() => {
-                    window.location.href = "/api/auth/google";
-                  }}
+                  disabled={authLoading}
+                  onClick={handleGoogleSignIn}
                 >
                   {GOOGLE_SVG}
                   <span>Continue with Google</span>
@@ -3012,14 +3135,7 @@ export function RockGPTApp() {
                   <button
                     type="button"
                     className="lk"
-                    onClick={() => {
-                      setAuthMode("in");
-                      setAuthError(null);
-                      setAuthEmail("");
-                      setAuthPassword("");
-                      setAuthPassword2("");
-                      setAuthName("");
-                    }}
+                    onClick={() => switchAuthMode("in")}
                   >
                     Sign In
                   </button>
@@ -3102,10 +3218,7 @@ export function RockGPTApp() {
                   <button
                     type="button"
                     className="lk"
-                    onClick={() => {
-                      setAuthMode("up");
-                      setAuthOtpCode("");
-                    }}
+                    onClick={() => switchAuthMode("up", true)}
                   >
                     Go back
                   </button>
@@ -3128,6 +3241,7 @@ export function RockGPTApp() {
                     <path d="M3 7l9 6 9-6" />
                   </svg>
                   <input
+                    key="forgot-email"
                     type="email"
                     name="rockgpt_forgot_email"
                     id="rockgpt_forgot_email"
@@ -3152,7 +3266,7 @@ export function RockGPTApp() {
                   <button
                     type="button"
                     className="lk"
-                    onClick={() => setAuthMode("in")}
+                    onClick={() => switchAuthMode("in")}
                   >
                     Back to Sign In
                   </button>
@@ -3181,6 +3295,7 @@ export function RockGPTApp() {
                     <path d="M11 12l9-9M16 7l3 3" />
                   </svg>
                   <input
+                    key="reset-password"
                     type={authShowPw ? "text" : "password"}
                     name="rockgpt_reset_password"
                     id="rockgpt_reset_password"
@@ -3193,6 +3308,14 @@ export function RockGPTApp() {
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    className="eye"
+                    onClick={() => setAuthShowPw((p) => !p)}
+                    aria-label="Toggle password visibility"
+                  >
+                    👁
+                  </button>
                 </label>
 
                 <button

@@ -13,7 +13,7 @@ if (!JWT_SECRET) {
  */
 export function isServiceKeyValid(serviceKey) {
   const internalKey = process.env.INTERNAL_SERVICE_KEY;
-  if (!internalKey || !serviceKey) {
+  if (!internalKey || internalKey.length < 32 || !serviceKey) {
     return false;
   }
   const keyString = Array.isArray(serviceKey) ? serviceKey[0] : String(serviceKey);

@@ -75,6 +75,7 @@ export async function POST(request: Request) {
         theme: "dark",
         created_at: new Date(),
         backend_token: backendResult.data.token || null,
+        backend_refresh_token: backendResult.data.refreshToken || null,
       };
 
       globalStore.saveUser(userRecord);

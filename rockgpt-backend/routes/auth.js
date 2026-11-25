@@ -1134,9 +1134,28 @@ export function setGoogleOAuthClientForTesting(client) {
   testGoogleOAuthClient = client;
 }
 
-async function verifyGoogleTokenOrCode(tokenOrCode) {
+function isAllowedRedirectUri(uri) {
+  if (!uri || uri === "postmessage") return true;
+  try {
+    const parsed = new URL(uri);
+    const origin = parsed.origin;
+    return [
+      "https://rockgpt-ten.vercel.app",
+      "https://rockgpt.vercel.app",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+    ].includes(origin);
+  } catch {
+    return false;
+  }
+}
+
+async function verifyGoogleTokenOrCode(tokenOrCode, redirectUri = "postmessage") {
   if (!tokenOrCode || typeof tokenOrCode !== "string") return null;
   const cleanInput = tokenOrCode.trim();
+  const safeRedirectUri = isAllowedRedirectUri(redirectUri) ? redirectUri : "postmessage";
 
   // 0. Support test mock client if injected
   if (testGoogleOAuthClient) {
@@ -1189,7 +1208,7 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
           code: cleanInput,
           client_id: googleClientId,
           client_secret: cleanSecret,
-          redirect_uri: "postmessage",
+          redirect_uri: safeRedirectUri,
           grant_type: "authorization_code",
         }),
       });
@@ -1230,13 +1249,14 @@ async function verifyGoogleTokenOrCode(tokenOrCode) {
 router.post("/google", authLimiter, async (req, res) => {
   try {
     const tokenOrCode = req.body.idToken || req.body.credential || req.body.token || req.body.code;
+    const redirectUri = req.body.redirectUri || "postmessage";
     if (!tokenOrCode) {
       return res.status(400).json({ error: "Google credentials are required." });
     }
 
     let googleUser;
     try {
-      googleUser = await verifyGoogleTokenOrCode(tokenOrCode);
+      googleUser = await verifyGoogleTokenOrCode(tokenOrCode, redirectUri);
     } catch (err) {
       return res.status(400).json({ error: err.message || "Invalid or unverified Google account." });
     }
@@ -1253,11 +1273,13 @@ router.post("/google", authLimiter, async (req, res) => {
         name: googleUser.name || cleanEmail.split("@")[0],
         email: cleanEmail,
         googleId: googleUser.googleId,
+        isVerified: true,
         plan: "free",
         lastLoginAt: new Date(),
       });
     } else {
       if (!user.googleId) user.googleId = googleUser.googleId;
+      user.isVerified = true;
       user.lastLoginAt = new Date();
       if (user.plan) user.plan = String(user.plan).toLowerCase();
       try {
@@ -1265,7 +1287,7 @@ router.post("/google", authLimiter, async (req, res) => {
       } catch (saveErr) {
         await User.updateOne(
           { _id: user._id },
-          { $set: { googleId: user.googleId, lastLoginAt: new Date() } }
+          { $set: { googleId: user.googleId, isVerified: true, lastLoginAt: new Date() } }
         );
       }
     }
@@ -1275,7 +1297,7 @@ router.post("/google", authLimiter, async (req, res) => {
       const tempToken = jwt.sign(
         { id: user._id, email: user.email, is2faPending: true, scope: "2fa_temp" },
         JWT_SECRET,
-        { expiresIn: "10m" }
+        { algorithm: "HS256", expiresIn: "10m" }
       );
       return res.json({
         require2FA: true,
@@ -1285,6 +1307,7 @@ router.post("/google", authLimiter, async (req, res) => {
     }
 
     const token = generateToken(user);
+    const refreshToken = await issueRefreshToken(user._id, res);
 
     res.json({
       success: true,
@@ -1296,6 +1319,7 @@ router.post("/google", authLimiter, async (req, res) => {
         plan: formatPlanName(user.plan),
       },
       token,
+      refreshToken,
     });
   } catch (err) {
     console.error("[Google Auth Error]:", err);

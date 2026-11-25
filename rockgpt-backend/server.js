@@ -29,12 +29,10 @@ if (process.env.NODE_ENV === "production") {
     process.exit(1);
   }
   if (!ADMIN_SECRET || ADMIN_SECRET.length < 32) {
-    console.error("[FATAL CRITICAL SECURITY] ADMIN_SECRET is missing or weak (<32 characters). Terminating process.");
-    process.exit(1);
+    console.warn("[SECURITY WARNING] ADMIN_SECRET is missing or <32 chars; /api/admin endpoints will fail closed until set.");
   }
   if (!INTERNAL_SERVICE_KEY || INTERNAL_SERVICE_KEY.length < 32) {
-    console.error("[FATAL CRITICAL SECURITY] INTERNAL_SERVICE_KEY is missing or weak (<32 characters). Terminating process.");
-    process.exit(1);
+    console.warn("[SECURITY WARNING] INTERNAL_SERVICE_KEY is missing or <32 chars; service-key auth disabled until set.");
   }
 }
 

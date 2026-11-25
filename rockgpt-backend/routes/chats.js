@@ -7,31 +7,40 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-function getUserFilter(userId) {
-  const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
-  return {
-    $or: [{ userId: userObjectId }, { userId: String(userId) }],
-  };
+function getUserIdValues(userId) {
+  const vals = [String(userId)];
+  if (mongoose.Types.ObjectId.isValid(userId)) {
+    vals.unshift(new mongoose.Types.ObjectId(userId));
+  }
+  return vals;
 }
 
-// 1. GET /api/chats — list non-deleted chats with cursor pagination & search
+function getUserFilter(userId) {
+  return { userId: { $in: getUserIdValues(userId) } };
+}
+
+// 1. GET /api/chats — list non-deleted chats (including legacy conversations) strictly scoped to owner
 // Query: ?limit=30&cursor=&q=
 router.get("/", requireAuth, async (req, res) => {
   try {
     const userId = req.user._id;
     const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
     const { cursor, q } = req.query;
-    const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const userInFilter = getUserIdValues(userId);
 
     const baseFilter = {
-      userId: userObjectId,
+      userId: { $in: userInFilter },
       deletedAt: null,
+    };
+    const convFilter = {
+      userId: { $in: userInFilter },
     };
 
     if (cursor) {
       const cursorDate = new Date(cursor);
       if (!isNaN(cursorDate.getTime())) {
         baseFilter.lastMessageAt = { $lt: cursorDate };
+        convFilter.updatedAt = { $lt: cursorDate };
       }
     }
 
@@ -39,43 +48,74 @@ router.get("/", requireAuth, async (req, res) => {
       const queryText = q.trim().slice(0, 100);
       const regex = new RegExp(queryText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"), "i");
 
-      // Search matching messages for this user to include their chats
       const matchingMessages = await Message.find({
-        userId: userObjectId,
+        userId: { $in: userInFilter },
         content: regex,
       })
-        .select("chatId")
+        .select("chatId conversationId")
         .limit(200)
         .lean();
 
       const matchedChatIds = matchingMessages
-        .map((m) => m.chatId)
+        .flatMap((m) => [m.chatId, m.conversationId])
         .filter((id) => id && mongoose.Types.ObjectId.isValid(id));
 
-      baseFilter.$or = [
-        { title: regex },
-        { _id: { $in: matchedChatIds } },
-      ];
+      baseFilter.$or = [{ title: regex }, { _id: { $in: matchedChatIds } }];
+      convFilter.$or = [{ title: regex }, { _id: { $in: matchedChatIds } }];
     }
 
-    const chatsList = await Chat.find(baseFilter)
-      .sort({ pinned: -1, lastMessageAt: -1, updatedAt: -1 })
-      .limit(limit)
-      .select("_id title pinned lastMessageAt updatedAt createdAt clientId")
-      .lean();
+    const [chatsList, convList] = await Promise.all([
+      Chat.find(baseFilter)
+        .sort({ pinned: -1, lastMessageAt: -1, updatedAt: -1 })
+        .limit(limit)
+        .select("_id title pinned lastMessageAt updatedAt createdAt clientId")
+        .lean(),
+      cursor
+        ? Promise.resolve([])
+        : Conversation.find(convFilter)
+            .sort({ pinned: -1, updatedAt: -1 })
+            .limit(limit)
+            .select("_id title pinned updatedAt createdAt")
+            .lean(),
+    ]);
 
-    const formatted = chatsList.map((c) => ({
-      id: c._id.toString(),
-      _id: c._id.toString(),
-      title: c.title || "Untitled Conversation",
-      pinned: Boolean(c.pinned),
-      lastMessageAt: c.lastMessageAt || c.updatedAt || c.createdAt || new Date(),
-      createdAt: c.createdAt || new Date(),
-      updatedAt: c.updatedAt || new Date(),
-      clientId: c.clientId || undefined,
-    }));
+    const seen = new Set();
+    const merged = [];
+    for (const c of chatsList) {
+      const idStr = c._id.toString();
+      seen.add(idStr);
+      merged.push({
+        id: idStr,
+        _id: idStr,
+        title: c.title || "Untitled Conversation",
+        pinned: Boolean(c.pinned),
+        lastMessageAt: c.lastMessageAt || c.updatedAt || c.createdAt || new Date(),
+        createdAt: c.createdAt || new Date(),
+        updatedAt: c.updatedAt || new Date(),
+        clientId: c.clientId || undefined,
+      });
+    }
+    for (const c of convList) {
+      const idStr = c._id.toString();
+      if (seen.has(idStr)) continue;
+      seen.add(idStr);
+      merged.push({
+        id: idStr,
+        _id: idStr,
+        title: c.title || "Untitled Conversation",
+        pinned: Boolean(c.pinned),
+        lastMessageAt: c.updatedAt || c.createdAt || new Date(),
+        createdAt: c.createdAt || new Date(),
+        updatedAt: c.updatedAt || new Date(),
+      });
+    }
 
-    res.json(formatted);
+    merged.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+    });
+
+    res.json(merged.slice(0, limit));
   } catch (err) {
     console.error("Get chats error:", err.message);
     res.status(500).json({ error: "Failed to retrieve chats." });
@@ -156,33 +196,47 @@ router.get("/:id", requireAuth, async (req, res) => {
     }
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
-    const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const userInFilter = getUserIdValues(userId);
 
-    const chat = await Chat.findOne({
+    let chat = await Chat.findOne({
       _id: objectChatId,
-      userId: userObjectId,
+      userId: { $in: userInFilter },
       deletedAt: null,
     }).lean();
+
+    if (!chat) {
+      chat = await Conversation.findOne({
+        _id: objectChatId,
+        userId: { $in: userInFilter },
+      }).lean();
+    }
 
     if (!chat) {
       return res.status(404).json({ error: "Chat not found." });
     }
 
     const msgFilter = {
-      $or: [{ chatId: objectChatId }, { conversationId: objectChatId }],
+      $and: [
+        { $or: [{ chatId: objectChatId }, { conversationId: objectChatId }] },
+        { $or: [{ userId: { $in: userInFilter } }, { userId: null }, { userId: { $exists: false } }] },
+      ],
     };
 
     if (before) {
       const beforeDate = new Date(before);
       if (!isNaN(beforeDate.getTime())) {
-        msgFilter.createdAt = { $lt: beforeDate };
+        msgFilter.$and.push({ createdAt: { $lt: beforeDate } });
       }
     }
 
-    const messages = await Message.find(msgFilter)
+    let messages = await Message.find(msgFilter)
       .sort({ createdAt: 1 })
       .limit(limit)
       .lean();
+
+    if (messages.length === 0 && Array.isArray(chat.messages) && chat.messages.length > 0) {
+      messages = chat.messages.slice(-limit);
+    }
 
     res.json({
       id: chat._id.toString(),
@@ -192,7 +246,7 @@ router.get("/:id", requireAuth, async (req, res) => {
       lastMessageAt: chat.lastMessageAt || chat.updatedAt || chat.createdAt,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
-      messages: messages.map((m) => {
+      messages: messages.map((m, idx) => {
         let atts = [];
         if (Array.isArray(m.attachments) && m.attachments.length > 0) {
           atts = m.attachments;
@@ -207,17 +261,18 @@ router.get("/:id", requireAuth, async (req, res) => {
         }
 
         const firstImg = atts.find((a) => a.type?.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)/i.test(a.url || a.name || ""))?.url || atts[0]?.url;
+        const msgId = m._id ? m._id.toString() : `${chat._id.toString()}-m${idx}`;
 
         return {
-          id: m._id.toString(),
-          _id: m._id.toString(),
+          id: msgId,
+          _id: msgId,
           role: m.role,
           content: typeof m.content === "string" ? m.content : (m.content ? JSON.stringify(m.content) : ""),
           image: firstImg || undefined,
           attachments: atts,
           feedback: m.feedback || null,
           status: m.status || "complete",
-          createdAt: m.createdAt,
+          createdAt: m.createdAt || chat.createdAt,
         };
       }),
     });
@@ -239,7 +294,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     }
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
-    const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const userInFilter = getUserIdValues(userId);
 
     const updates = { updatedAt: new Date() };
     if (typeof title === "string" && title.trim()) {
@@ -249,11 +304,19 @@ router.patch("/:id", requireAuth, async (req, res) => {
       updates.pinned = pinned;
     }
 
-    const chat = await Chat.findOneAndUpdate(
-      { _id: objectChatId, userId: userObjectId, deletedAt: null },
+    let chat = await Chat.findOneAndUpdate(
+      { _id: objectChatId, userId: { $in: userInFilter }, deletedAt: null },
       { $set: updates },
       { returnDocument: "after" }
     );
+
+    if (!chat) {
+      chat = await Conversation.findOneAndUpdate(
+        { _id: objectChatId, userId: { $in: userInFilter } },
+        { $set: updates },
+        { returnDocument: "after" }
+      );
+    }
 
     if (!chat) return res.status(404).json({ error: "Chat not found." });
 
@@ -282,13 +345,20 @@ router.delete("/:id", requireAuth, async (req, res) => {
     }
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
-    const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const userInFilter = getUserIdValues(userId);
 
-    const chat = await Chat.findOneAndUpdate(
-      { _id: objectChatId, userId: userObjectId, deletedAt: null },
+    let chat = await Chat.findOneAndUpdate(
+      { _id: objectChatId, userId: { $in: userInFilter }, deletedAt: null },
       { $set: { deletedAt: new Date(), updatedAt: new Date() } },
       { returnDocument: "after" }
     );
+
+    if (!chat) {
+      chat = await Conversation.findOneAndDelete({
+        _id: objectChatId,
+        userId: { $in: userInFilter },
+      });
+    }
 
     if (!chat) return res.status(404).json({ error: "Chat not found." });
 
@@ -469,25 +539,36 @@ router.post("/:id/messages", requireAuth, async (req, res) => {
 
     const objectChatId = new mongoose.Types.ObjectId(chatId);
     const userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const userInFilter = getUserIdValues(userId);
 
-    let chat = await Chat.findOne({ _id: objectChatId, userId: userObjectId, deletedAt: null });
-    const now = new Date();
-    if (!chat) {
-      const existingOther = await Chat.findById(objectChatId).select("userId").lean();
-      if (existingOther && String(existingOther.userId) !== String(userObjectId)) {
-        return res.status(404).json({ error: "Chat not found." });
-      }
-      chat = await Chat.create({
-        _id: objectChatId,
-        userId: userObjectId,
-        title: typeof content === "string" && content.trim() ? content.trim().slice(0, 42) : "New Chat",
-        lastMessageAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
-    } else {
-      await Chat.updateOne({ _id: objectChatId }, { lastMessageAt: now, updatedAt: now });
+    // Prevent another user from claiming or modifying an existing foreign chat ID
+    const [existingForeignChat, existingForeignConv] = await Promise.all([
+      Chat.findById(objectChatId).select("userId").lean(),
+      Conversation.findById(objectChatId).select("userId").lean(),
+    ]);
+    const ownerDoc = existingForeignChat || existingForeignConv;
+    if (ownerDoc && String(ownerDoc.userId) !== String(userId)) {
+      return res.status(404).json({ error: "Chat not found." });
     }
+
+    const now = new Date();
+    const safeTitle = typeof content === "string" && content.trim() ? content.trim().slice(0, 42) : "New Chat";
+
+    // Atomic upsert prevents E11000 duplicate key race conditions on concurrent user/assistant saves
+    const chat = await Chat.findOneAndUpdate(
+      { _id: objectChatId, userId: { $in: userInFilter } },
+      {
+        $set: { lastMessageAt: now, updatedAt: now, deletedAt: null },
+        $setOnInsert: {
+          _id: objectChatId,
+          userId: userObjectId,
+          title: safeTitle,
+          pinned: false,
+          createdAt: now,
+        },
+      },
+      { upsert: true, returnDocument: "after" }
+    );
 
     let atts = [];
     if (Array.isArray(attachments) && attachments.length > 0) {
