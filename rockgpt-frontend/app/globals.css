@@ -2025,24 +2025,36 @@ textarea::placeholder {
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 50%;
-  background: var(--inv);
-  color: var(--invt);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.36);
   display: grid;
   place-items: center;
   cursor: pointer;
-  transition: transform 0.28s var(--spring), background 0.22s, color 0.22s, opacity 0.2s;
+  transition: transform 0.28s var(--spring), background 0.22s ease, color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
 }
 
-#send.ready {
-  opacity: 0.94;
+[data-theme="light"] #send {
+  border-color: rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.07);
+  color: rgba(0, 0, 0, 0.34);
 }
 
-#send.ready:hover,
 #send.on {
-  opacity: 1;
+  background: var(--inv);
+  border-color: var(--inv);
+  color: var(--invt);
+  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.16);
+}
+
+[data-theme="light"] #send.on {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+
+#send.on:hover {
   transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.22);
 }
 
 #send:active {
@@ -2130,9 +2142,6 @@ textarea::placeholder {
     height: 26px;
     padding: 0 8px;
     font-size: 12.5px;
-  }
-  .cstats {
-    display: none;
   }
   .hint-row {
     font-size: 11px;
@@ -3073,12 +3082,6 @@ html[data-size="l"] { --fs: 18px; }
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
-}
-.cstats {
-  font-size: 11.5px;
-  color: var(--muted);
-  font-feature-settings: "tnum";
-  padding-right: 4px;
 }
 
 .att img {

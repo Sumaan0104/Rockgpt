@@ -2820,11 +2820,6 @@ export function RockGPTApp() {
                 </div>
 
                 <div className="cr">
-                  {inputValue.length > 0 && (
-                    <span className="cstats" aria-hidden="true">
-                      {inputValue.trim().split(/\s+/).filter(Boolean).length}w · {inputValue.length}c
-                    </span>
-                  )}
                   <button
                     type="button"
                     className={`sbtn ${isRecording ? "rec" : ""}`}
@@ -2842,7 +2837,7 @@ export function RockGPTApp() {
                   <button
                     type="button"
                     id="send"
-                    className={`${(inputValue.trim() || attachments.length) && !isBusy ? "on" : "ready"} ${
+                    className={`${(inputValue.trim() || attachments.length) && !isBusy ? "on" : ""} ${
                       isBusy ? "stop" : ""
                     }`}
                     title={isBusy ? "Stop generating" : "Send message"}
