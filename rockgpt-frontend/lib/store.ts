@@ -46,6 +46,7 @@ export type StoredMessage = {
   content: string;
   image?: string;
   attachments?: any[];
+  feedback?: "up" | "down" | null;
   tokens_out?: number;
   created_at: Date;
 };
@@ -182,12 +183,28 @@ class MemoryStore {
 
   saveMessage(msg: StoredMessage) {
     const list = this.messages.get(msg.chat_id) || [];
-    list.push(msg);
+    const idx = list.findIndex((m) => m.id === msg.id);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...msg };
+    } else {
+      list.push(msg);
+    }
     this.messages.set(msg.chat_id, list);
     const chat = this.chats.get(msg.chat_id);
     if (chat) {
       chat.updated_at = new Date();
     }
+  }
+
+  updateMessageFeedback(msgId: string, feedback: "up" | "down" | null) {
+    for (const list of this.messages.values()) {
+      const target = list.find((m) => m.id === msgId);
+      if (target) {
+        target.feedback = feedback;
+        return true;
+      }
+    }
+    return false;
   }
 }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
-import { globalStore } from "@/lib/store";
+import { globalStore, type StoredChat, type StoredMessage } from "@/lib/store";
 import { proxyBackendRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
 
@@ -15,15 +15,24 @@ const createChatSchema = z.object({
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user || user.email.startsWith("guest-")) {
-    // Unauthenticated visitors and guest users start with a clean local state; only authenticated users load from MongoDB Atlas
     return NextResponse.json({
       chats: [],
       nextCursor: null,
     });
   }
 
-  // 1. Fetch from persistent MongoDB database via Render backend
-  const backendResult = await proxyBackendRequest("/api/chats", {
+  const urlObj = new URL(request.url);
+  const q = urlObj.searchParams.get("q") || "";
+  const limit = urlObj.searchParams.get("limit") || "50";
+  const cursor = urlObj.searchParams.get("cursor") || "";
+
+  const qs = new URLSearchParams();
+  if (limit) qs.set("limit", limit);
+  if (cursor) qs.set("cursor", cursor);
+  if (q) qs.set("q", q);
+
+  // 1. Fetch from persistent MongoDB database via Backend
+  const backendResult = await proxyBackendRequest(`/api/chats?${qs.toString()}`, {
     method: "GET",
     user,
   });
@@ -32,24 +41,28 @@ export async function GET(request: Request) {
     const backendChats = backendResult.data.map((c: any) => ({
       id: c.id || c._id,
       title: c.title || "Untitled Conversation",
+      pinned: Boolean(c.pinned),
+      lastMessageAt: c.lastMessageAt || c.updatedAt || c.createdAt,
       project_id: null,
       mode: "chat",
       created_at: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
       updated_at: c.updatedAt ? new Date(c.updatedAt).toISOString() : new Date().toISOString(),
     }));
 
-    // Synchronize to local memory store
-    backendChats.forEach((c: any) => {
-      globalStore.saveChat({
-        id: c.id,
-        user_id: user.id,
-        title: c.title,
-        project_id: null,
-        mode: "chat",
-        created_at: new Date(c.created_at),
-        updated_at: new Date(c.updated_at),
+    // Synchronize to local memory store when unfiltered
+    if (!q) {
+      backendChats.forEach((c: any) => {
+        globalStore.saveChat({
+          id: c.id,
+          user_id: user.id,
+          title: c.title,
+          project_id: null,
+          mode: "chat",
+          created_at: new Date(c.created_at),
+          updated_at: new Date(c.updated_at),
+        });
       });
-    });
+    }
 
     return NextResponse.json({
       chats: backendChats,
@@ -58,12 +71,18 @@ export async function GET(request: Request) {
   }
 
   // 2. Fallback to local store if backend is offline/sleeping
-  const userChats = globalStore.getChats(user.id);
+  const qLower = q.trim().toLowerCase();
+  const userChats = globalStore.getChats(user.id).filter((c: StoredChat) => {
+    if (!qLower) return true;
+    if (c.title.toLowerCase().includes(qLower)) return true;
+    return globalStore.getMessages(c.id).some((m: StoredMessage) => (m.content || "").toLowerCase().includes(qLower));
+  });
 
   return NextResponse.json({
-    chats: userChats.map(c => ({
+    chats: userChats.map((c: StoredChat) => ({
       id: c.id,
       title: c.title,
+      pinned: Boolean((c as any).pinned),
       project_id: c.project_id ?? null,
       mode: c.mode,
       created_at: c.created_at.toISOString(),
@@ -88,7 +107,6 @@ export async function POST(request: Request) {
 
     let chatId = id || generateUUID();
 
-    // Only sync to MongoDB backend for real authenticated accounts, keeping guest chats local-only
     if (!user.email.startsWith("guest-")) {
       const backendResult = await proxyBackendRequest("/api/chats", {
         method: "POST",

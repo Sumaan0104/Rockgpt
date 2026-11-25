@@ -36,8 +36,8 @@ type MessageItem = {
   role: "user" | "assistant";
   content: string;
   image?: string;
-  attachments?: { name?: string; type?: string; url?: string; dataUrl?: string }[];
-  files?: { name: string; type: string; url?: string; dataUrl?: string }[];
+  attachments?: { name?: string; type?: string; url?: string; dataUrl?: string; text?: string }[];
+  files?: { name: string; type: string; url?: string; dataUrl?: string; text?: string }[];
   feedback?: "up" | "down" | null;
   fb?: "up" | "dn" | null;
   createdAt?: string;
@@ -196,7 +196,51 @@ function ShieldLogo({ size = 28 }: { size?: number }) {
   );
 }
 
-// ═══ RESPONSE ACTION BUTTONS BAR (MATCHING USER IMAGES) ═══
+// ═══ PROGRESSIVE "THINKING..." / "WORKING..." ANIMATED INDICATOR ═══
+function ThinkingIndicator({
+  hasImage,
+  isImageGen,
+  fastMode,
+}: {
+  hasImage?: boolean;
+  isImageGen?: boolean;
+  fastMode?: boolean;
+}) {
+  const [stageIdx, setStageIdx] = useState(0);
+
+  const stages = hasImage
+    ? ["Thinking...", "Inspecting image...", "Working...", "Analyzing details..."]
+    : isImageGen
+    ? ["Thinking...", "Imagining visual...", "Working...", "Rendering artwork..."]
+    : fastMode
+    ? ["Thinking...", "Working..."]
+    : ["Thinking...", "Analyzing request...", "Working...", "Synthesizing answer..."];
+
+  useEffect(() => {
+    setStageIdx(0);
+    const id = setInterval(() => {
+      setStageIdx((prev) => (prev + 1) % stages.length);
+    }, 1050);
+    return () => clearInterval(id);
+  }, [hasImage, isImageGen, fastMode, stages.length]);
+
+  const label = stages[stageIdx % stages.length];
+
+  return (
+    <div className="thinking" role="status" aria-live="polite" aria-label={label}>
+      <span className="dots" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+      <span key={label} className="tlabel">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ═══ RESPONSE ACTION BUTTONS BAR (PROPER LIKE/DISLIKE + CREATIVE ANIMATIONS) ═══
 function ResponseActionsBar({
   messageId,
   content,
@@ -218,14 +262,26 @@ function ResponseActionsBar({
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [animating, setAnimating] = useState<"up" | "dn" | null>(null);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
+
+  const triggerClickAnim = (kind: "up" | "dn") => {
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    setAnimating(null);
+    requestAnimationFrame(() => {
+      setAnimating(kind);
+      animTimerRef.current = setTimeout(() => setAnimating(null), 650);
+    });
+  };
 
   const handleCopy = async () => {
     try {
@@ -236,6 +292,17 @@ function ResponseActionsBar({
     } catch {
       onToast("Couldn't copy");
     }
+  };
+
+  const handleShare = async () => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "RockGPT Response", text: content });
+        return;
+      }
+      await navigator.clipboard.writeText(content);
+      onToast("Copied response for sharing");
+    } catch {}
   };
 
   const handleSpeech = () => {
@@ -252,7 +319,7 @@ function ResponseActionsBar({
     const plain = content
       .replace(/```[\s\S]*?```/g, " code block ")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/[`*#>_]/g, "")
+      .replace(/[`*#>_$]/g, "")
       .trim();
 
     if (!plain) return;
@@ -267,6 +334,7 @@ function ResponseActionsBar({
   const handleLike = () => {
     const next = feedback === "up" ? null : "up";
     onFeedbackChange?.(next);
+    if (next === "up") triggerClickAnim("up");
     if (messageId) {
       fetch(`/api/messages/${messageId}/feedback`, {
         method: "PATCH",
@@ -274,12 +342,13 @@ function ResponseActionsBar({
         body: JSON.stringify({ feedback: next }),
       }).catch(() => {});
     }
-    onToast(next ? "Thanks for your feedback! 👍" : "Feedback removed");
+    onToast(next ? "Appreciate your response" : "Feedback removed");
   };
 
   const handleDislike = () => {
     const next = feedback === "down" ? null : "down";
     onFeedbackChange?.(next);
+    if (next === "down") triggerClickAnim("dn");
     if (messageId) {
       fetch(`/api/messages/${messageId}/feedback`, {
         method: "PATCH",
@@ -287,7 +356,7 @@ function ResponseActionsBar({
         body: JSON.stringify({ feedback: next }),
       }).catch(() => {});
     }
-    onToast(next ? "Feedback noted. We'll work on it! 👎" : "Feedback removed");
+    onToast(next ? "We will try to improve" : "Feedback removed");
   };
 
   return (
@@ -313,6 +382,7 @@ function ResponseActionsBar({
       <button
         type="button"
         className={`ab ${speaking ? "sel" : ""}`}
+        data-k="sp"
         onClick={handleSpeech}
         title={speaking ? "Stop" : "Read aloud"}
         aria-label="Read aloud"
@@ -322,34 +392,73 @@ function ResponseActionsBar({
         </svg>
       </button>
 
-      {/* 3. Thumbs Up */}
+      {/* 3. Proper Thumbs Up Button + Spark Burst */}
       <button
         type="button"
-        className={`ab ${feedback === "up" ? "sel" : ""}`}
+        className={`ab ${feedback === "up" ? "sel" : ""} ${animating === "up" ? "anim-up" : ""}`}
+        data-k="up"
         onClick={handleLike}
         title="Good response"
         aria-label="Good response"
+        aria-pressed={feedback === "up"}
       >
+        {animating === "up" && (
+          <>
+            <span className="fb-ring" aria-hidden="true" />
+            <span className="fb-sparks" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
+          </>
+        )}
         <svg viewBox="0 0 24 24">
-          <path d="M7 10l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.3l-1.2 6A2 2 0 0116.1 20H7V10z" />
+          <path d="M7 10v12" />
+          <path
+            className="thumb-body"
+            d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"
+          />
         </svg>
       </button>
 
-      {/* 4. Thumbs Down (Rotated 180deg) */}
+      {/* 4. Proper Thumbs Down Button + Smooth Tilt Animation */}
       <button
         type="button"
-        className={`ab ${feedback === "down" ? "sel" : ""}`}
+        className={`ab ${feedback === "down" ? "sel" : ""} ${animating === "dn" ? "anim-dn" : ""}`}
         data-k="dn"
         onClick={handleDislike}
         title="Bad response"
         aria-label="Bad response"
+        aria-pressed={feedback === "down"}
       >
+        {animating === "dn" && <span className="fb-ring" aria-hidden="true" />}
         <svg viewBox="0 0 24 24">
-          <path d="M7 10l4-7a2 2 0 012 2v3h5.3a2 2 0 012 2.3l-1.2 6A2 2 0 0116.1 20H7V10z" />
+          <path d="M17 14V2" />
+          <path
+            className="thumb-body"
+            d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"
+          />
         </svg>
       </button>
 
-      {/* 5. Regenerate (on last assistant message, matching User Image 1) */}
+      {/* 5. Share */}
+      <button
+        type="button"
+        className="ab"
+        data-k="sh"
+        onClick={handleShare}
+        title="Share response"
+        aria-label="Share response"
+      >
+        <svg viewBox="0 0 24 24">
+          <path d="M12 15V4M8 8l4-4 4 4M5 13v5a2 2 0 002 2h10a2 2 0 002-2v-5" />
+        </svg>
+      </button>
+
+      {/* 6. Regenerate (on last assistant message) */}
       {isLast && onRegenerate && (
         <button
           type="button"
@@ -365,6 +474,25 @@ function ResponseActionsBar({
             <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
           </svg>
         </button>
+      )}
+
+      {/* Animated Inline Feedback Status Pill */}
+      {feedback === "up" && (
+        <span className="fb-note" key="fb-up">
+          <svg viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          Appreciate your response
+        </span>
+      )}
+      {feedback === "down" && (
+        <span className="fb-note" key="fb-dn">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+          We will try to improve
+        </span>
       )}
     </div>
   );
@@ -385,12 +513,14 @@ export function RockGPTApp() {
     size: "s" | "m" | "l";
     scroll: boolean;
     instr: string;
+    fast?: boolean;
   }>({
     enter: true,
     intro: true,
     size: "m",
     scroll: true,
     instr: "",
+    fast: false,
   });
   const [fastMode, setFastMode] = useState(false);
 
@@ -408,11 +538,14 @@ export function RockGPTApp() {
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [thinkingContext, setThinkingContext] = useState<{ hasImage?: boolean; isImageGen?: boolean }>({});
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   // Composer State
   const [inputValue, setInputValue] = useState("");
-  const [attachments, setAttachments] = useState<{ name: string; type: string; url?: string; dataUrl?: string; file?: File }[]>([]);
+  const [attachments, setAttachments] = useState<
+    { name: string; type: string; size?: number; url?: string; dataUrl?: string; text?: string; file?: File }[]
+  >([]);
 
   // Modals & Overlays
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -428,18 +561,23 @@ export function RockGPTApp() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
   const [authResendSeconds, setAuthResendSeconds] = useState(0);
+  const [sessionEndedNotice, setSessionEndedNotice] = useState(false);
 
-  // Guest Session Countdown Timer (3 Minutes Free Trial)
+  // Guest Session Countdown Timer (3 Minutes = 180s Free Session)
+  const GUEST_SESSION_SECONDS = 180;
   const [guestTimeLeft, setGuestTimeLeft] = useState<number | null>(null);
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [lightboxImg, setLightboxImg] = useState<{ url: string; alt: string } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
   // Toasts
   const [toasts, setToasts] = useState<{ id: string; msg: string; act?: { label: string; fn: () => void } }[]>([]);
 
-  // DOM Refs
+  // DOM & Streaming Refs
   const scRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const introIconRef = useRef<HTMLImageElement | null>(null);
   const sMarkRef = useRef<HTMLDivElement | null>(null);
@@ -450,35 +588,46 @@ export function RockGPTApp() {
   const micRecRef = useRef<any>(null);
   const introRanRef = useRef(false);
   const flyInRanRef = useRef(false);
+  const guestExpiryPopupFiredRef = useRef(false);
+  const streamTargetRef = useRef("");
+  const streamShownLenRef = useRef(0);
+  const streamDoneRef = useRef(false);
+  const streamRafRef = useRef<number | null>(null);
 
   // Toast Dispatcher
   const showToast = useCallback((msg: string, act?: { label: string; fn: () => void }) => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev.slice(-3), { id, msg, act }]);
-    const duration = act ? 6000 : 2400;
+    const duration = act ? 6000 : 2600;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, duration);
   }, []);
 
-  // Auth Modal Opener (Guarantees fresh state, zero prefill, and no autofill)
-  const openAuthModal = useCallback((mode: "in" | "up" = "in", errorMsg?: string) => {
-    setAuthMode(mode);
-    setAuthEmail("");
-    setAuthPassword("");
-    setAuthPassword2("");
-    setAuthName("");
-    setAuthOtpCode("");
-    setAuthError(errorMsg || null);
-    setAuthSuccessMsg(null);
-    setShowAuthModal(true);
-  }, []);
+  // Auth Modal Opener (Guarantees fresh state, zero prefill, and optional session-ended notice)
+  const openAuthModal = useCallback(
+    (mode: "in" | "up" = "in", errorMsg?: string, endedNotice = false) => {
+      setAuthMode(mode);
+      setAuthEmail("");
+      setAuthPassword("");
+      setAuthPassword2("");
+      setAuthName("");
+      setAuthOtpCode("");
+      setAuthError(errorMsg || null);
+      setAuthSuccessMsg(null);
+      setSessionEndedNotice(endedNotice);
+      setShowAuthModal(true);
+    },
+    []
+  );
 
-  // Theme Synchronizer
+  // Theme Synchronizer (including mobile theme-color meta tag)
   const applyTheme = useCallback((t: "dark" | "light") => {
     setTheme(t);
     if (typeof document !== "undefined") {
       document.documentElement.dataset.theme = t;
+      const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+      if (meta) meta.content = t === "light" ? "#ffffff" : "#0d0d0d";
       try {
         localStorage.setItem("rockgpt_theme", t);
       } catch {}
@@ -653,28 +802,104 @@ export function RockGPTApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [showIntro, flyIn]);
 
-  // Code block copy delegation
+  // Feed click delegation: code copy, image zoom lightbox, and image download
   useEffect(() => {
-    const onListClick = (e: MouseEvent) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".cc, .code-copy-btn");
-      if (!btn) return;
-      const raw = btn.dataset.copy
-        ? decodeURIComponent(btn.dataset.copy)
-        : btn.closest("pre")?.querySelector("code")?.textContent || "";
-      if (raw) {
-        navigator.clipboard.writeText(raw).then(() => {
-          const oldText = btn.textContent;
-          btn.textContent = "Copied";
-          setTimeout(() => {
-            btn.textContent = oldText || "Copy";
-          }, 1400);
+    const onListClick = async (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
+      const copyBtn = target.closest<HTMLButtonElement>(".cc, .code-copy-btn");
+      if (copyBtn) {
+        const raw = copyBtn.dataset.copy
+          ? decodeURIComponent(copyBtn.dataset.copy)
+          : copyBtn.closest("pre")?.querySelector("code")?.textContent || "";
+        if (raw) {
+          navigator.clipboard.writeText(raw).then(() => {
+            const oldText = copyBtn.textContent;
+            copyBtn.textContent = "Copied";
+            setTimeout(() => {
+              copyBtn.textContent = oldText || "Copy";
+            }, 1400);
+          });
+        }
+        return;
+      }
+
+      const dlBtn = target.closest<HTMLButtonElement>(".msg-image-dl");
+      if (dlBtn) {
+        const url = dlBtn.dataset.dlImg;
+        const name = (dlBtn.dataset.dlName || "rockgpt-image").replace(/[^\w-]+/g, "-").slice(0, 40);
+        if (url) {
+          try {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const objUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = objUrl;
+            a.download = `${name}.jpg`;
+            a.click();
+            URL.revokeObjectURL(objUrl);
+            showToast("Image downloaded");
+          } catch {
+            window.open(url, "_blank", "noopener,noreferrer");
+          }
+        }
+        return;
+      }
+
+      const previewImg = target.closest<HTMLImageElement>("img[data-preview='img'], .att img");
+      if (previewImg && previewImg.src) {
+        setLightboxImg({
+          url: previewImg.src,
+          alt: previewImg.alt || "Image Preview",
         });
       }
     };
     const sc = scRef.current;
     sc?.addEventListener("click", onListClick);
     return () => sc?.removeEventListener("click", onListClick);
-  }, []);
+  }, [showToast]);
+
+  // Helper to download image from Lightbox
+  const downloadImageUrl = useCallback(
+    async (url: string, name = "rockgpt-image") => {
+      const cleanName = name.replace(/[^\w-]+/g, "-").slice(0, 40) || "rockgpt-image";
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl;
+        a.download = `${cleanName}.jpg`;
+        a.click();
+        URL.revokeObjectURL(objUrl);
+        showToast("Image downloaded");
+      } catch {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    },
+    [showToast]
+  );
+
+  // Initialize / compute persistent 3-minute guest countdown
+  const initGuestTimer = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("rockgpt_guest_started_at");
+      let startedAt = raw ? Number(raw) : NaN;
+      if (!Number.isFinite(startedAt) || startedAt <= 0) {
+        startedAt = Date.now();
+        localStorage.setItem("rockgpt_guest_started_at", String(startedAt));
+      }
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const rem = Math.max(0, GUEST_SESSION_SECONDS - elapsed);
+      setGuestTimeLeft(rem);
+      if (rem <= 0 && !guestExpiryPopupFiredRef.current) {
+        guestExpiryPopupFiredRef.current = true;
+        openAuthModal("up", undefined, true);
+      }
+    } catch {
+      setGuestTimeLeft((prev) => (prev === null ? GUEST_SESSION_SECONDS : prev));
+    }
+  }, [openAuthModal]);
 
   // Fetch Session & Persistent Chats
   const fetchSession = useCallback(async () => {
@@ -684,6 +909,11 @@ export function RockGPTApp() {
         const data = await res.json();
         if (data.user) {
           setUser(data.user);
+          setGuestTimeLeft(null);
+          setSessionEndedNotice(false);
+          try {
+            localStorage.removeItem("rockgpt_guest_started_at");
+          } catch {}
           if (data.user.settings) {
             updateSettings({
               instr: data.user.settings.instructions || "",
@@ -694,14 +924,17 @@ export function RockGPTApp() {
               setFastMode(!!data.user.settings.fast);
             }
           }
+          return;
         }
       }
     } catch {}
-  }, [updateSettings]);
+    initGuestTimer();
+  }, [updateSettings, initGuestTimer]);
 
-  const fetchChats = useCallback(async () => {
+  const fetchChats = useCallback(async (q = "") => {
     try {
-      const res = await fetch("/api/chats");
+      const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+      const res = await fetch(`/api/chats${qs}`);
       if (res.ok) {
         const data = await res.json();
         const list: ChatItem[] = Array.isArray(data.chats) ? data.chats : Array.isArray(data) ? data : [];
@@ -714,6 +947,15 @@ export function RockGPTApp() {
     fetchSession();
     fetchChats();
   }, [fetchSession, fetchChats]);
+
+  // Debounced server + local search query sync when signed in
+  useEffect(() => {
+    if (!user) return;
+    const t = setTimeout(() => {
+      fetchChats(searchQuery);
+    }, 220);
+    return () => clearTimeout(t);
+  }, [searchQuery, user, fetchChats]);
 
   // Auto-scroll when assistant reply finishes to reveal response toolbar & follow-up chips
   useEffect(() => {
@@ -733,15 +975,22 @@ export function RockGPTApp() {
     }
   }, [isBusy, messages.length]);
 
-  // Guest 3-minute free preview session countdown
+  // Guest 3-minute free session live countdown
   useEffect(() => {
     if (guestTimeLeft === null || user) return;
     if (guestTimeLeft <= 0) {
-      openAuthModal("up", "Your 3-minute free preview session has ended. Sign up or log in to keep chatting and save your conversation!");
+      if (!guestExpiryPopupFiredRef.current) {
+        guestExpiryPopupFiredRef.current = true;
+        openAuthModal("up", undefined, true);
+      }
       return;
     }
     const t = setInterval(() => {
-      setGuestTimeLeft((p) => (p !== null ? p - 1 : null));
+      setGuestTimeLeft((p) => {
+        if (p === null) return null;
+        if (p <= 1) return 0;
+        return p - 1;
+      });
     }, 1000);
     return () => clearInterval(t);
   }, [guestTimeLeft, user, openAuthModal]);
@@ -891,8 +1140,16 @@ export function RockGPTApp() {
     await fetch(`/api/chats/${c.id}`, { method: "DELETE" }).catch(() => {});
   };
 
-  // 3. SEND & STREAMING FLOW
-  const stopGeneration = () => {
+  // 3. SEND & ULTRA-SMOOTH STREAMING FLOW
+  const cancelStreamAnimation = useCallback(() => {
+    if (streamRafRef.current !== null) {
+      cancelAnimationFrame(streamRafRef.current);
+      streamRafRef.current = null;
+    }
+  }, []);
+
+  const stopGeneration = useCallback(() => {
+    cancelStreamAnimation();
     if (abortCtrlRef.current) {
       abortCtrlRef.current.abort();
       abortCtrlRef.current = null;
@@ -902,7 +1159,7 @@ export function RockGPTApp() {
     }
     setIsBusy(false);
     setIsThinking(false);
-  };
+  }, [activeChat?.id, cancelStreamAnimation]);
 
   const spinDownMark = (markEl: HTMLElement | null) => {
     if (!markEl) return;
@@ -928,13 +1185,18 @@ export function RockGPTApp() {
   const handleSend = async (overrideText?: string, baseHistory?: MessageItem[]) => {
     // 0. Check guest session expiration
     if (!user && guestTimeLeft !== null && guestTimeLeft <= 0) {
-      openAuthModal("up", "Your 3-minute free preview session has ended. Sign up or log in to keep chatting and save your conversation!");
+      openAuthModal("up", undefined, true);
       return;
     }
 
-    // 0b. Start 3-minute countdown on first guest interaction
+    // 0b. Ensure 3-minute countdown is started if uninitialized
     if (!user && guestTimeLeft === null) {
-      setGuestTimeLeft(180);
+      try {
+        if (!localStorage.getItem("rockgpt_guest_started_at")) {
+          localStorage.setItem("rockgpt_guest_started_at", String(Date.now()));
+        }
+      } catch {}
+      setGuestTimeLeft(GUEST_SESSION_SECONDS);
     }
 
     const textToSend = (overrideText ?? inputValue).trim();
@@ -942,7 +1204,9 @@ export function RockGPTApp() {
     if ((!textToSend && !filesToSend.length) || isBusy) return;
 
     if (micRecRef.current) {
-      try { micRecRef.current.stop(); } catch {}
+      try {
+        micRecRef.current.stop();
+      } catch {}
     }
 
     setInputValue("");
@@ -963,21 +1227,112 @@ export function RockGPTApp() {
       setChats((prev) => [newChatObj, ...prev]);
     }
 
-    // 2. Add user message
+    // 2. Add user message & initialize smooth streaming buffers
     const currentBase = baseHistory ?? messages;
+    const firstImgDataUrl = filesToSend.find((f) => f.type.startsWith("image/"))?.dataUrl;
     const userMsg: MessageItem = {
       role: "user",
       content: textToSend,
-      files: filesToSend.map((f) => ({ name: f.name, type: f.type, url: f.url })),
-      image: filesToSend.find((f) => f.type.startsWith("image/"))?.dataUrl,
+      files: filesToSend.map((f) => ({ name: f.name, type: f.type, url: f.url, text: f.text })),
+      image: firstImgDataUrl,
     };
-    setMessages([...currentBase, userMsg]);
+
+    const isImgGenPrompt = /^(?:generate|create|draw|make|show|render|produce|paint)\s+(?:an?\s+)?(?:image|picture|photo|illustration|art|wallpaper)/i.test(
+      textToSend
+    );
+    setThinkingContext({
+      hasImage: Boolean(firstImgDataUrl),
+      isImageGen: isImgGenPrompt,
+    });
+
+    setMessages([...currentBase, userMsg, { role: "assistant", content: "" }]);
     setIsBusy(true);
     setIsThinking(true);
     setTimeout(() => scrollToBottom(false), 30);
 
+    streamTargetRef.current = "";
+    streamShownLenRef.current = 0;
+    streamDoneRef.current = false;
+    cancelStreamAnimation();
+
     const abortCtrl = new AbortController();
     abortCtrlRef.current = abortCtrl;
+    const minThinkUntil = Date.now() + 650;
+    let finalMessageId: string | undefined;
+
+    const removeEmptyPlaceholder = () => {
+      setMessages((prev) => {
+        if (prev.length > 0 && prev[prev.length - 1].role === "assistant" && !prev[prev.length - 1].content) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+    };
+
+    const startSmoothRevealLoop = () => {
+      if (streamRafRef.current !== null) return;
+      const tick = () => {
+        if (Date.now() < minThinkUntil) {
+          streamRafRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        const target = streamTargetRef.current;
+        const shown = streamShownLenRef.current;
+
+        if (shown < target.length) {
+          if (shown === 0) {
+            setIsThinking(false);
+          }
+          const backlog = target.length - shown;
+          const step = Math.max(2, Math.min(20, Math.ceil(backlog / 8)));
+          const nextLen = Math.min(target.length, shown + step);
+          streamShownLenRef.current = nextLen;
+          const visibleText = target.slice(0, nextLen);
+
+          setMessages((prev) => {
+            const next = [...prev];
+            const lastIdx = next.length - 1;
+            if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
+              next[lastIdx] = { ...next[lastIdx], content: visibleText };
+            } else {
+              next.push({ role: "assistant", content: visibleText });
+            }
+            return next;
+          });
+
+          if (settings.scroll && scRef.current) {
+            const el = scRef.current;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 220) {
+              el.scrollTop = el.scrollHeight;
+            }
+          }
+        }
+
+        if (streamDoneRef.current && streamShownLenRef.current >= streamTargetRef.current.length) {
+          streamRafRef.current = null;
+          if (finalMessageId) {
+            setMessages((prev) => {
+              const next = [...prev];
+              const lastIdx = next.length - 1;
+              if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
+                next[lastIdx] = { ...next[lastIdx], id: finalMessageId };
+              }
+              return next;
+            });
+          }
+          setIsBusy(false);
+          setIsThinking(false);
+          abortCtrlRef.current = null;
+          spinDownMark(lastAiMarkRef.current);
+          fetchChats().catch(() => {});
+          return;
+        }
+
+        streamRafRef.current = requestAnimationFrame(tick);
+      };
+      streamRafRef.current = requestAnimationFrame(tick);
+    };
 
     try {
       const streamRes = await fetch(`/api/chats/${chatId}/messages`, {
@@ -986,6 +1341,12 @@ export function RockGPTApp() {
         body: JSON.stringify({
           content: textToSend,
           image: userMsg.image,
+          attachments: filesToSend.map((f) => ({
+            name: f.name,
+            type: f.type,
+            text: f.text,
+            dataUrl: f.type.startsWith("image/") ? f.dataUrl : undefined,
+          })),
           fast: fastMode,
           instructions: settings.instr,
         }),
@@ -993,6 +1354,7 @@ export function RockGPTApp() {
       });
 
       if (!streamRes.ok) {
+        removeEmptyPlaceholder();
         if (streamRes.status === 401) {
           openAuthModal("in");
           setIsBusy(false);
@@ -1013,8 +1375,6 @@ export function RockGPTApp() {
 
       const decoder = new TextDecoder();
       let buffer = "";
-      let accumulated = "";
-      let firstChunkReceived = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1039,14 +1399,7 @@ export function RockGPTApp() {
             try {
               const data = JSON.parse(dataStr);
               if (data.message_id) {
-                setMessages((prev) => {
-                  const next = [...prev];
-                  const lastIdx = next.length - 1;
-                  if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
-                    next[lastIdx] = { ...next[lastIdx], id: data.message_id };
-                  }
-                  return next;
-                });
+                finalMessageId = data.message_id;
                 streamFinished = true;
                 break;
               }
@@ -1054,48 +1407,54 @@ export function RockGPTApp() {
                 streamFinished = true;
                 break;
               }
-              const chunk = data.chunk ?? data.text ?? "";
+              const chunk = data.chunk ?? data.text ?? data.token ?? "";
               if (chunk) {
-                if (!firstChunkReceived) {
-                  firstChunkReceived = true;
-                  setIsThinking(false);
-                  accumulated += chunk;
-                  setMessages((prev) => [...prev, { role: "assistant", content: accumulated }]);
-                } else {
-                  accumulated += chunk;
-                  setMessages((prev) => {
-                    const next = [...prev];
-                    const lastIdx = next.length - 1;
-                    if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
-                      next[lastIdx] = { ...next[lastIdx], content: accumulated };
-                    }
-                    return next;
-                  });
-                }
-                if (settings.scroll) {
-                  requestAnimationFrame(() => {
-                    if (scRef.current) {
-                      scRef.current.scrollTop = scRef.current.scrollHeight;
-                    }
-                  });
-                }
+                streamTargetRef.current += chunk;
+                startSmoothRevealLoop();
               }
             } catch {}
           }
         }
         if (streamFinished) {
-          try { await reader.cancel(); } catch {}
+          try {
+            await reader.cancel();
+          } catch {}
           break;
         }
       }
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Couldn't reach ROCKGPT. Check your connection and try again." },
-        ]);
+
+      streamDoneRef.current = true;
+      if (streamTargetRef.current.length === 0) {
+        removeEmptyPlaceholder();
+        setIsBusy(false);
+        setIsThinking(false);
+        spinDownMark(lastAiMarkRef.current);
+      } else {
+        startSmoothRevealLoop();
       }
-    } finally {
+    } catch (err: any) {
+      cancelStreamAnimation();
+      streamDoneRef.current = true;
+      if (err.name === "AbortError") {
+        removeEmptyPlaceholder();
+      } else {
+        setMessages((prev) => {
+          const next = [...prev];
+          const lastIdx = next.length - 1;
+          if (lastIdx >= 0 && next[lastIdx].role === "assistant" && !next[lastIdx].content) {
+            next[lastIdx] = {
+              role: "assistant",
+              content: "Couldn't reach ROCKGPT. Check your connection and try again.",
+            };
+          } else {
+            next.push({
+              role: "assistant",
+              content: "Couldn't reach ROCKGPT. Check your connection and try again.",
+            });
+          }
+          return next;
+        });
+      }
       setIsBusy(false);
       setIsThinking(false);
       abortCtrlRef.current = null;
@@ -1103,6 +1462,69 @@ export function RockGPTApp() {
       fetchChats().catch(() => {});
     }
   };
+
+  // Global Keyboard Shortcuts (matching Settings modal shortcuts table)
+  useEffect(() => {
+    const onGlobalKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      const targetTag = (e.target as HTMLElement)?.tagName || "";
+      const isEditingInput = targetTag === "INPUT" || targetTag === "TEXTAREA";
+
+      if (mod && e.shiftKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        startNewChat();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowSearchInput((p) => {
+          const next = !p;
+          if (next) setTimeout(() => searchInputRef.current?.focus(), 40);
+          return next;
+        });
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        if (window.innerWidth <= 820) setMobileOpen((p) => !p);
+        else setCollapsed((p) => !p);
+        return;
+      }
+      if (mod && e.key === ",") {
+        e.preventDefault();
+        setShowSettingsModal((p) => !p);
+        return;
+      }
+      if (e.key === "/" && !isEditingInput && !showAuthModal && !showSettingsModal && !showPricingModal) {
+        e.preventDefault();
+        textareaRef.current?.focus();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (lightboxImg) {
+          setLightboxImg(null);
+          return;
+        }
+        if (showPricingModal) {
+          setShowPricingModal(false);
+          return;
+        }
+        if (showSettingsModal) {
+          setShowSettingsModal(false);
+          return;
+        }
+        if (showAuthModal) {
+          setShowAuthModal(false);
+          return;
+        }
+        if (isBusy) {
+          stopGeneration();
+        }
+      }
+    };
+    window.addEventListener("keydown", onGlobalKey);
+    return () => window.removeEventListener("keydown", onGlobalKey);
+  }, [isBusy, lightboxImg, showAuthModal, showPricingModal, showSettingsModal, startNewChat, stopGeneration]);
 
   const handleRegenerate = () => {
     if (isBusy || messages.length === 0) return;
@@ -1164,30 +1586,64 @@ export function RockGPTApp() {
     }
   };
 
-  // File Upload Handling
+  // File Upload Handling (Images + .txt/.md/code extraction)
   const handleAddFiles = (fileList: FileList | File[]) => {
     const arr = [...fileList];
+    const isTextReadable = (f: File) =>
+      f.type.startsWith("text/") ||
+      /json|javascript|xml|csv/i.test(f.type) ||
+      /\.(txt|md|markdown|json|csv|js|jsx|ts|tsx|py|html|htm|css|scss|sql|log|yml|yaml|xml|env|sh)$/i.test(f.name);
+
     arr.forEach((file) => {
       if (file.size > 10 * 1024 * 1024) {
         showToast("File must be smaller than 10MB");
         return;
       }
-      const reader = new FileReader();
       const isImg = file.type.startsWith("image/");
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
+      const reader = new FileReader();
+
+      if (isImg) {
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              file,
+              url: URL.createObjectURL(file),
+              dataUrl,
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      } else if (isTextReadable(file)) {
+        reader.onload = () => {
+          const textContent = String(reader.result || "").slice(0, 40_000);
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: file.type || "text/plain",
+              size: file.size,
+              file,
+              text: textContent,
+            },
+          ]);
+        };
+        reader.readAsText(file);
+      } else {
         setAttachments((prev) => [
           ...prev,
           {
             name: file.name,
-            type: file.type,
+            type: file.type || "application/octet-stream",
+            size: file.size,
             file,
-            url: isImg ? URL.createObjectURL(file) : undefined,
-            dataUrl,
           },
         ]);
-      };
-      reader.readAsDataURL(file);
+      }
     });
   };
 
@@ -1207,6 +1663,43 @@ export function RockGPTApp() {
     showToast("Chat exported");
   };
 
+  const finishAuthSuccess = (loggedUser: UserData, toastMessage: string) => {
+    setUser(loggedUser);
+    setGuestTimeLeft(null);
+    setSessionEndedNotice(false);
+    guestExpiryPopupFiredRef.current = false;
+    try {
+      localStorage.removeItem("rockgpt_guest_started_at");
+    } catch {}
+    setShowAuthModal(false);
+    setAuthPassword("");
+    setAuthPassword2("");
+    setAuthOtpCode("");
+
+    if (messages.length > 0) {
+      fetch("/api/chats/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chats: [
+            {
+              id: activeChat?.id || Date.now().toString(),
+              title: activeChat?.title || "Conversation",
+              msgs: messages,
+              messages,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      })
+        .then(() => fetchChats())
+        .catch(() => {});
+    } else {
+      fetchChats();
+    }
+    showToast(toastMessage);
+  };
+
   // 4. AUTHENTICATION HANDLERS
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1222,29 +1715,7 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok && data.user) {
-          setUser(data.user);
-          setGuestTimeLeft(null);
-          setShowAuthModal(false);
-          setAuthPassword("");
-          if (messages.length > 0) {
-            fetch("/api/chats/import", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chats: [
-                  {
-                    id: activeChat?.id || Date.now().toString(),
-                    title: activeChat?.title || "Conversation",
-                    messages: messages,
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              }),
-            }).then(() => fetchChats()).catch(() => {});
-          } else {
-            fetchChats();
-          }
-          showToast(`Welcome back, ${data.user.name.split(" ")[0]}!`);
+          finishAuthSuccess(data.user, `Welcome back, ${(data.user.name || "User").split(" ")[0]}!`);
         } else {
           setAuthError(data.error?.message || "Invalid email or password");
         }
@@ -1266,9 +1737,13 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok) {
-          setAuthMode("code");
-          setAuthResendSeconds(60);
-          showToast(data.message || "Verification code sent to your email!");
+          if (data.alreadyActive && data.user) {
+            finishAuthSuccess(data.user, `Welcome back, ${(data.user.name || "User").split(" ")[0]}!`);
+          } else {
+            setAuthMode("code");
+            setAuthResendSeconds(60);
+            showToast(data.message || "Verification code sent to your email!");
+          }
         } else {
           setAuthError(data.error?.message || "Failed to create account");
         }
@@ -1280,30 +1755,7 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok && data.user) {
-          setUser(data.user);
-          setGuestTimeLeft(null);
-          setShowAuthModal(false);
-          setAuthPassword("");
-          setAuthOtpCode("");
-          if (messages.length > 0) {
-            fetch("/api/chats/import", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chats: [
-                  {
-                    id: activeChat?.id || Date.now().toString(),
-                    title: activeChat?.title || "Conversation",
-                    messages: messages,
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              }),
-            }).then(() => fetchChats()).catch(() => {});
-          } else {
-            fetchChats();
-          }
-          showToast(`Welcome, ${data.user.name.split(" ")[0]}!`);
+          finishAuthSuccess(data.user, `Welcome, ${(data.user.name || "User").split(" ")[0]}!`);
         } else {
           setAuthError(data.error?.message || "Invalid verification code");
         }
@@ -1329,13 +1781,7 @@ export function RockGPTApp() {
         });
         const data = await res.json();
         if (res.ok && data.user) {
-          setUser(data.user);
-          setGuestTimeLeft(null);
-          setShowAuthModal(false);
-          setAuthPassword("");
-          setAuthOtpCode("");
-          fetchChats();
-          showToast("Password updated successfully! You are signed in.");
+          finishAuthSuccess(data.user, "Password updated successfully! You are signed in.");
         } else {
           setAuthError(data.error?.message || "Failed to reset password");
         }
@@ -1351,9 +1797,13 @@ export function RockGPTApp() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       setUser(null);
-      setGuestTimeLeft(null);
       setChats([]);
       startNewChat();
+      guestExpiryPopupFiredRef.current = false;
+      try {
+        localStorage.setItem("rockgpt_guest_started_at", String(Date.now()));
+      } catch {}
+      setGuestTimeLeft(GUEST_SESSION_SECONDS);
       showToast("Logged out");
     } catch {
       showToast("Failed to log out");
@@ -1363,11 +1813,15 @@ export function RockGPTApp() {
   // Grouping Chats into Temporal Buckets
   const s0 = new Date().setHours(0, 0, 0, 0);
   const D = 864e5;
-  const filteredChats = chats.filter(
-    (c) =>
-      !searchQuery ||
-      c.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const qLower = searchQuery.trim().toLowerCase();
+  const filteredChats = chats.filter((c) => {
+    if (!qLower || user) return true;
+    if (c.title.toLowerCase().includes(qLower)) return true;
+    if (activeChat?.id === c.id) {
+      return messages.some((m) => (m.content || "").toLowerCase().includes(qLower));
+    }
+    return false;
+  });
 
   const pinnedChats = filteredChats.filter((c) => c.pinned);
   const unpinnedChats = filteredChats.filter((c) => !c.pinned);
@@ -1423,7 +1877,7 @@ export function RockGPTApp() {
         <div id="back" onClick={() => setMobileOpen(false)} />
 
         {/* ═══ SIDEBAR ═══ */}
-        <aside id="side" aria-label="Sidebar navigation">
+        <aside id="side" className={showSearchInput ? "sq" : ""} aria-label="Sidebar navigation">
           <div className="sin">
             <div className="stop">
               <div className="brand">
@@ -1436,9 +1890,16 @@ export function RockGPTApp() {
                 type="button"
                 className="sbtn"
                 id="sqb"
-                title="Search chats"
+                title="Search chats (Ctrl+K)"
                 aria-label="Search chats"
-                onClick={() => setShowSearchInput((prev) => !prev)}
+                onClick={() =>
+                  setShowSearchInput((prev) => {
+                    const next = !prev;
+                    if (!next) setSearchQuery("");
+                    else setTimeout(() => searchInputRef.current?.focus(), 40);
+                    return next;
+                  })
+                }
               >
                 <svg viewBox="0 0 24 24">
                   <circle cx="11" cy="11" r="8" />
@@ -1456,6 +1917,7 @@ export function RockGPTApp() {
 
             {showSearchInput && (
               <input
+                ref={searchInputRef}
                 id="sq"
                 type="text"
                 placeholder="Search chats..."
@@ -1727,14 +2189,16 @@ export function RockGPTApp() {
             {guestTimeLeft !== null && !user && (
               <button
                 type="button"
-                className="guest-pill"
-                title="Free trial preview. Click to sign up and save your chats."
-                onClick={() => openAuthModal("up")}
+                className={`guest-pill ${guestTimeLeft <= 0 ? "expired" : guestTimeLeft <= 30 ? "urgent" : ""}`}
+                title="3-minute free preview. Sign up to save your chats permanently."
+                onClick={() => openAuthModal("up", undefined, guestTimeLeft <= 0)}
               >
-                <span>Free session</span>
-                <span className="gtimer">
-                  {Math.floor(guestTimeLeft / 60)}:{String(guestTimeLeft % 60).padStart(2, "0")}
-                </span>
+                <span>{guestTimeLeft <= 0 ? "Session ended" : "Free session"}</span>
+                {guestTimeLeft > 0 && (
+                  <span className="gtimer">
+                    {Math.floor(guestTimeLeft / 60)}:{String(guestTimeLeft % 60).padStart(2, "0")}
+                  </span>
+                )}
               </button>
             )}
 
@@ -1876,14 +2340,11 @@ export function RockGPTApp() {
                             }}
                           />
                         ) : isBusy && isLastMsg ? (
-                          <div className="thinking">
-                            <span className="dots">
-                              <i />
-                              <i />
-                              <i />
-                            </span>
-                            <span className="tlabel">Thinking</span>
-                          </div>
+                          <ThinkingIndicator
+                            hasImage={thinkingContext.hasImage}
+                            isImageGen={thinkingContext.isImageGen}
+                            fastMode={fastMode}
+                          />
                         ) : null}
                       </div>
 
@@ -2044,6 +2505,13 @@ export function RockGPTApp() {
                       const next = !fastMode;
                       setFastMode(next);
                       localStorage.setItem("rockgpt_fast", next ? "1" : "0");
+                      if (user) {
+                        fetch("/api/me/settings", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ fast: next }),
+                        }).catch(() => {});
+                      }
                       showToast(next ? "Fast mode enabled" : "Fast mode disabled");
                     }}
                   >
@@ -2055,6 +2523,11 @@ export function RockGPTApp() {
                 </div>
 
                 <div className="cr">
+                  {inputValue.length > 0 && (
+                    <span className="cstats" aria-hidden="true">
+                      {inputValue.trim().split(/\s+/).filter(Boolean).length}w · {inputValue.length}c
+                    </span>
+                  )}
                   {!inputValue.trim() && attachments.length === 0 && (
                     <button
                       type="button"
@@ -2158,6 +2631,21 @@ export function RockGPTApp() {
               ×
             </button>
           </div>
+
+          {(authMode === "in" || authMode === "up") && sessionEndedNotice && (
+            <div className="session-banner" role="alert">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+              <div>
+                <strong>Your free session has ended</strong>
+                <span>
+                  Your 3-minute free preview has ended. Sign in or create a free account to continue chatting and save your history.
+                </span>
+              </div>
+            </div>
+          )}
 
           {(authMode === "in" || authMode === "up") && (
             <div className="tabs" data-m={authMode}>
@@ -2320,7 +2808,7 @@ export function RockGPTApp() {
                       setAuthError(null);
                     }}
                   >
-                    Stay logged out (Continue as guest)
+                    {guestTimeLeft !== null && guestTimeLeft <= 0 ? "Close window" : "Stay logged out (Continue as guest)"}
                   </button>
                 </div>
               </>
@@ -2479,7 +2967,7 @@ export function RockGPTApp() {
                       setAuthError(null);
                     }}
                   >
-                    Stay logged out (Continue as guest)
+                    {guestTimeLeft !== null && guestTimeLeft <= 0 ? "Close window" : "Stay logged out (Continue as guest)"}
                   </button>
                 </div>
               </>
@@ -2718,7 +3206,16 @@ export function RockGPTApp() {
                   key={z}
                   type="button"
                   className={settings.size === z ? "on" : ""}
-                  onClick={() => updateSettings({ size: z })}
+                  onClick={() => {
+                    updateSettings({ size: z });
+                    if (user) {
+                      fetch("/api/me/settings", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ textSize: z }),
+                      }).catch(() => {});
+                    }
+                  }}
                 >
                   {z === "s" ? "Small" : z === "m" ? "Normal" : "Large"}
                 </button>
@@ -2735,16 +3232,28 @@ export function RockGPTApp() {
             onChange={(e) => {
               const val = e.target.value;
               updateSettings({ instr: val });
-              fetch("/api/me/settings", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ instructions: val }),
-              }).catch(() => {});
+              if (user) {
+                fetch("/api/me/settings", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ instructions: val }),
+                }).catch(() => {});
+              }
             }}
           />
 
-          <div className="sg">Data</div>
+          <div className="sg">Data & Plan</div>
           <div className="btnrow">
+            <button
+              type="button"
+              className="sbt"
+              onClick={() => {
+                setShowSettingsModal(false);
+                setShowPricingModal(true);
+              }}
+            >
+              Upgrade plan
+            </button>
             <button
               type="button"
               className="sbt"
@@ -2779,9 +3288,15 @@ export function RockGPTApp() {
               onClick={async () => {
                 if (isBusy) return showToast("Wait for the reply to finish");
                 if (window.confirm("Delete all chats? This cannot be undone.")) {
+                  const ids = chats.map((c) => c.id);
                   setChats([]);
                   startNewChat();
                   setShowSettingsModal(false);
+                  if (user && ids.length > 0) {
+                    await Promise.all(
+                      ids.map((id) => fetch(`/api/chats/${id}`, { method: "DELETE" }).catch(() => {}))
+                    );
+                  }
                   showToast("All chats deleted");
                 }
               }}
@@ -2815,6 +3330,110 @@ export function RockGPTApp() {
           <div className="ver">ROCKGPT · Suman Mansuri</div>
         </div>
       </div>
+
+      {/* ═══ 4B. PLANS & UPI PRICING MODAL ═══ */}
+      <div
+        id="pmodal"
+        className={showPricingModal ? "on" : ""}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowPricingModal(false);
+        }}
+      >
+        <div className="card">
+          <div className="mh">
+            <span className="lg">
+              <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+            </span>
+            <span>ROCKGPT PLANS</span>
+            <button
+              type="button"
+              className="ib"
+              onClick={() => setShowPricingModal(false)}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="plan-grid">
+            <div className="plan-card">
+              <div className="plan-top">
+                <span>Free</span>
+                <span className="plan-price">₹0 / mo</span>
+              </div>
+              <div className="plan-desc">Standard chat streaming, 50 messages/day, file analysis & vision.</div>
+            </div>
+            <div className="plan-card">
+              <div className="plan-top">
+                <span>Plus</span>
+                <span className="plan-price">₹149 / mo</span>
+              </div>
+              <div className="plan-desc">Priority neural routing, expanded file uploads, and cloud sync.</div>
+            </div>
+            <div className="plan-card hi">
+              <div className="plan-top">
+                <span>Pro</span>
+                <span className="plan-price">₹399 / mo</span>
+              </div>
+              <div className="plan-desc">Unlimited high-speed inference, full context retention & priority access.</div>
+            </div>
+          </div>
+
+          <div className="upi-box">
+            <img src="/upi-qr.png" alt="UPI QR Code" />
+            <div className="upi-id">sumanmansuri@oksbi</div>
+            <div className="plan-desc">
+              Scan UPI QR or pay to ID above, then email your screenshot for manual activation.
+            </div>
+            <button
+              type="button"
+              className="sbt"
+              onClick={() => {
+                navigator.clipboard?.writeText("sumanmansuri@oksbi");
+                showToast("UPI ID copied");
+              }}
+            >
+              Copy UPI ID
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ 4C. IMAGE LIGHTBOX PREVIEW ═══ */}
+      {lightboxImg && (
+        <div
+          id="lightbox"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLightboxImg(null);
+          }}
+        >
+          <div className="lb-inner">
+            <img src={lightboxImg.url} alt={lightboxImg.alt} />
+            <div className="lb-actions">
+              <button
+                type="button"
+                className="sbt"
+                style={{ background: "var(--panel)", color: "var(--text)" }}
+                onClick={() => downloadImageUrl(lightboxImg.url, lightboxImg.alt)}
+              >
+                Download image
+              </button>
+              <button
+                type="button"
+                className="sbt"
+                style={{ background: "var(--panel)", color: "var(--text)" }}
+                onClick={() => setLightboxImg(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ 5. DRAG AND DROP FULLSCREEN OVERLAY ═══ */}
       <div id="drop" className={isDragOver ? "on" : ""}>

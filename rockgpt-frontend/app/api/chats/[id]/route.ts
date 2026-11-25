@@ -51,6 +51,7 @@ export async function GET(
         content: typeof m.content === "string" ? m.content : (m.content ? JSON.stringify(m.content) : ""),
         image: imgUrl || undefined,
         attachments: atts,
+        feedback: m.feedback ?? null,
         created_at: m.createdAt ? new Date(m.createdAt) : new Date(),
       };
     });

@@ -402,9 +402,10 @@ router.post("/import", requireAuth, async (req, res) => {
         importedCount++;
       }
 
-      if (Array.isArray(c.msgs) && c.msgs.length > 0) {
+      const importedMsgs = Array.isArray(c.msgs) ? c.msgs : Array.isArray(c.messages) ? c.messages : [];
+      if (importedMsgs.length > 0) {
         const msgsToInsert = [];
-        for (const m of c.msgs.slice(0, 100)) {
+        for (const m of importedMsgs.slice(0, 100)) {
           if (!m.content && (!m.files || !m.files.length)) continue;
           msgsToInsert.push({
             chatId: chatDoc._id,
@@ -412,7 +413,7 @@ router.post("/import", requireAuth, async (req, res) => {
             userId: userObjectId,
             role: m.role === "assistant" || m.role === "bot" ? "assistant" : "user",
             content: typeof m.content === "string" ? m.content : "",
-            attachments: (m.files || []).map((f) => ({
+            attachments: (m.files || m.attachments || []).map((f) => ({
               name: f.name || "Attachment",
               type: f.type || "",
               size: f.size || 0,
