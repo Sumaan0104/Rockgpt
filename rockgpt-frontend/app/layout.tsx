@@ -52,13 +52,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/opengraph-image.png",
+        url: "/opengraph-image.png?v=20261125",
         width: 1200,
         height: 630,
         alt: "RockGPT – Next-Generation AI Assistant",
       },
       {
-        url: "/rockgpt-logo-2026.png",
+        url: "/rockgpt-logo-2026.png?v=20261125",
         width: 512,
         height: 512,
         alt: "RockGPT Brand Mark",
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     title: "RockGPT – Official AI Assistant & Workspace",
     description:
       "Ultra-fast, secure AI assistant by Suman Mansuri for coding, math, vision, and deep research.",
-    images: ["/twitter-image.png"],
+    images: ["/twitter-image.png?v=20261125"],
   },
   appleWebApp: {
     capable: true,
@@ -79,14 +79,17 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
-      { url: "/favicon-96.png", sizes: "96x96", type: "image/png" },
+      { url: "/favicon.ico?v=20261125", sizes: "any" },
+      { url: "/favicon.svg?v=20261125", type: "image/svg+xml" },
+      { url: "/favicon-48.png?v=20261125", sizes: "48x48", type: "image/png" },
+      { url: "/favicon-96.png?v=20261125", sizes: "96x96", type: "image/png" },
+      { url: "/icon-192.png?v=20261125", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png?v=20261125", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: [{ url: "/favicon.ico?v=20261125" }],
+    apple: [{ url: "/apple-touch-icon.png?v=20261125", sizes: "180x180", type: "image/png" }],
   },
-  manifest: "/site.webmanifest",
+  manifest: "/site.webmanifest?v=20261125",
   other: {
     "msvalidate.01": "E94F2541019B816DCB5BDE82968FE25F",
   },
@@ -113,6 +116,7 @@ const JSON_LD = {
       name: "RockGPT",
       alternateName: ["Rock GPT", "ROCKGPT", "RockGPT AI"],
       url: `${SITE_URL}/`,
+      image: `${SITE_URL}/rockgpt-logo-2026.png?v=20261125`,
       description:
         "Official RockGPT AI workspace engineered by Suman Mansuri for high-velocity chat, software engineering, and vision.",
       potentialAction: {
@@ -129,10 +133,11 @@ const JSON_LD = {
       url: `${SITE_URL}/`,
       logo: {
         "@type": "ImageObject",
-        url: `${SITE_URL}/rockgpt-logo-2026.png`,
+        url: `${SITE_URL}/rockgpt-logo-2026.png?v=20261125`,
         width: 512,
         height: 512,
       },
+      image: `${SITE_URL}/rockgpt-logo-2026.png?v=20261125`,
       founder: {
         "@type": "Person",
         name: "Suman Mansuri",
@@ -148,6 +153,7 @@ const JSON_LD = {
       applicationCategory: "UtilitiesApplication",
       operatingSystem: "Web, iOS, Android, Windows, macOS",
       url: `${SITE_URL}/`,
+      image: `${SITE_URL}/rockgpt-logo-2026.png?v=20261125`,
       author: {
         "@type": "Person",
         name: "Suman Mansuri",

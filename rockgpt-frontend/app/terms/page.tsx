@@ -14,7 +14,7 @@ export default function TermsOfServicePage() {
       <div className="policy-shell">
         <header className="policy-top">
           <Link href="/" className="policy-brand">
-            <img src="/assets/logo-sm.webp" alt="RockGPT" width={28} height={28} />
+            <img src="/assets/logo-sm.webp?v=20261125" alt="RockGPT" width={28} height={28} />
             <span>ROCKGPT</span>
           </Link>
           <nav className="policy-nav" aria-label="Policy navigation">

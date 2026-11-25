@@ -2091,7 +2091,7 @@ export function RockGPTApp() {
                 id="iIcon"
                 ref={introIconRef}
                 className="logo"
-                src="/assets/logo-lg.webp"
+                src="/assets/logo-lg.webp?v=20261125"
                 alt="RockGPT"
                 draggable="false"
               />
@@ -2123,7 +2123,7 @@ export function RockGPTApp() {
             <div className="stop">
               <div className="brand">
                 <div className="bm fly-target" id="sMark" ref={sMarkRef}>
-                  <img className="logo" src="/assets/logo-sm.webp" alt="RockGPT" draggable="false" />
+                  <img className="logo" src="/assets/logo-sm.webp?v=20261125" alt="RockGPT" draggable="false" />
                 </div>
                 <span>ROCKGPT</span>
               </div>
@@ -2441,7 +2441,7 @@ export function RockGPTApp() {
 
             <div className="hbrand">
               <div className="hm fly-target" id="hMark" ref={hMarkRef}>
-                <img className="logo" src="/assets/logo-sm.webp" alt="RockGPT" draggable="false" />
+                <img className="logo" src="/assets/logo-sm.webp?v=20261125" alt="RockGPT" draggable="false" />
               </div>
               <span>ROCKGPT</span>
             </div>
@@ -2502,7 +2502,7 @@ export function RockGPTApp() {
           {isFeedEmpty && (
             <div id="empty">
               <div className="em" id="eMark">
-                <img className="logo" src="/assets/logo-lg.webp" alt="RockGPT" draggable="false" />
+                <img className="logo" src="/assets/logo-lg.webp?v=20261125" alt="RockGPT" draggable="false" />
               </div>
               <h2>
                 {user
@@ -2564,7 +2564,7 @@ export function RockGPTApp() {
                       ref={isLastMsg ? lastAiMarkRef : undefined}
                       aria-hidden="true"
                     >
-                      <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+                      <img className="logo" src="/assets/logo-sm.webp?v=20261125" alt="" draggable="false" />
                     </div>
                     <div className="ai-content">
                       <div className="body">
@@ -2922,7 +2922,7 @@ export function RockGPTApp() {
         <div className="card">
           <div className="mh">
             <span className="lg">
-              <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+              <img className="logo" src="/assets/logo-sm.webp?v=20261125" alt="" draggable="false" />
             </span>
             <span>ROCKGPT AUTH</span>
             <button
@@ -3493,7 +3493,7 @@ export function RockGPTApp() {
         <div className="card">
           <div className="mh">
             <span className="lg">
-              <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+              <img className="logo" src="/assets/logo-sm.webp?v=20261125" alt="" draggable="false" />
             </span>
             <span>SETTINGS</span>
             <button
@@ -3701,7 +3701,7 @@ export function RockGPTApp() {
         <div className="card">
           <div className="mh">
             <span className="lg">
-              <img className="logo" src="/assets/logo-sm.webp" alt="" draggable="false" />
+              <img className="logo" src="/assets/logo-sm.webp?v=20261125" alt="" draggable="false" />
             </span>
             <span>ROCKGPT PLANS</span>
             <button
