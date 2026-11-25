@@ -544,6 +544,7 @@ export function RockGPTApp() {
 
   // Composer State
   const [inputValue, setInputValue] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const [attachments, setAttachments] = useState<
     { name: string; type: string; size?: number; url?: string; dataUrl?: string; text?: string; file?: File }[]
   >([]);
@@ -1402,8 +1403,8 @@ export function RockGPTApp() {
 
           if (settings.scroll && scRef.current) {
             const el = scRef.current;
-            if (el.scrollHeight - el.scrollTop - el.clientHeight < 220) {
-              el.scrollTop = el.scrollHeight;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 260) {
+              el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
             }
           }
         }
@@ -1677,25 +1678,44 @@ export function RockGPTApp() {
       return;
     }
     if (micRecRef.current) {
-      micRecRef.current.stop();
+      try {
+        micRecRef.current.stop();
+      } catch {}
       micRecRef.current = null;
+      setIsRecording(false);
       return;
     }
     try {
       const rec = new SpeechRec();
       rec.interimResults = true;
+      rec.continuous = false;
       rec.lang = navigator.language || "en-US";
       const base = inputValue;
       rec.onresult = (e: any) => {
         const transcript = [...e.results].map((r: any) => r[0].transcript).join("");
         setInputValue((base ? `${base} ` : "") + transcript);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 140)}px`;
+        }
       };
-      rec.onend = () => { micRecRef.current = null; };
-      rec.onerror = () => { micRecRef.current = null; };
+      rec.onend = () => {
+        micRecRef.current = null;
+        setIsRecording(false);
+      };
+      rec.onerror = (ev: any) => {
+        micRecRef.current = null;
+        setIsRecording(false);
+        if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") {
+          showToast("Microphone access denied. Enable mic permission.");
+        }
+      };
       rec.start();
       micRecRef.current = rec;
+      setIsRecording(true);
       showToast("Listening…");
     } catch {
+      setIsRecording(false);
       showToast("Microphone permission needed");
     }
   };
@@ -2137,15 +2157,40 @@ export function RockGPTApp() {
             </button>
 
             {showSearchInput && (
-              <input
-                ref={searchInputRef}
-                id="sq"
-                type="text"
-                placeholder="Search chats..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-              />
+              <div className="sbox">
+                <svg className="sbox-ic" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  ref={searchInputRef}
+                  id="sq"
+                  type="text"
+                  placeholder="Search conversations…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      setSearchQuery("");
+                      setShowSearchInput(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="sbox-clr"
+                    aria-label="Clear search"
+                    onClick={() => {
+                      setSearchQuery("");
+                      searchInputRef.current?.focus();
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             )}
 
             {/* Chat List Grouping */}
@@ -2724,10 +2769,10 @@ export function RockGPTApp() {
                   {!inputValue.trim() && attachments.length === 0 && (
                     <button
                       type="button"
-                      className="sbtn"
+                      className={`sbtn ${isRecording ? "rec" : ""}`}
                       id="mic"
-                      title="Voice dictation"
-                      aria-label="Voice dictation"
+                      title={isRecording ? "Stop recording" : "Voice dictation"}
+                      aria-label={isRecording ? "Stop recording" : "Voice dictation"}
                       onClick={handleVoiceInput}
                     >
                       <svg viewBox="0 0 24 24">
@@ -2742,13 +2787,27 @@ export function RockGPTApp() {
                     id="send"
                     className={`${(inputValue.trim() || attachments.length) && !isBusy ? "on" : ""} ${
                       isBusy ? "stop" : ""
-                    }`}
-                    aria-label={isBusy ? "Stop generating" : "Send message"}
-                    onClick={isBusy ? stopGeneration : () => handleSend()}
+                    } ${!isBusy && isRecording && !inputValue.trim() && attachments.length === 0 ? "rec" : ""}`}
+                    aria-label={
+                      isBusy
+                        ? "Stop generating"
+                        : inputValue.trim() || attachments.length
+                        ? "Send message"
+                        : isRecording
+                        ? "Stop voice input"
+                        : "Start voice input"
+                    }
+                    onClick={
+                      isBusy
+                        ? stopGeneration
+                        : inputValue.trim() || attachments.length
+                        ? () => handleSend()
+                        : handleVoiceInput
+                    }
                   >
                     {isBusy ? (
                       <svg className="sq" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="7" y="7" width="10" height="10" rx="2" />
+                        <rect x="4" y="4" width="16" height="16" rx="3" />
                       </svg>
                     ) : (inputValue.trim() || attachments.length) ? (
                       <svg className="up" viewBox="0 0 24 24">
@@ -2796,7 +2855,8 @@ export function RockGPTApp() {
                   onClick={() => handleSend("Give me a study tip")}
                 >
                   <svg viewBox="0 0 24 24">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2H11v18H4.5A2.5 2.5 0 0 0 2 22V4.5z" />
+                    <path d="M22 4.5A2.5 2.5 0 0 0 19.5 2H13v18h6.5a2.5 2.5 0 0 1 2.5 2V4.5z" />
                   </svg>
                   <span>Give me a study tip</span>
                 </button>

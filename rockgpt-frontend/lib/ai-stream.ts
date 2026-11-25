@@ -349,12 +349,15 @@ export async function createChatStream({
     ];
 
     for (const model of groqModels) {
+      const streamCtrl = new AbortController();
+      const connectTimer = setTimeout(() => streamCtrl.abort(), 9_000);
+      const totalTimer = setTimeout(() => streamCtrl.abort(), 50_000);
       try {
         const body: Record<string, any> = {
           model,
           messages: groqMessages,
           temperature: fast ? 0.35 : 0.45,
-          max_tokens: fast ? 2560 : 6144,
+          max_tokens: fast ? 3500 : 8192,
           stream: true,
         };
         if (model.includes("oss")) {
@@ -368,8 +371,9 @@ export async function createChatStream({
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(10_000),
+          signal: streamCtrl.signal,
         });
+        clearTimeout(connectTimer);
 
         if (groqResp.ok && groqResp.body) {
           const reader = groqResp.body.getReader();
@@ -379,37 +383,40 @@ export async function createChatStream({
           return (async function* streamFromGroq() {
             let buffer = "";
             let streamedAny = false;
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
 
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
-              buffer = lines.pop() || "";
-
-              for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed.startsWith("data:")) continue;
-                const dataStr = trimmed.slice(5).trim();
-                if (!dataStr || dataStr === "[DONE]") continue;
-                try {
-                  const parsed = JSON.parse(dataStr);
-                  const delta = parsed.choices?.[0]?.delta?.content;
-                  if (delta) {
-                    const clean = stripper.push(delta);
-                    if (clean) {
-                      streamedAny = true;
-                      yield clean;
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (!trimmed.startsWith("data:")) continue;
+                  const dataStr = trimmed.slice(5).trim();
+                  if (!dataStr || dataStr === "[DONE]") continue;
+                  try {
+                    const parsed = JSON.parse(dataStr);
+                    const delta = parsed.choices?.[0]?.delta?.content;
+                    if (delta) {
+                      const clean = stripper.push(delta);
+                      if (clean) {
+                        streamedAny = true;
+                        yield clean;
+                      }
                     }
-                  }
-                } catch {}
+                  } catch {}
+                }
               }
-            }
 
-            const flushed = stripper.flush();
-            if (flushed) {
-              streamedAny = true;
-              yield flushed;
+              const flushed = stripper.flush();
+              if (flushed) {
+                streamedAny = true;
+                yield flushed;
+              }
+            } finally {
+              clearTimeout(totalTimer);
             }
 
             if (!streamedAny) {
@@ -417,7 +424,10 @@ export async function createChatStream({
             }
           })();
         }
+        clearTimeout(totalTimer);
       } catch (groqErr) {
+        clearTimeout(connectTimer);
+        clearTimeout(totalTimer);
         console.warn(`[Groq Model ${model} Error]: Trying next fallback:`, groqErr);
       }
     }

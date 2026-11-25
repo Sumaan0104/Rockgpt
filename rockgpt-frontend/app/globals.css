@@ -144,7 +144,7 @@ html.reveal .hbrand span {
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 10px calc(env(safe-area-inset-bottom, 0px) + 12px);
 }
 
-.stop {
+.sin > .stop {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -216,23 +216,76 @@ html.reveal .hbrand span {
   transform: scale(0.98);
 }
 
-#sq {
-  display: block;
-  margin: 4px 2px 2px;
-  height: 38px;
+.sbox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 2px 6px;
+  height: 40px;
+  padding: 0 10px 0 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--text);
-  font: 14px var(--sans);
-  padding: 0 12px;
-  outline: 0;
-  width: calc(100% - 4px);
+  border-radius: 12px;
+  background: var(--panel);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   animation: fadeIn 0.2s ease both;
 }
 
-#sq:focus {
-  border-color: var(--muted);
+.sbox:focus-within {
+  border-color: var(--sub);
+  background: var(--hi);
+}
+
+.sbox-ic {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.2s ease;
+}
+
+.sbox:focus-within .sbox-ic {
+  stroke: var(--text);
+}
+
+#sq {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 13.5px var(--sans);
+  outline: 0;
+}
+
+#sq::placeholder {
+  color: var(--muted);
+}
+
+.sbox-clr {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hi2);
+  color: var(--sub);
+  font-size: 14px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sbox-clr:hover {
+  background: var(--inv);
+  color: var(--invt);
 }
 
 #hist {
@@ -853,19 +906,35 @@ html:not(.reveal) #dock * {
     width: 48px;
   }
   #dock {
-    width: calc(100% - 20px);
+    width: calc(100% - 16px);
     margin: -20px auto 0;
-    padding: 26px 8px 8px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-    border-radius: 0 0 20px 20px;
+    padding: 28px 10px 10px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    border-radius: 0 0 22px 22px;
   }
+  .chip {
+    width: auto;
+    max-width: 100%;
+    justify-content: center;
+    padding: 8px 13px;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+  }
+  .chip span {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 340px) {
   .chip {
     width: 100%;
     justify-content: flex-start;
-    padding: 9px 10px;
-    font-size: 13.5px;
   }
 }
 
@@ -895,12 +964,15 @@ html:not(.reveal) #dock * {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 20px 80px;
+  overflow-x: hidden;
+  padding: 8px 20px 44px;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
 
 #list {
+  width: 100%;
+  min-width: 0;
   max-width: 740px;
   margin: 0 auto;
   display: flex;
@@ -909,6 +981,8 @@ html:not(.reveal) #dock * {
 }
 
 .msg {
+  width: 100%;
+  min-width: 0;
   display: flex;
   animation: rise 0.5s var(--out) both;
 }
@@ -928,14 +1002,15 @@ html:not(.reveal) #dock * {
 }
 
 .bub {
-  max-width: 82%;
+  max-width: min(85%, 100%);
   background: var(--hi2);
   padding: 10px 16px;
   border-radius: 20px;
   font-size: 15.5px;
   line-height: 1.55;
   white-space: pre-wrap;
-  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .att {
@@ -973,6 +1048,8 @@ html:not(.reveal) #dock * {
 }
 
 .ai-msg {
+  width: 100%;
+  min-width: 0;
   gap: 14px;
   align-items: flex-start;
 }
@@ -997,16 +1074,24 @@ html:not(.reveal) #dock * {
 
 .ai-content {
   min-width: 0;
+  max-width: 100%;
   flex: 1;
 }
 
 .body {
   min-width: 0;
+  max-width: 100%;
   font-size: 16px;
   line-height: 1.72;
-  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   width: 100%;
   padding-top: 2px;
+}
+
+.body > div {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .body p {
@@ -1063,6 +1148,7 @@ html:not(.reveal) #dock * {
 }
 
 .body pre {
+  max-width: 100%;
   background: var(--hi);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1103,7 +1189,38 @@ html:not(.reveal) #dock * {
   display: block;
   padding: 14px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: none;
+}
+
+@media (max-width: 600px) {
+  #sc {
+    padding: 8px 12px 24px;
+  }
+  #list {
+    gap: 20px;
+  }
+  .ai-msg {
+    gap: 10px;
+  }
+  .ai-mark {
+    width: 24px;
+  }
+  .body {
+    font-size: 15px;
+    line-height: 1.62;
+  }
+  .fups {
+    gap: 6px;
+  }
+  .fup {
+    max-width: 100%;
+    padding: 7px 12px 7px 10px;
+    font-size: 13px;
+  }
+  .fb-note {
+    white-space: normal;
+  }
 }
 
 .ued {
@@ -1786,6 +1903,7 @@ textarea::placeholder {
   flex: none;
   width: 36px;
   height: 36px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: var(--hi2);
@@ -1826,14 +1944,23 @@ textarea::placeholder {
 
 #send.stop .sq {
   display: block;
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: none;
+  margin: 0 auto;
 }
 
 #send.stop {
   background: var(--inv);
   color: var(--invt);
   animation: stopPulse 1.6s ease-in-out infinite;
+}
+
+#send.rec {
+  background: #ff5a5a;
+  color: #ffffff;
+  animation: breathe 1s ease-in-out infinite;
 }
 
 @keyframes stopPulse {
