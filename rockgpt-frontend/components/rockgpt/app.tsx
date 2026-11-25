@@ -743,16 +743,16 @@ export function RockGPTApp() {
       const b = targetSlot.getBoundingClientRect();
       const dx = b.left + b.width / 2 - (a.left + a.width / 2);
       const dy = b.top + b.height / 2 - (a.top + a.height / 2);
-      const k = b.width / (a.width || 1);
+      const k = Math.min(b.width, b.height) / (Math.min(a.width, a.height) || 1);
 
       const anim = icon.animate(
         [
-          { transform: "translate(0,0) scale(1)" },
-          { transform: `translate(${dx}px, ${dy}px) scale(${k})` },
+          { transform: "translate3d(0,0,0) scale(1)" },
+          { transform: `translate3d(${dx}px, ${dy}px, 0) scale(${k})` },
         ],
         {
-          duration: 750,
-          easing: "cubic-bezier(.65,0,.35,1)",
+          duration: 680,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
           fill: "forwards",
         }
       );
@@ -1448,6 +1448,7 @@ export function RockGPTApp() {
           })),
           fast: fastMode,
           instructions: settings.instr,
+          isFirstTurn: messages.length === 0,
         }),
         signal: abortCtrl.signal,
       });
@@ -2393,8 +2394,8 @@ export function RockGPTApp() {
               </svg>
             </button>
 
-            <div className="hbrand fly-target" id="hMark" ref={hMarkRef}>
-              <div className="hm">
+            <div className="hbrand">
+              <div className="hm fly-target" id="hMark" ref={hMarkRef}>
                 <img className="logo" src="/assets/logo-sm.webp" alt="RockGPT" draggable="false" />
               </div>
               <span>ROCKGPT</span>
@@ -2452,57 +2453,18 @@ export function RockGPTApp() {
             </button>
           </header>
 
-          {/* Empty State: Centred Knot Logo + Heading + Dock */}
+          {/* Empty State: Centred Knot Logo + Heading */}
           {isFeedEmpty && (
-            <>
-              <div id="empty">
-                <div className="em" id="eMark">
-                  <img className="logo" src="/assets/logo-lg.webp" alt="RockGPT" draggable="false" />
-                </div>
-                <h2>
-                  {user
-                    ? `What should we work on, ${user.name?.split(" ")[0]}?`
-                    : "What should we work on?"}
-                </h2>
+            <div id="empty">
+              <div className="em" id="eMark">
+                <img className="logo" src="/assets/logo-lg.webp" alt="RockGPT" draggable="false" />
               </div>
-
-              <div id="dock">
-                <button
-                  type="button"
-                  className="chip"
-                  onClick={() => handleSend("Plan my day")}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  <span>Plan my day</span>
-                </button>
-                <button
-                  type="button"
-                  className="chip"
-                  onClick={() => handleSend("Help me learn coding")}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <polyline points="16 18 22 12 16 6" />
-                    <polyline points="8 6 2 12 8 18" />
-                  </svg>
-                  <span>Help me learn coding</span>
-                </button>
-                <button
-                  type="button"
-                  className="chip"
-                  onClick={() => handleSend("Give me a study tip")}
-                >
-                  <svg viewBox="0 0 24 24">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                  <span>Give me a study tip</span>
-                </button>
-              </div>
-            </>
+              <h2>
+                {user
+                  ? `What should we work on, ${user.name?.split(" ")[0]}?`
+                  : "What should we work on?"}
+              </h2>
+            </div>
           )}
 
           {/* Message Feed */}
@@ -2801,6 +2763,45 @@ export function RockGPTApp() {
                 </div>
               </div>
             </div>
+
+            {isFeedEmpty && (
+              <div id="dock">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => handleSend("Plan my day")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  <span>Plan my day</span>
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => handleSend("Help me learn coding")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
+                  <span>Help me learn coding</span>
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => handleSend("Give me a study tip")}
+                >
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  <span>Give me a study tip</span>
+                </button>
+              </div>
+            )}
 
             <div className="note">
               <span>RockGPT can make mistakes. Verify important info.</span>

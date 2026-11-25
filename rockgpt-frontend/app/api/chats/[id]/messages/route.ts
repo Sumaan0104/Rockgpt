@@ -14,6 +14,7 @@ const postMessageSchema = z
     attachments: z.array(z.any()).max(8).optional(),
     fast: z.boolean().optional().default(false),
     instructions: z.string().max(600).optional().default(""),
+    isFirstTurn: z.boolean().optional().default(false),
   })
   .refine(
     (d) =>
@@ -79,6 +80,7 @@ export async function POST(
   let attachments: StreamAttachment[] | undefined;
   let fast = false;
   let instructions = "";
+  let isFirstTurn = false;
 
   try {
     const rawJson = await request.json();
@@ -89,6 +91,7 @@ export async function POST(
     attachments = parsed.attachments;
     fast = parsed.fast;
     instructions = parsed.instructions;
+    isFirstTurn = parsed.isFirstTurn;
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
@@ -113,7 +116,7 @@ export async function POST(
   const isAuthenticatedUser = !user.email.startsWith("guest-");
 
   // Hydrate existing multi-turn conversation from MongoDB when Lambda instance doesn't have it cached
-  if (!chat && isAuthenticatedUser) {
+  if (!chat && isAuthenticatedUser && !isFirstTurn) {
     try {
       const hydrateRes = await proxyBackendRequest(`/api/chats/${chatId}`, {
         method: "GET",

@@ -337,7 +337,7 @@ export async function createChatStream({
   // 2. PRIMARY ULTRA-FAST ENGINE: Direct Groq Neural Streaming Multi-Model Cascade
   if (GROQ_API_KEY) {
     const groqModels = fast
-      ? ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"]
+      ? ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
       : ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 
     const groqMessages = [
