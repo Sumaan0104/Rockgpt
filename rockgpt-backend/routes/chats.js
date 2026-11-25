@@ -36,7 +36,7 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     if (typeof q === "string" && q.trim()) {
-      const queryText = q.trim();
+      const queryText = q.trim().slice(0, 100);
       const regex = new RegExp(queryText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&"), "i");
 
       // Search matching messages for this user to include their chats
@@ -252,7 +252,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const chat = await Chat.findOneAndUpdate(
       { _id: objectChatId, userId: userObjectId, deletedAt: null },
       { $set: updates },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!chat) return res.status(404).json({ error: "Chat not found." });
@@ -287,7 +287,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
     const chat = await Chat.findOneAndUpdate(
       { _id: objectChatId, userId: userObjectId, deletedAt: null },
       { $set: { deletedAt: new Date(), updatedAt: new Date() } },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!chat) return res.status(404).json({ error: "Chat not found." });
@@ -315,7 +315,7 @@ router.post("/:id/restore", requireAuth, async (req, res) => {
     const chat = await Chat.findOneAndUpdate(
       { _id: objectChatId, userId: userObjectId, deletedAt: { $ne: null } },
       { $set: { deletedAt: null, updatedAt: new Date() } },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!chat) return res.status(404).json({ error: "Chat not found or already active." });
@@ -354,7 +354,7 @@ router.patch("/messages/:id/feedback", requireAuth, async (req, res) => {
     const msg = await Message.findOneAndUpdate(
       { _id: new mongoose.Types.ObjectId(msgId), userId: userObjectId },
       { $set: { feedback } },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!msg) return res.status(404).json({ error: "Message not found." });
@@ -473,6 +473,10 @@ router.post("/:id/messages", requireAuth, async (req, res) => {
     let chat = await Chat.findOne({ _id: objectChatId, userId: userObjectId, deletedAt: null });
     const now = new Date();
     if (!chat) {
+      const existingOther = await Chat.findById(objectChatId).select("userId").lean();
+      if (existingOther && String(existingOther.userId) !== String(userObjectId)) {
+        return res.status(404).json({ error: "Chat not found." });
+      }
       chat = await Chat.create({
         _id: objectChatId,
         userId: userObjectId,

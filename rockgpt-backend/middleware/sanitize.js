@@ -1,16 +1,18 @@
 /**
- * sanitize.js — Deep NoSQL / SQL injection defense middleware
- * Strips keys containing '$' or '.' to prevent MongoDB operator injection ($gt, $ne, $where, etc.)
+ * sanitize.js — Deep NoSQL / SQL injection & prototype pollution defense middleware
+ * Strips '__proto__', 'constructor', 'prototype', and keys containing '$' or '.'
  */
 
-function sanitizeInPlace(obj) {
-  if (!obj || typeof obj !== "object") return;
+const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function sanitizeInPlace(obj, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 10) return;
 
   for (const key of Object.keys(obj)) {
-    if (key.startsWith("$") || key.includes(".")) {
+    if (BLOCKED_KEYS.has(key) || key.startsWith("$") || key.includes(".")) {
       delete obj[key];
     } else if (obj[key] && typeof obj[key] === "object") {
-      sanitizeInPlace(obj[key]);
+      sanitizeInPlace(obj[key], depth + 1);
     }
   }
 }

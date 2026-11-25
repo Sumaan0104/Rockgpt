@@ -19,6 +19,12 @@ const researchSchema = z.object({
 const DAILY_RESEARCH_CAP = 10;
 
 export async function POST(request: Request) {
+  if (!process.env.POSTGRES_URL) {
+    return NextResponse.json(
+      { error: { code: "service_unavailable", message: "Deep research database not configured" } },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json(

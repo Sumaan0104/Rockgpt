@@ -11,7 +11,7 @@ import User from "../models/User.js";
 import OtpVerification from "../models/OtpVerification.js";
 import OtpRateLimit from "../models/OtpRateLimit.js";
 import RefreshToken from "../models/RefreshToken.js";
-import { authLimiter } from "../middleware/limit.js";
+import { authLimiter, getClientIpFromReq } from "../middleware/limit.js";
 import { authMiddleware, requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -127,7 +127,7 @@ async function recordOtpSent(email, ip) {
           $set: { lastSentAt: new Date() },
           $setOnInsert: { expiresAt: new Date(Date.now() + 3600 * 1000) },
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
       );
     } catch {}
   }
@@ -414,14 +414,23 @@ export async function sendEmail({ to, subject, html, fromName }) {
   return { success: false, reason: "No active email provider reached" };
 }
 
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function getOtpEmailTemplate(code, title, subtitle) {
   return `
   <div style="font-family:'Outfit',system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0d0d0d;border:1px solid #222;border-radius:24px;color:#ffffff;text-align:center;">
     <div style="font-size:24px;font-weight:700;letter-spacing:0.18em;margin-bottom:12px;color:#ffffff;">ROCKGPT</div>
-    <h2 style="font-size:20px;font-weight:600;margin:16px 0 8px;color:#ffffff;">${title}</h2>
-    <p style="font-size:14px;color:#888888;line-height:1.6;margin-bottom:24px;">${subtitle}</p>
+    <h2 style="font-size:20px;font-weight:600;margin:16px 0 8px;color:#ffffff;">${escapeHtml(title)}</h2>
+    <p style="font-size:14px;color:#888888;line-height:1.6;margin-bottom:24px;">${escapeHtml(subtitle)}</p>
     <div style="display:inline-block;padding:16px 36px;background:#171717;border:1px solid #2e2e2e;border-radius:16px;font-size:32px;font-weight:700;letter-spacing:0.25em;color:#ffffff;margin-bottom:24px;">
-      ${code}
+      ${escapeHtml(code)}
     </div>
     <p style="font-size:12px;color:#666666;line-height:1.5;">Notice: This security code is single-use and expires in 10 minutes. You have up to 5 attempts.</p>
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid #1f1f1f;font-size:11px;color:#444444;">
@@ -479,8 +488,10 @@ router.post("/signup", authLimiter, async (req, res) => {
       }
     }
 
+    const clientIp = getClientIpFromReq(req);
+
     // Rate limiting: 60s cooldown & max 5 sends/hour
-    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, req.ip, req);
+    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, clientIp, req);
     if (!rateCheck.allowed) {
       return res.status(rateCheck.status).json({ error: rateCheck.error, retryAfter: rateCheck.retryAfter });
     }
@@ -554,7 +565,7 @@ router.post("/signup", authLimiter, async (req, res) => {
       });
     }
 
-    await recordOtpSent(cleanEmail, req.ip);
+    await recordOtpSent(cleanEmail, clientIp);
 
     res.json({
       success: true,
@@ -821,8 +832,10 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
       return res.status(429).json({ error: lockCheck.message, locked: true });
     }
 
+    const clientIp = getClientIpFromReq(req);
+
     // Rate limiting: 60s cooldown & max 5 sends/hour
-    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, req.ip, req);
+    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, clientIp, req);
     if (!rateCheck.allowed) {
       return res.status(rateCheck.status).json({ error: rateCheck.error, retryAfter: rateCheck.retryAfter });
     }
@@ -863,7 +876,7 @@ router.post("/resend-otp", authLimiter, async (req, res) => {
       return res.status(502).json({ error: "Failed to dispatch verification email. Please try again." });
     }
 
-    await recordOtpSent(cleanEmail, req.ip);
+    await recordOtpSent(cleanEmail, clientIp);
 
     res.json({
       success: true,
@@ -899,8 +912,10 @@ router.post("/forgot", authLimiter, async (req, res) => {
       return res.status(429).json({ error: lockCheck.message, locked: true });
     }
 
+    const clientIp = getClientIpFromReq(req);
+
     // Rate limiting: 60s cooldown & max 5 sends/hour
-    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, req.ip, req);
+    const rateCheck = await checkAndRecordOtpRateLimit(cleanEmail, clientIp, req);
     if (!rateCheck.allowed) {
       return res.status(rateCheck.status).json({ error: rateCheck.error, retryAfter: rateCheck.retryAfter });
     }
@@ -940,7 +955,7 @@ router.post("/forgot", authLimiter, async (req, res) => {
       return res.status(502).json({ error: "Failed to dispatch password recovery email. Please try again." });
     }
 
-    await recordOtpSent(cleanEmail, req.ip);
+    await recordOtpSent(cleanEmail, clientIp);
 
     res.json({
       success: true,
@@ -953,6 +968,71 @@ router.post("/forgot", authLimiter, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to process password recovery." });
+  }
+});
+
+// 5b. Verify Password Reset OTP (supports standalone verification without consuming code prematurely)
+router.post("/verify-reset", authLimiter, async (req, res) => {
+  try {
+    const parseResult = verifySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return res.status(400).json({ error: "Email and valid verification code are required." });
+    }
+
+    const { email, code } = parseResult.data;
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanCode = String(code).trim();
+
+    const user = await findUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+
+    const lockCheck = checkLockout(user);
+    if (lockCheck.isLocked) {
+      return res.status(429).json({ error: lockCheck.message, locked: true });
+    }
+
+    const emailsToMatch = Array.from(new Set([cleanEmail, user.email]));
+    const otpDoc = await findOtpDoc(cleanEmail, user.email, "reset");
+    if (!otpDoc) {
+      return res.status(400).json({
+        error: "Reset code has expired or is invalid. Please request a new reset code.",
+      });
+    }
+
+    const isResetMatch =
+      (otpDoc.codeHash && verifyOtpHash(cleanEmail, "reset", cleanCode, otpDoc.codeHash)) ||
+      (otpDoc.code && timingSafeEqualString(otpDoc.code, cleanCode));
+
+    if (!isResetMatch) {
+      otpDoc.attempts += 1;
+      if (otpDoc.attempts >= 5) {
+        user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+        user.failedOtpAttempts = 5;
+        await user.save();
+        await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
+        return res.status(429).json({
+          error: "Maximum attempts exceeded (5/5). Please wait 15 minutes before trying again.",
+          locked: true,
+        });
+      }
+      await otpDoc.save();
+      const remaining = 5 - otpDoc.attempts;
+      return res.status(400).json({
+        error: `Incorrect code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`,
+        remainingAttempts: remaining,
+      });
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      message: "Recovery code verified. Enter your new password.",
+    });
+  } catch (err) {
+    console.error("Verify reset OTP error:", err.message);
+    res.status(500).json({ error: "Verification server error." });
   }
 });
 
@@ -1027,9 +1107,20 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     await OtpVerification.deleteMany({ email: { $in: emailsToMatch }, type: "reset" });
     await RefreshToken.deleteMany({ userId: user._id });
 
+    const token = generateToken(user);
+    const refreshToken = await issueRefreshToken(user._id, res);
+
     res.json({
       success: true,
       message: "Password reset successfully. You can now log in with your new password.",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: formatPlanName(user.plan),
+      },
+      token,
+      refreshToken,
     });
   } catch (err) {
     console.error("Reset password error:", err.message);

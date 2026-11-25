@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { researchRuns } from "@/lib/db/schema";
 
@@ -12,6 +13,12 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!process.env.POSTGRES_URL) {
+    return NextResponse.json(
+      { error: { code: "service_unavailable", message: "Research database not configured" } },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json(
@@ -21,6 +28,12 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (!z.string().uuid().safeParse(id).success) {
+    return NextResponse.json(
+      { error: { code: "not_found", message: "Research run not found" } },
+      { status: 404 }
+    );
+  }
 
   const [run] = await db
     .select()

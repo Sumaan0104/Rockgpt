@@ -556,6 +556,7 @@ export function RockGPTApp() {
   const [authPassword2, setAuthPassword2] = useState("");
   const [authOtpCode, setAuthOtpCode] = useState("");
   const [authShowPw, setAuthShowPw] = useState(false);
+  const [authRememberSession, setAuthRememberSession] = useState(true);
   const [authAgreeTos, setAuthAgreeTos] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -772,8 +773,8 @@ export function RockGPTApp() {
         if (introIconRef.current) {
           introIconRef.current.style.opacity = "1";
         }
-        // Logo unfolds (0s-0.52s), "ROCKGPT" arranges next to it (0.45s-1.00s), fully formed by 1.00s, holds arranged, then flyIn() hands off into app!
-        const dur = isAppMode ? 1700 : 2000;
+        // Logo unfolds (0s-0.52s), "ROCKGPT" arranges next to it (0.45s-1.00s), holds centered briefly, then smooth FLIP glides to header
+        const dur = isAppMode ? 1350 : 1550;
         const timer = setTimeout(flyIn, dur);
         return () => {
           clearTimeout(timer);
@@ -880,33 +881,50 @@ export function RockGPTApp() {
     [showToast]
   );
 
-  // Initialize / compute persistent 3-minute guest countdown
-  const initGuestTimer = useCallback(() => {
-    try {
-      const raw = localStorage.getItem("rockgpt_guest_started_at");
-      let startedAt = raw ? Number(raw) : NaN;
-      if (!Number.isFinite(startedAt) || startedAt <= 0) {
-        startedAt = Date.now();
-        localStorage.setItem("rockgpt_guest_started_at", String(startedAt));
+  // Initialize / compute persistent 3-minute guest countdown synced with server
+  const initGuestTimer = useCallback(
+    (serverGuest?: { remainingSeconds?: number; expired?: boolean }) => {
+      try {
+        if (serverGuest?.expired) {
+          localStorage.setItem("rockgpt_guest_started_at", String(Date.now() - GUEST_SESSION_SECONDS * 1000));
+          setGuestTimeLeft(0);
+          if (!guestExpiryPopupFiredRef.current) {
+            guestExpiryPopupFiredRef.current = true;
+            openAuthModal("up", undefined, true);
+          }
+          return;
+        }
+        const raw = localStorage.getItem("rockgpt_guest_started_at");
+        let startedAt = raw ? Number(raw) : NaN;
+        if (!Number.isFinite(startedAt) || startedAt <= 0) {
+          startedAt = Date.now();
+          localStorage.setItem("rockgpt_guest_started_at", String(startedAt));
+        }
+        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+        let rem = Math.max(0, GUEST_SESSION_SECONDS - elapsed);
+        if (typeof serverGuest?.remainingSeconds === "number") {
+          rem = Math.min(rem, Math.max(0, serverGuest.remainingSeconds));
+        }
+        setGuestTimeLeft(rem);
+        if (rem <= 0 && !guestExpiryPopupFiredRef.current) {
+          guestExpiryPopupFiredRef.current = true;
+          openAuthModal("up", undefined, true);
+        }
+      } catch {
+        setGuestTimeLeft((prev) => (prev === null ? GUEST_SESSION_SECONDS : prev));
       }
-      const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-      const rem = Math.max(0, GUEST_SESSION_SECONDS - elapsed);
-      setGuestTimeLeft(rem);
-      if (rem <= 0 && !guestExpiryPopupFiredRef.current) {
-        guestExpiryPopupFiredRef.current = true;
-        openAuthModal("up", undefined, true);
-      }
-    } catch {
-      setGuestTimeLeft((prev) => (prev === null ? GUEST_SESSION_SECONDS : prev));
-    }
-  }, [openAuthModal]);
+    },
+    [openAuthModal]
+  );
 
   // Fetch Session & Persistent Chats
   const fetchSession = useCallback(async () => {
+    let serverGuest: { remainingSeconds?: number; expired?: boolean } | undefined;
     try {
       const res = await fetch("/api/me");
       if (res.ok) {
         const data = await res.json();
+        if (data.guest) serverGuest = data.guest;
         if (data.user) {
           setUser(data.user);
           setGuestTimeLeft(null);
@@ -928,7 +946,7 @@ export function RockGPTApp() {
         }
       }
     } catch {}
-    initGuestTimer();
+    initGuestTimer(serverGuest);
   }, [updateSettings, initGuestTimer]);
 
   const fetchChats = useCallback(async (q = "") => {
@@ -1361,6 +1379,20 @@ export function RockGPTApp() {
           setIsThinking(false);
           return;
         }
+        if (streamRes.status === 403) {
+          const errPayload = await streamRes.json().catch(() => ({}));
+          if (errPayload?.guestExpired) {
+            try {
+              localStorage.setItem("rockgpt_guest_started_at", String(Date.now() - GUEST_SESSION_SECONDS * 1000));
+            } catch {}
+            guestExpiryPopupFiredRef.current = true;
+            setGuestTimeLeft(0);
+            openAuthModal("up", undefined, true);
+            setIsBusy(false);
+            setIsThinking(false);
+            return;
+          }
+        }
         if (streamRes.status === 429) {
           showToast("Slow down a moment");
           setIsBusy(false);
@@ -1711,7 +1743,7 @@ export function RockGPTApp() {
         const res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail, password: authPassword }),
+          body: JSON.stringify({ email: authEmail, password: authPassword, remember: authRememberSession }),
         });
         const data = await res.json();
         if (res.ok && data.user) {
@@ -2571,8 +2603,28 @@ export function RockGPTApp() {
               </div>
             </div>
 
-            <div className="note">RockGPT can make mistakes. Verify important info.</div>
+            <div className="note">
+              <span>RockGPT can make mistakes. Verify important info.</span>
+              <span className="note-links">
+                <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy</a>
+                {" · "}
+                <a href="/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+                {" · "}
+                <a href="/security" target="_blank" rel="noopener noreferrer">Security</a>
+              </span>
+            </div>
           </footer>
+          <nav className="sr-only" aria-label="RockGPT Site Directory">
+            <h1>RockGPT – Next-Gen AI Assistant Engineered by Suman Mansuri</h1>
+            <a href="/rock-gpt">What is RockGPT</a>
+            <a href="/features">RockGPT Features</a>
+            <a href="/how-it-works">How RockGPT Works</a>
+            <a href="/faq">RockGPT FAQ</a>
+            <a href="/about">About RockGPT</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/terms">Terms of Service</a>
+            <a href="/security">Security Policy</a>
+          </nav>
 
           <input
             type="file"
@@ -2750,7 +2802,11 @@ export function RockGPTApp() {
 
                 <div className="chk">
                   <label>
-                    <input type="checkbox" defaultChecked />
+                    <input
+                      type="checkbox"
+                      checked={authRememberSession}
+                      onChange={(e) => setAuthRememberSession(e.target.checked)}
+                    />
                     <span>Remember session</span>
                   </label>
                   <button
@@ -2921,7 +2977,17 @@ export function RockGPTApp() {
                       checked={authAgreeTos}
                       onChange={(e) => setAuthAgreeTos(e.target.checked)}
                     />
-                    <span>I agree to the Terms of Service and Privacy Policy.</span>
+                    <span>
+                      I agree to the{" "}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="lk" onClick={(e) => e.stopPropagation()}>
+                        Terms of Service
+                      </a>{" "}
+                      and{" "}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="lk" onClick={(e) => e.stopPropagation()}>
+                        Privacy Policy
+                      </a>
+                      .
+                    </span>
                   </label>
                 </div>
 
@@ -3005,14 +3071,20 @@ export function RockGPTApp() {
                       className="lk"
                       onClick={async () => {
                         setAuthLoading(true);
+                        setAuthError(null);
                         try {
-                          await fetch("/api/auth/resend-otp", {
+                          const res = await fetch("/api/auth/resend-otp", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ email: authEmail, type: "signup" }),
                           });
-                          setAuthResendSeconds(60);
-                          showToast("New 6-digit code sent!");
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) {
+                            setAuthResendSeconds(60);
+                            showToast(data.message || "New 6-digit code sent!");
+                          } else {
+                            setAuthError(data.error?.message || "Failed to resend code");
+                          }
                         } catch {
                           setAuthError("Failed to resend code");
                         } finally {
@@ -3130,6 +3202,41 @@ export function RockGPTApp() {
                 >
                   {authLoading ? "Updating…" : "Update Password"}
                 </button>
+
+                <div className="sw">
+                  {authResendSeconds > 0 ? (
+                    <span>Resend recovery code in {authResendSeconds}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="lk"
+                      onClick={async () => {
+                        setAuthLoading(true);
+                        setAuthError(null);
+                        try {
+                          const res = await fetch("/api/auth/resend-otp", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email: authEmail, type: "reset" }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) {
+                            setAuthResendSeconds(60);
+                            showToast(data.message || "New recovery code sent!");
+                          } else {
+                            setAuthError(data.error?.message || "Failed to resend recovery code");
+                          }
+                        } catch {
+                          setAuthError("Failed to resend recovery code");
+                        } finally {
+                          setAuthLoading(false);
+                        }
+                      }}
+                    >
+                      Resend recovery code
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </form>
@@ -3325,6 +3432,19 @@ export function RockGPTApp() {
                 </span>
               </div>
             ))}
+          </div>
+
+          <div className="sg">Legal &amp; Security Policies</div>
+          <div className="btnrow">
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="sbt" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              Privacy Policy
+            </a>
+            <a href="/terms" target="_blank" rel="noopener noreferrer" className="sbt" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              Terms of Service
+            </a>
+            <a href="/security" target="_blank" rel="noopener noreferrer" className="sbt" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              Security Policy
+            </a>
           </div>
 
           <div className="ver">ROCKGPT · Suman Mansuri</div>

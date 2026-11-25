@@ -2,10 +2,30 @@ import rateLimit from "express-rate-limit";
 import Usage from "../models/Usage.js";
 import { isServiceKeyValid } from "./auth.js";
 
+/**
+ * Extracts verified end-user IP. Only trusts `x-forwarded-client-ip` when request
+ * carries a cryptographically verified INTERNAL_SERVICE_KEY from RockGPT frontend proxy.
+ */
+export function getClientIpFromReq(req) {
+  const serviceKey = req.headers["x-service-key"] || req.headers["x-internal-service"];
+  if ((req.isService || (serviceKey && isServiceKeyValid(serviceKey))) && req.headers["x-forwarded-client-ip"]) {
+    const candidate = String(req.headers["x-forwarded-client-ip"])
+      .split(",")[0]
+      .trim()
+      .replace(/^::ffff:/i, "");
+    if (/^[0-9a-fA-F:.]{3,45}$/.test(candidate)) {
+      return candidate;
+    }
+  }
+  return String(req.ip || "unknown").replace(/^::ffff:/i, "");
+}
+
 // Global DDoS / burst limiter across all API routes (200 requests per 1 minute window)
 export const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 200,
+  keyGenerator: (req) => getClientIpFromReq(req),
+  validate: { keyGeneratorIpFallback: false },
   message: { error: "Too many requests from this IP. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -15,6 +35,8 @@ export const globalLimiter = rateLimit({
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 60, // 60 auth requests per 15 min per IP
+  keyGenerator: (req) => getClientIpFromReq(req),
+  validate: { keyGeneratorIpFallback: false },
   message: { error: "Too many authentication requests. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -24,6 +46,8 @@ export const authLimiter = rateLimit({
 export const chatRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60, // 60 messages per minute
+  keyGenerator: (req) => getClientIpFromReq(req),
+  validate: { keyGeneratorIpFallback: false },
   message: { error: "You are sending messages too quickly. Please pause for a moment." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -57,7 +81,7 @@ export async function dailyUsageLimit(req, res, next) {
     const usageRecord = await Usage.findOneAndUpdate(
       { key: clientKey, date: today },
       { $inc: { count: 1 } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
 
     if (usageRecord.count > maxAllowed) {

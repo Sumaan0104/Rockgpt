@@ -162,7 +162,7 @@ app.put("/api/me/settings", authMiddleware, async (req, res) => {
     if (typeof instructions === "string") update["settings.instructions"] = instructions.slice(0, 600);
     if (typeof fast === "boolean") update["settings.fast"] = fast;
     if (["s", "m", "l"].includes(textSize)) update["settings.textSize"] = textSize;
-    const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true }).select("settings").lean();
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: update }, { returnDocument: "after" }).select("settings").lean();
     res.json({ success: true, settings: user?.settings || {} });
   } catch (err) {
     res.status(500).json({ error: "Failed to update settings" });
@@ -185,7 +185,7 @@ app.patch("/api/messages/:id/feedback", authMiddleware, async (req, res) => {
     const msg = await Message.findOneAndUpdate(
       { _id: new mongoose.Types.ObjectId(msgId), userId: req.user._id },
       { $set: { feedback } },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!msg) return res.status(404).json({ error: "Message not found." });
     res.json({ success: true, feedback: msg.feedback });

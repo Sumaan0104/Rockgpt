@@ -162,16 +162,26 @@ export function renderMarkdown(content: string, isStreaming = false): string {
   text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
 
   // 10.5. Markdown Images ![alt](url) (with interactive click-to-zoom preview & download)
+  const safeAttr = (s: string) =>
+    String(s || "")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
   text = text.replace(
-    /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
-    (_m, alt, url) =>
-      `<div class="msg-image-wrap"><img src="${url}" alt="${alt}" class="msg-image" loading="lazy" data-preview="img" /><div class="msg-image-bar"><span class="msg-image-caption">${alt || "Generated Visual"}</span><button type="button" class="msg-image-dl" data-dl-img="${url}" data-dl-name="${alt || "rockgpt-image"}">Download</button></div></div>`
+    /!\[([^\]]*)\]\((https?:\/\/[^\s)"'<>]+)\)/g,
+    (_m, alt, url) => {
+      const sUrl = safeAttr(url);
+      const sAlt = safeAttr(alt);
+      return `<div class="msg-image-wrap"><img src="${sUrl}" alt="${sAlt}" class="msg-image" loading="lazy" data-preview="img" /><div class="msg-image-bar"><span class="msg-image-caption">${sAlt || "Generated Visual"}</span><button type="button" class="msg-image-dl" data-dl-img="${sUrl}" data-dl-name="${sAlt || "rockgpt-image"}">Download</button></div></div>`;
+    }
   );
 
-  // 11. Links (validate safe schemes: http, https, mailto)
+  // 11. Links (validate safe schemes: http, https)
   text = text.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    /\[([^\]]+)\]\((https?:\/\/[^\s)"'<>]+)\)/g,
+    (_m, label, url) => `<a href="${safeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
   );
 
   // 12. Clean paragraph wrapping around text blocks

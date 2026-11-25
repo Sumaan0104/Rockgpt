@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionUser, checkRateLimit } from "@/lib/auth";
+import { checkRateLimit, getSessionState, SESSION_COOKIE_NAME } from "@/lib/auth";
 import { createChatStream, type StreamAttachment } from "@/lib/ai-stream";
 import { globalStore, type StoredMessage } from "@/lib/store";
 import { proxyBackendRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
+import { detectSecurityOrPersonalConcern, getClientIp, sanitizePayload } from "@/lib/security";
 
 const postMessageSchema = z
   .object({
     content: z.string().max(40_000).optional().default(""),
     image: z.string().optional(),
-    attachments: z.array(z.any()).optional(),
+    attachments: z.array(z.any()).max(8).optional(),
     fast: z.boolean().optional().default(false),
     instructions: z.string().max(600).optional().default(""),
   })
@@ -22,15 +23,27 @@ const postMessageSchema = z
     { message: "Message content or attachment is required" }
   );
 
-// Map of active AbortControllers per chat
 export const activeGenerations = new Map<string, { abort: () => void; text: string }>();
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Automatically provision guest session with signed token so unauthenticated visitors can chat seamlessly
-  const user = await getSessionUser(true);
+  const clientIp = getClientIp(request);
+
+  // Per-IP burst flood protection (DDoS mitigation)
+  const ipRateLimit = checkRateLimit(`msg:ip:${clientIp}`, 90, 60_000);
+  if (!ipRateLimit.allowed) {
+    return NextResponse.json(
+      { error: { code: "rate_limited", message: "Slow down a moment" } },
+      { status: 429, headers: { "Retry-After": String(ipRateLimit.retryAfter ?? 60) } }
+    );
+  }
+
+  // Enforce server-side 3-minute free guest session expiry & user session resolution
+  const sessionState = await getSessionState(true);
+  const user = sessionState.user;
+
   if (!user) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
@@ -38,14 +51,26 @@ export async function POST(
     );
   }
 
+  if (sessionState.isGuest && sessionState.guestExpired) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "guest_expired",
+          message: "Your free session has ended. Please sign in or create an account to continue chatting.",
+        },
+        guestExpired: true,
+      },
+      { status: 403 }
+    );
+  }
+
   const { id: chatId } = await params;
 
-  // Rate limit check: 60 messages per minute
-  const rateLimit = checkRateLimit(`msg:${user.id}`, 60, 60_000);
-  if (!rateLimit.allowed) {
+  const userRateLimit = checkRateLimit(`msg:${user.id}`, 60, 60_000);
+  if (!userRateLimit.allowed) {
     return NextResponse.json(
       { error: { code: "rate_limited", message: "Slow down a moment" } },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter ?? 60) } }
+      { status: 429, headers: { "Retry-After": String(userRateLimit.retryAfter ?? 60) } }
     );
   }
 
@@ -56,7 +81,8 @@ export async function POST(
   let instructions = "";
 
   try {
-    const json = await request.json();
+    const rawJson = await request.json();
+    const json = sanitizePayload(rawJson);
     const parsed = postMessageSchema.parse(json);
     content = parsed.content.trim();
     image = parsed.image;
@@ -76,7 +102,6 @@ export async function POST(
     );
   }
 
-  // 1. Instant zero-latency local store persistence & authorization check
   let chat = globalStore.getChat(chatId);
   if (chat && chat.user_id !== user.id) {
     return NextResponse.json(
@@ -112,16 +137,15 @@ export async function POST(
     created_at: new Date(),
   });
 
-  // Sync user message to MongoDB Atlas for authenticated accounts
   if (!user.email.startsWith("guest-")) {
     proxyBackendRequest(`/api/chats/${chatId}/messages`, {
       method: "POST",
       user,
       body: { role: "user", content, image, attachments: storedAttachments },
+      clientIp,
     }).catch(() => {});
   }
 
-  // 2. Start SSE Stream Response IMMEDIATELY (Zero Delay)
   const encoder = new TextEncoder();
   let aborted = false;
 
@@ -142,48 +166,55 @@ export async function POST(
           encoder.encode(`event: start\ndata: ${JSON.stringify({ chat_id: chatId })}\n\n`)
         );
 
-        // Fetch prior history from store for conversational continuity
-        const prevMessages = globalStore
-          .getMessages(chatId)
-          .slice(-12)
-          .map((m: StoredMessage) => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          }));
+        // Security & Personal Privacy Guardrail check before LLM invocation
+        const securityRefusal = detectSecurityOrPersonalConcern(content);
+        if (securityRefusal) {
+          generationRecord.text = securityRefusal;
+          const parts = securityRefusal.split(/(\s+)/);
+          for (const chunk of parts) {
+            if (aborted) break;
+            if (!chunk) continue;
+            controller.enqueue(encoder.encode(`event: delta\ndata: ${JSON.stringify({ chunk })}\n\n`));
+          }
+        } else {
+          const prevMessages = globalStore
+            .getMessages(chatId)
+            .slice(-12)
+            .map((m: StoredMessage) => ({
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            }));
 
-        // Instant stream from AI engine (passes fast, instructions, image & text attachments)
-        const textStream = await createChatStream({
-          messages: prevMessages.length
-            ? prevMessages
-            : [{ role: "user", content: content || "Analyze this attachment." }],
-          user: user
-            ? {
-                id: user.id,
-                email: user.email,
-                name: user.name || "User",
-                backend_token: (user as any).backend_token || null,
-              }
-            : null,
-          chatId,
-          fast,
-          instructions,
-          image,
-          attachments,
-        });
+          const textStream = await createChatStream({
+            messages: prevMessages.length
+              ? prevMessages
+              : [{ role: "user", content: content || "Analyze this attachment." }],
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name || "User",
+              backend_token: (user as any).backend_token || null,
+            },
+            chatId,
+            fast,
+            instructions,
+            image,
+            attachments,
+          });
 
-        for await (const chunk of textStream) {
-          if (aborted) break;
-          generationRecord.text += chunk;
-          try {
-            controller.enqueue(
-              encoder.encode(`event: delta\ndata: ${JSON.stringify({ chunk })}\n\n`)
-            );
-          } catch {
-            break; // Client disconnected
+          for await (const chunk of textStream) {
+            if (aborted) break;
+            generationRecord.text += chunk;
+            try {
+              controller.enqueue(
+                encoder.encode(`event: delta\ndata: ${JSON.stringify({ chunk })}\n\n`)
+              );
+            } catch {
+              break;
+            }
           }
         }
 
-        // Persist final assistant response & obtain canonical DB ID for accurate feedback sync
         const finalText = generationRecord.text.trim();
         if (finalText && !aborted) {
           let assistantMsgId = generateUUID();
@@ -195,6 +226,7 @@ export async function POST(
                 user,
                 body: { role: "assistant", content: finalText },
                 timeoutMs: 2500,
+                clientIp,
               });
               if (saved.ok && (saved.data?.id || saved.data?._id)) {
                 assistantMsgId = saved.data.id || saved.data._id;
@@ -234,12 +266,21 @@ export async function POST(
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
-      "X-Accel-Buffering": "no",
-    },
+  const headers = new Headers({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
   });
+
+  if (sessionState.newCookieToken) {
+    const expDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+    const secFlag = process.env.NODE_ENV === "production" ? "; Secure" : "";
+    headers.set(
+      "Set-Cookie",
+      `${SESSION_COOKIE_NAME}=${sessionState.newCookieToken}; Path=/; HttpOnly; SameSite=Lax; Expires=${expDate}${secFlag}`
+    );
+  }
+
+  return new Response(stream, { headers });
 }

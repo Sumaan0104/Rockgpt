@@ -13,10 +13,18 @@ const updateProjectSchema = z.object({
   name: z.string().trim().min(1, "Give it a name").max(28, "Name max 28 characters"),
 });
 
+const uuidSchema = z.string().uuid();
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!process.env.POSTGRES_URL) {
+    return NextResponse.json(
+      { error: { code: "service_unavailable", message: "Projects database not configured" } },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json(
@@ -26,6 +34,12 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) {
+    return NextResponse.json(
+      { error: { code: "not_found", message: "Project not found" } },
+      { status: 404 }
+    );
+  }
 
   const [project] = await db
     .select()
@@ -69,6 +83,12 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!process.env.POSTGRES_URL) {
+    return NextResponse.json(
+      { error: { code: "service_unavailable", message: "Projects database not configured" } },
+      { status: 503 }
+    );
+  }
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json(
@@ -78,6 +98,12 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) {
+    return NextResponse.json(
+      { error: { code: "not_found", message: "Project not found" } },
+      { status: 404 }
+    );
+  }
 
   const [project] = await db
     .select({ id: projects.id })

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionState, getSessionUser } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
+import { sanitizePayload } from "@/lib/security";
 
 const patchMeSchema = z.object({
   name: z.string().trim().min(1).max(64).optional(),
@@ -9,10 +10,18 @@ const patchMeSchema = z.object({
 });
 
 export async function GET() {
-  const user = await getSessionUser();
-  if (!user || user.email.startsWith("guest-")) {
+  const { user, isGuest, guestExpired, guestRemainingSeconds } = await getSessionState(false);
+  if (!user || isGuest || user.email.startsWith("guest-")) {
     return NextResponse.json({
       user: null,
+      ...(isGuest
+        ? {
+            guest: {
+              remainingSeconds: guestRemainingSeconds ?? 0,
+              expired: Boolean(guestExpired),
+            },
+          }
+        : {}),
     });
   }
 
@@ -30,7 +39,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   const user = await getSessionUser();
-  if (!user) {
+  if (!user || user.email.startsWith("guest-")) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Not authenticated" } },
       { status: 401 }
@@ -38,7 +47,8 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const json = await request.json();
+    const raw = await request.json();
+    const json = sanitizePayload(raw);
     const parsed = patchMeSchema.parse(json);
 
     const userInStore = globalStore.getUserById(user.id);

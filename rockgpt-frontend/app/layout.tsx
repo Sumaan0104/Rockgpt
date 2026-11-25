@@ -2,29 +2,165 @@ import type { Metadata, Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
+const SITE_URL = (process.env.APP_URL || "https://rockgpt-ten.vercel.app").replace(/\/$/, "");
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL || "https://rockgpt-ten.vercel.app"),
-  title: "RockGPT – Next-Gen AI Assistant & Workspace",
-  description: "RockGPT is the official next-generation AI assistant for chat, code, documents and vision. Ultra-fast streaming engineered by Suman Mansuri.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "RockGPT – Official AI Assistant & Workspace by Suman Mansuri",
+    template: "%s | RockGPT",
+  },
+  description:
+    "RockGPT (Rock GPT) is the ultra-fast, secure next-generation AI assistant by Suman Mansuri for real-time chat, software engineering, coding, mathematics, documents, and vision.",
+  keywords: [
+    "RockGPT",
+    "Rock GPT",
+    "ROCKGPT",
+    "RockGPT AI",
+    "RockGPT official",
+    "Suman Mansuri",
+    "RockGPT login",
+    "AI assistant",
+    "AI coding assistant",
+    "AI workspace",
+  ],
+  authors: [{ name: "Suman Mansuri", url: `${SITE_URL}/about` }],
+  creator: "Suman Mansuri",
+  publisher: "RockGPT",
+  category: "technology",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "RockGPT",
+    title: "RockGPT – Official AI Assistant & Workspace",
+    description:
+      "Ultra-fast, privacy-first AI assistant engineered by Suman Mansuri for code, documents, math, research, and vision.",
+    locale: "en_US",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 630,
+        alt: "RockGPT – Next-Generation AI Assistant",
+      },
+      {
+        url: "/rockgpt-logo-2026.png",
+        width: 512,
+        height: 512,
+        alt: "RockGPT Brand Mark",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "RockGPT – Official AI Assistant & Workspace",
+    description:
+      "Ultra-fast, secure AI assistant by Suman Mansuri for coding, math, vision, and deep research.",
+    images: ["/twitter-image.png"],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "RockGPT",
+    statusBarStyle: "black-translucent",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico" },
       { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
       { url: "/favicon-96.png", sizes: "96x96", type: "image/png" },
     ],
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   manifest: "/site.webmanifest",
+  other: {
+    "msvalidate.01": "E94F2541019B816DCB5BDE82968FE25F",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  maximumScale: 1,
+  maximumScale: 5,
   interactiveWidget: "resizes-content",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0d0d0d" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+  ],
+};
+
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: "RockGPT",
+      alternateName: ["Rock GPT", "ROCKGPT", "RockGPT AI"],
+      url: `${SITE_URL}/`,
+      description:
+        "Official RockGPT AI workspace engineered by Suman Mansuri for high-velocity chat, software engineering, and vision.",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${SITE_URL}/?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
+      name: "RockGPT",
+      alternateName: ["Rock GPT"],
+      url: `${SITE_URL}/`,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/rockgpt-logo-2026.png`,
+        width: 512,
+        height: 512,
+      },
+      founder: {
+        "@type": "Person",
+        name: "Suman Mansuri",
+        alternateName: "Rock",
+        jobTitle: "Full-Stack Software Engineer & Systems Architect",
+      },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: "RockGPT",
+      alternateName: ["Rock GPT"],
+      applicationCategory: "UtilitiesApplication",
+      operatingSystem: "Web, iOS, Android, Windows, macOS",
+      url: `${SITE_URL}/`,
+      author: {
+        "@type": "Person",
+        name: "Suman Mansuri",
+      },
+      offers: [
+        { "@type": "Offer", name: "Free", price: "0", priceCurrency: "INR" },
+        { "@type": "Offer", name: "Plus", price: "149", priceCurrency: "INR" },
+        { "@type": "Offer", name: "Pro", price: "399", priceCurrency: "INR" },
+      ],
+      featureList:
+        "Real-time AI streaming, Vision image analysis, Document upload, Fast mode, Markdown & LaTeX rendering, Encrypted OTP authentication",
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -40,6 +176,10 @@ export default function RootLayout({
         <link
           href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap"
           rel="stylesheet"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
         />
         <script
           dangerouslySetInnerHTML={{

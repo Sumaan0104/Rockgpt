@@ -43,12 +43,20 @@ export async function getBackendUrl(): Promise<string> {
 
 export const BACKEND_URL = CONFIGURED_BACKEND;
 
-export async function proxyAuthRequest(endpoint: string, payload: any, timeoutMs = 25000) {
+export async function proxyAuthRequest(
+  endpoint: string,
+  payload: any,
+  timeoutMs = 25000,
+  clientIp?: string
+) {
   try {
     const backendUrl = await getBackendUrl();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (process.env.INTERNAL_SERVICE_KEY) {
       headers["x-service-key"] = process.env.INTERNAL_SERVICE_KEY;
+    }
+    if (clientIp) {
+      headers["x-forwarded-client-ip"] = clientIp;
     }
     const res = await fetch(`${backendUrl}/api/auth/${endpoint}`, {
       method: "POST",
@@ -71,14 +79,18 @@ export async function proxyBackendRequest(
     body?: any;
     user?: { id?: string; email?: string; backend_token?: string | null } | null;
     timeoutMs?: number;
+    clientIp?: string;
   } = {}
 ) {
-  const { method = "GET", body, user, timeoutMs = 25000 } = options;
+  const { method = "GET", body, user, timeoutMs = 25000, clientIp } = options;
   try {
     const backendUrl = await getBackendUrl();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (process.env.INTERNAL_SERVICE_KEY) {
       headers["x-service-key"] = process.env.INTERNAL_SERVICE_KEY;
+    }
+    if (clientIp) {
+      headers["x-forwarded-client-ip"] = clientIp;
     }
     if (user?.id) {
       headers["x-user-id"] = user.id;

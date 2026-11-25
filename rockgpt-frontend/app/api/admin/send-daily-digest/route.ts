@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { BACKEND_URL } from "@/lib/backend-auth";
+import { getBackendUrl } from "@/lib/backend-auth";
+import { sanitizePayload } from "@/lib/security";
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +11,8 @@ export async function POST(request: Request) {
 
     let bodyJson = {};
     try {
-      bodyJson = await request.json();
+      const raw = await request.json();
+      bodyJson = sanitizePayload(raw);
     } catch {
       bodyJson = {};
     }
@@ -23,19 +25,19 @@ export async function POST(request: Request) {
       headers["x-admin-key"] = adminKey;
     }
 
-    const backendRes = await fetch(`${BACKEND_URL}/api/admin/send-daily-digest`, {
+    const backendUrl = await getBackendUrl();
+    const backendRes = await fetch(`${backendUrl}/api/admin/send-daily-digest`, {
       method: "POST",
       headers,
       body: JSON.stringify(bodyJson),
-      signal: AbortSignal.timeout(60000), // Allow up to 60s for batch dispatches
+      signal: AbortSignal.timeout(60_000),
     });
 
     const data = await backendRes.json().catch(() => ({}));
     return NextResponse.json(data, { status: backendRes.status });
-  } catch (err: any) {
-    console.error("[Next.js Admin Digest Proxy Error]:", err?.message || err);
+  } catch {
     return NextResponse.json(
-      { error: err?.message || "Failed to communicate with RockGPT backend" },
+      { error: "Failed to communicate with RockGPT backend" },
       { status: 502 }
     );
   }

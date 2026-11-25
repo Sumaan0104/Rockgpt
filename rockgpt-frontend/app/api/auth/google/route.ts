@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { SESSION_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
+import { checkRateLimit, SESSION_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
 import { globalStore, type StoredUser } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
+import { getClientIp, sanitizePayload } from "@/lib/security";
 
 export const OAUTH_STATE_COOKIE = "rockgpt_oauth_state";
 
@@ -19,7 +20,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${appUrl}?error=google_not_configured`);
   }
 
-  // Generate cryptographic CSRF state token
   const state = crypto.randomBytes(24).toString("hex");
   const redirectUri = `${appUrl}/api/auth/google/callback`;
 
@@ -33,29 +33,38 @@ export async function GET(request: Request) {
   googleAuthUrl.searchParams.set("state", state);
 
   const response = NextResponse.redirect(googleAuthUrl.toString());
-
-  // Store CSRF state in secure HTTP-only cookie
   response.cookies.set(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 600, // 10 minutes
+    maxAge: 600,
   });
 
   return response;
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit(`google:${ip}`, 20, 15 * 60_000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: { code: "rate_limited", message: "Too many Google authentication requests." } },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter ?? 60) } }
+    );
+  }
+
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
+    const body = sanitizePayload(rawBody);
     const { code, credential, idToken } = body;
-
     const tokenToVerify = credential || idToken;
+    const configuredClientId = (process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
 
-    // 1. If Google ID Token provided (Google One Tap / Identity Services)
     if (tokenToVerify) {
-      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenToVerify)}`);
+      const verifyRes = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenToVerify)}`
+      );
       if (!verifyRes.ok) {
         return NextResponse.json(
           { error: { code: "invalid_token", message: "Google ID token validation failed." } },
@@ -65,7 +74,13 @@ export async function POST(request: Request) {
 
       const tokenData = await verifyRes.json();
 
-      // Check email verification status from Google
+      if (configuredClientId && tokenData.aud !== configuredClientId) {
+        return NextResponse.json(
+          { error: { code: "invalid_audience", message: "Google token audience mismatch." } },
+          { status: 401 }
+        );
+      }
+
       if (tokenData.email_verified !== "true" && tokenData.email_verified !== true) {
         return NextResponse.json(
           { error: { code: "unverified_email", message: "Google account email is not verified." } },
@@ -81,31 +96,31 @@ export async function POST(request: Request) {
         );
       }
 
-      let user = globalStore.getUserByEmail(verifiedEmail);
-      if (!user) {
-        user = {
-          id: generateUUID(),
-          email: verifiedEmail,
-          name: tokenData.name || verifiedEmail.split("@")[0],
-          password_hash: null,
-          avatar_url: tokenData.picture || "https://lh3.googleusercontent.com/a/default-user",
-          theme: "dark",
-          created_at: new Date(),
-        };
-        globalStore.saveUser(user);
-      }
+      // Sync to backend MongoDB user record when reachable
+      const bRes = await proxyAuthRequest("google", { idToken: tokenToVerify }, 25_000, ip);
+      const userRecord: StoredUser = {
+        id: bRes.ok && bRes.data?.user?.id ? bRes.data.user.id : generateUUID(),
+        email: verifiedEmail,
+        name: bRes.data?.user?.name || tokenData.name || verifiedEmail.split("@")[0],
+        password_hash: null,
+        avatar_url: tokenData.picture || "https://lh3.googleusercontent.com/a/default-user",
+        theme: "dark",
+        created_at: new Date(),
+        backend_token: bRes.ok ? bRes.data?.token || null : null,
+      };
+      globalStore.saveUser(userRecord);
 
-      const sessionToken = createSignedSessionTokenForUser(user);
-      globalStore.createSession(user.id);
+      const sessionToken = createSignedSessionTokenForUser(userRecord);
+      globalStore.createSession(userRecord.id);
 
       const response = NextResponse.json({
         success: true,
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          theme: user.theme,
-          avatar_url: user.avatar_url,
+          id: userRecord.id,
+          email: userRecord.email,
+          name: userRecord.name,
+          theme: userRecord.theme,
+          avatar_url: userRecord.avatar_url,
         },
       });
 
@@ -120,9 +135,8 @@ export async function POST(request: Request) {
       return response;
     }
 
-    // 2. If OAuth authorization code provided
     if (code) {
-      const backendRes = await proxyAuthRequest("google", { code });
+      const backendRes = await proxyAuthRequest("google", { code }, 25_000, ip);
       if (backendRes.ok && backendRes.data?.user) {
         const bUser = backendRes.data.user;
         const userRecord: StoredUser = {
@@ -133,6 +147,7 @@ export async function POST(request: Request) {
           avatar_url: bUser.avatar_url || bUser.picture || "https://lh3.googleusercontent.com/a/default-user",
           theme: "dark",
           created_at: new Date(),
+          backend_token: backendRes.data.token || null,
         };
 
         globalStore.saveUser(userRecord);
@@ -141,7 +156,13 @@ export async function POST(request: Request) {
 
         const response = NextResponse.json({
           success: true,
-          user: userRecord,
+          user: {
+            id: userRecord.id,
+            email: userRecord.email,
+            name: userRecord.name,
+            theme: userRecord.theme,
+            avatar_url: userRecord.avatar_url,
+          },
         });
 
         response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
@@ -156,20 +177,29 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json(
-        { error: { code: "google_auth_failed", message: backendRes.data?.error || "Google authorization code verification failed." } },
+        {
+          error: {
+            code: "google_auth_failed",
+            message: backendRes.data?.error || "Google authorization code verification failed.",
+          },
+        },
         { status: backendRes.status || 400 }
       );
     }
 
-    // Reject any request without real cryptographic token or authorization code
     return NextResponse.json(
-      { error: { code: "missing_credentials", message: "Real Google authorization code or cryptographic ID token is required." } },
+      {
+        error: {
+          code: "missing_credentials",
+          message: "Real Google authorization code or cryptographic ID token is required.",
+        },
+      },
       { status: 400 }
     );
   } catch (err: any) {
     console.error("Google auth POST error:", err);
     return NextResponse.json(
-      { error: { code: "server_error", message: err?.message || "Google authentication failed" } },
+      { error: { code: "server_error", message: "Google authentication failed" } },
       { status: 500 }
     );
   }

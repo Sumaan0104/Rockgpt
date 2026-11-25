@@ -1,139 +1,117 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser, verifyToken } from "@/lib/auth";
+import { checkRateLimit, SESSION_COOKIE_NAME, OTP_COOKIE_NAME, createSignedSessionTokenForUser } from "@/lib/auth";
 import { globalStore } from "@/lib/store";
 import { proxyAuthRequest } from "@/lib/backend-auth";
 import { generateUUID } from "@/lib/utils";
+import { getClientIp, sanitizePayload } from "@/lib/security";
 
 const verifySchema = z.object({
-  email: z.string().trim().email("Invalid email address"),
+  email: z.string().trim().email("Invalid email address").max(255),
   code: z.string().trim().regex(/^\d{6}$/, "Verification code must be exactly 6 digits"),
   type: z.enum(["signup", "reset"]).default("signup"),
 });
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const ipLimit = checkRateLimit(`verify:${ip}`, 15, 15 * 60_000);
+  if (!ipLimit.allowed) {
+    return NextResponse.json(
+      { error: { code: "rate_limited", message: "Too many verification attempts. Please wait a few minutes." } },
+      { status: 429, headers: { "Retry-After": String(ipLimit.retryAfter ?? 60) } }
+    );
+  }
+
   try {
-    const json = await request.json();
+    const rawJson = await request.json();
+    const json = sanitizePayload(rawJson);
     const { email, code, type } = verifySchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Verify code against persistent authentication provider
-    if (type === "signup") {
-      const backendResult = await proxyAuthRequest("verify", {
-        email: normalizedEmail,
-        code,
-      });
+    if (type === "reset") {
+      const resetVerify = await proxyAuthRequest(
+        "verify-reset",
+        { email: normalizedEmail, code },
+        30_000,
+        ip
+      );
 
-      if (backendResult.ok && backendResult.data?.success) {
-        const bUser = backendResult.data.user;
-        const existingLocal = globalStore.getUserByEmail(normalizedEmail);
-        const userRecord = {
-          id: bUser?.id || existingLocal?.id || generateUUID(),
-          email: bUser?.email || normalizedEmail,
-          name: bUser?.name || existingLocal?.name || "User",
-          password_hash: existingLocal?.password_hash || null,
-          avatar_url: bUser?.avatar_url || null,
-          theme: "dark",
-          created_at: new Date(),
-          backend_token: backendResult.data.token || null,
-        };
-
-        globalStore.saveUser(userRecord);
-        const sessionToken = createSignedSessionTokenForUser(userRecord);
-
-        const response = NextResponse.json({
+      if (resetVerify.ok && resetVerify.data?.success) {
+        return NextResponse.json({
           success: true,
-          message: "Account verified successfully! Welcome to RockGPT.",
-          user: {
-            id: userRecord.id,
-            email: userRecord.email,
-            name: userRecord.name,
-            theme: userRecord.theme,
-            avatar_url: userRecord.avatar_url,
-          },
+          verified: true,
+          message: resetVerify.data.message || "Recovery code verified.",
         });
-
-        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-
-        response.cookies.delete(OTP_COOKIE_NAME);
-        return response;
-      }
-
-      // Check fallback: First inspect signed OTP cookie (works across any Lambda instance)
-      const cookieStore = await cookies();
-      const otpCookieVal = cookieStore.get(OTP_COOKIE_NAME)?.value;
-      const decodedOtp = verifyToken<{
-        email: string;
-        type: string;
-        name?: string;
-        backupCode?: string;
-        password_hash?: string;
-      }>(otpCookieVal);
-
-      const localOtp = globalStore.getOtp(normalizedEmail, "signup");
-      const matchedBackupCode = (decodedOtp && decodedOtp.email === normalizedEmail && decodedOtp.backupCode === code)
-        || (localOtp && localOtp.code === code);
-
-      if (matchedBackupCode) {
-        globalStore.deleteOtp(normalizedEmail, "signup");
-        let user = globalStore.getUserByEmail(normalizedEmail);
-        if (!user) {
-          user = {
-            id: generateUUID(),
-            email: normalizedEmail,
-            name: decodedOtp?.name || localOtp?.name || "User",
-            password_hash: decodedOtp?.password_hash || localOtp?.password_hash || null,
-            avatar_url: null,
-            theme: "dark",
-            created_at: new Date(),
-          };
-          globalStore.saveUser(user);
-        }
-        const sessionToken = createSignedSessionTokenForUser(user);
-        const response = NextResponse.json({
-          success: true,
-          message: "Account verified successfully! Welcome to RockGPT.",
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            theme: user.theme,
-            avatar_url: user.avatar_url,
-          },
-        });
-        response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-        response.cookies.delete(OTP_COOKIE_NAME);
-        return response;
       }
 
       return NextResponse.json(
-        { error: { code: "verification_failed", message: backendResult.data?.error || "Incorrect or expired verification code." } },
-        { status: backendResult.status || 400 }
+        {
+          error: {
+            code: "verification_failed",
+            message: resetVerify.data?.error || "Incorrect or expired recovery code.",
+          },
+        },
+        { status: resetVerify.status || 400 }
       );
     }
 
-    // Reset password code verification
-    const resetResult = await proxyAuthRequest("resend-otp", {
-      email: normalizedEmail,
-      type: "reset",
-    });
+    // Signup OTP verification strictly enforced against MongoDB HMAC OTP hash
+    const backendResult = await proxyAuthRequest(
+      "verify",
+      { email: normalizedEmail, code },
+      30_000,
+      ip
+    );
+
+    if (backendResult.ok && backendResult.data?.success) {
+      const bUser = backendResult.data.user;
+      const existingLocal = globalStore.getUserByEmail(normalizedEmail);
+      const userRecord = {
+        id: bUser?.id || existingLocal?.id || generateUUID(),
+        email: bUser?.email || normalizedEmail,
+        name: bUser?.name || existingLocal?.name || "User",
+        password_hash: existingLocal?.password_hash || null,
+        avatar_url: bUser?.avatar_url || null,
+        theme: "dark",
+        created_at: new Date(),
+        backend_token: backendResult.data.token || null,
+      };
+
+      globalStore.saveUser(userRecord);
+      const sessionToken = createSignedSessionTokenForUser(userRecord);
+
+      const response = NextResponse.json({
+        success: true,
+        message: "Account verified successfully! Welcome to RockGPT.",
+        user: {
+          id: userRecord.id,
+          email: userRecord.email,
+          name: userRecord.name,
+          theme: userRecord.theme,
+          avatar_url: userRecord.avatar_url,
+        },
+      });
+
+      response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+
+      response.cookies.delete(OTP_COOKIE_NAME);
+      return response;
+    }
 
     return NextResponse.json(
-      { error: { code: "invalid_request", message: "Invalid verification type." } },
-      { status: 400 }
+      {
+        error: {
+          code: backendResult.status === 429 ? "locked" : "verification_failed",
+          message: backendResult.data?.error || "Incorrect or expired verification code.",
+        },
+      },
+      { status: backendResult.status && backendResult.status !== 503 ? backendResult.status : 503 }
     );
   } catch (err) {
     if (err instanceof z.ZodError) {

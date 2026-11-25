@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { checkRateLimit, signToken, OTP_COOKIE_NAME } from "@/lib/auth";
-import { globalStore } from "@/lib/store";
+import { checkRateLimit } from "@/lib/auth";
 import { proxyAuthRequest } from "@/lib/backend-auth";
+import { getClientIp, sanitizePayload } from "@/lib/security";
 
 const resendSchema = z.object({
-  email: z.string().trim().email("Invalid email address"),
+  email: z.string().trim().email("Invalid email address").max(255),
   type: z.enum(["signup", "reset"]).default("signup"),
 });
 
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for") || "local";
-  const rateLimit = checkRateLimit(`resend:${ip}`, 5, 60_000);
+  const ip = getClientIp(request);
+  const rateLimit = checkRateLimit(`resend:${ip}`, 8, 15 * 60_000);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: { code: "rate_limited", message: "Please wait a moment before requesting another code." } },
@@ -20,75 +20,42 @@ export async function POST(request: Request) {
   }
 
   try {
-    const json = await request.json();
+    const rawJson = await request.json();
+    const json = sanitizePayload(rawJson);
     const { email, type } = resendSchema.parse(json);
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 1. Dispatch through Backend Live Email Engine
-    const backendResult = await proxyAuthRequest("resend-otp", {
-      email: normalizedEmail,
-      type,
-    });
+    const backendResult = await proxyAuthRequest(
+      "resend-otp",
+      { email: normalizedEmail, type },
+      35_000,
+      ip
+    );
 
     if (backendResult.ok && backendResult.data?.success) {
-      const response = NextResponse.json({
+      return NextResponse.json({
         success: true,
         message: backendResult.data.message || `Fresh verification code sent to ${normalizedEmail}`,
         emailSent: Boolean(backendResult.data.emailSent),
-        backupCode: backendResult.data.backupCode || undefined,
       });
-
-      if (backendResult.data.backupCode) {
-        const otpToken = signToken({
-          email: normalizedEmail,
-          type,
-          backupCode: backendResult.data.backupCode,
-          exp: Date.now() + 10 * 60 * 1000,
-        });
-        response.cookies.set(OTP_COOKIE_NAME, otpToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          expires: new Date(Date.now() + 10 * 60 * 1000),
-        });
-      }
-      return response;
     }
 
-    // 2. Resilient local fallback
-    const existingOtp = globalStore.getOtp(normalizedEmail, type);
-    const name = existingOtp?.name;
-    const passwordHash = existingOtp?.password_hash;
+    if (backendResult.status && backendResult.status !== 503) {
+      return NextResponse.json(
+        {
+          error: {
+            code: backendResult.status === 429 ? "cooldown" : "resend_error",
+            message: backendResult.data?.error || "Failed to resend verification code.",
+          },
+        },
+        { status: backendResult.status }
+      );
+    }
 
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    globalStore.saveOtp(normalizedEmail, newCode, type, name, passwordHash);
-
-    const otpToken = signToken({
-      email: normalizedEmail,
-      type,
-      name,
-      backupCode: newCode,
-      password_hash: passwordHash,
-      exp: Date.now() + 10 * 60 * 1000,
-    });
-
-    const response = NextResponse.json({
-      success: true,
-      message: `A fresh 6-digit verification code has been dispatched to ${normalizedEmail}.`,
-      backupCode: newCode,
-      emailSent: false,
-    });
-
-    response.cookies.set(OTP_COOKIE_NAME, otpToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      expires: new Date(Date.now() + 10 * 60 * 1000),
-    });
-
-    return response;
+    return NextResponse.json(
+      { error: { code: "service_unavailable", message: "Email server temporarily unreachable. Please retry shortly." } },
+      { status: 503 }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

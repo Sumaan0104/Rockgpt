@@ -128,16 +128,26 @@ export function getPromptOfTheDay(customPrompt) {
   return DAILY_PROMPTS[dayOfYear % DAILY_PROMPTS.length];
 }
 
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /**
  * Builds the responsive HTML email template for the daily digest.
  */
 export function buildDailyDigestHtml({ user, promptOfTheDay, proTip, ctaUrl, customDate }) {
-  const name = (user?.name && user.name.trim()) || "there";
+  const name = escapeHtml((user?.name && user.name.trim()) || "there");
   const email = (user?.email && user.email.trim()) || "";
-  const prompt = promptOfTheDay || DAILY_PROMPTS[0];
-  const tip =
+  const prompt = escapeHtml(promptOfTheDay || DAILY_PROMPTS[0]);
+  const tip = escapeHtml(
     proTip ||
-    "You can upload documents and code files directly to get instant debugging and reasoning breakdowns.";
+      "You can upload documents and code files directly to get instant debugging and reasoning breakdowns."
+  );
   const link = ctaUrl || process.env.FRONTEND_URL || "https://rockgpt-ten.vercel.app";
 
   const formattedDate = customDate || new Intl.DateTimeFormat("en-US", {

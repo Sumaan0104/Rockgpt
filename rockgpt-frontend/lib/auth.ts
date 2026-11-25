@@ -7,27 +7,34 @@ import type { User } from "./db/schema";
 
 export const SESSION_COOKIE_NAME = "rockgpt_session";
 export const OTP_COOKIE_NAME = "rockgpt_otp_pending";
+export const GUEST_TRIAL_SECONDS = 180;
 const SESSION_DURATION_DAYS = 30;
+const MAX_RATE_LIMIT_KEYS = 10_000;
 
-const SECRET = process.env.AUTH_SECRET;
+function getSecret(): string {
+  const s = process.env.AUTH_SECRET || process.env.JWT_SECRET;
+  if (!s) {
+    throw new Error("AUTH_SECRET environment variable is missing.");
+  }
+  return s;
+}
 
 // Stateless HMAC signing for instant multi-instance Vercel Lambdas
 export function signToken(data: any): string {
-  if (!SECRET) {
-    throw new Error("AUTH_SECRET environment variable is missing.");
-  }
+  const secret = getSecret();
   const jsonStr = JSON.stringify(data);
   const base64 = Buffer.from(jsonStr).toString("base64url");
-  const sig = crypto.createHmac("sha256", SECRET).update(base64).digest("hex");
+  const sig = crypto.createHmac("sha256", secret).update(base64).digest("hex");
   return `${base64}.${sig}`;
 }
 
 export function verifyToken<T = any>(token: string | undefined | null): T | null {
-  if (!SECRET || !token || typeof token !== "string" || !token.includes(".")) return null;
+  const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET;
+  if (!secret || !token || typeof token !== "string" || !token.includes(".")) return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [base64, sig] = parts;
-  const expected = crypto.createHmac("sha256", SECRET).update(base64).digest("hex");
+  const expected = crypto.createHmac("sha256", secret).update(base64).digest("hex");
   if (typeof sig !== "string" || typeof expected !== "string") return null;
   const sigBuf = Buffer.from(sig);
   const expBuf = Buffer.from(expected);
@@ -44,11 +51,28 @@ export function verifyToken<T = any>(token: string | undefined | null): T | null
   }
 }
 
-// In-memory rate limiter per IP / identifier
+// Bounded in-memory rate limiter per IP / identifier (evicts stale keys to prevent memory exhaustion)
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
 
-export function checkRateLimit(key: string, maxRequests = 30, windowMs = 60_000): { allowed: boolean; retryAfter?: number } {
+function pruneRateLimits(now: number) {
+  if (rateLimits.size < MAX_RATE_LIMIT_KEYS) return;
+  for (const [k, v] of rateLimits.entries()) {
+    if (now > v.resetTime) rateLimits.delete(k);
+  }
+  while (rateLimits.size >= MAX_RATE_LIMIT_KEYS) {
+    const oldestKey = rateLimits.keys().next().value;
+    if (oldestKey === undefined) break;
+    rateLimits.delete(oldestKey);
+  }
+}
+
+export function checkRateLimit(
+  key: string,
+  maxRequests = 30,
+  windowMs = 60_000
+): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
+  pruneRateLimits(now);
   const entry = rateLimits.get(key);
 
   if (!entry || now > entry.resetTime) {
@@ -84,8 +108,15 @@ export function createSignedSessionTokenForUser(user: {
   avatar_url?: string | null;
   theme?: string;
   backend_token?: string | null;
+  guest_started_at?: number;
+  guest_expires_at?: number;
 }): string {
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  const now = Date.now();
+  const isGuest = user.email.startsWith("guest-");
+  const expiresAt = isGuest
+    ? new Date(now + 24 * 60 * 60 * 1000) // Cookie persists 24h so expired guest trials remain inspectable server-side
+    : new Date(now + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
   return signToken({
     id: user.id,
     email: user.email,
@@ -93,13 +124,20 @@ export function createSignedSessionTokenForUser(user: {
     avatar_url: user.avatar_url || null,
     theme: user.theme || "dark",
     backend_token: user.backend_token || null,
-    is_guest: user.email.startsWith("guest-"),
+    is_guest: isGuest,
+    ...(isGuest
+      ? {
+          guest_started_at: user.guest_started_at ?? now,
+          guest_expires_at: user.guest_expires_at ?? now + GUEST_TRIAL_SECONDS * 1000,
+        }
+      : {}),
     exp: expiresAt.getTime(),
   });
 }
 
 export async function createSession(userId: string): Promise<string> {
   const user = globalStore.getUserById(userId);
+  const now = Date.now();
   const token = user
     ? createSignedSessionTokenForUser(user)
     : signToken({
@@ -108,7 +146,7 @@ export async function createSession(userId: string): Promise<string> {
         name: "User",
         theme: "dark",
         is_guest: false,
-        exp: Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000,
+        exp: now + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000,
       });
 
   globalStore.createSession(userId);
@@ -120,23 +158,29 @@ export async function createSession(userId: string): Promise<string> {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      expires: new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000),
+      expires: new Date(now + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000),
     });
-  } catch (err) {
-    // If called where cookies() cannot be directly mutated,
-    // the caller sets cookies on the NextResponse object directly.
+  } catch {
+    // Caller sets cookies directly on response when needed
   }
 
   return token;
 }
 
-export async function getSessionUser(createIfMissing = false): Promise<(User & { backend_token?: string | null }) | null> {
+export type SessionStateResult = {
+  user: (User & { backend_token?: string | null }) | null;
+  isGuest: boolean;
+  guestExpired: boolean;
+  guestRemainingSeconds: number | null;
+  newCookieToken?: string;
+};
+
+export async function getSessionState(createGuestIfMissing = false): Promise<SessionStateResult> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
     if (token) {
-      // 1. Try decoding signed stateless session token
       const verified = verifyToken<{
         id: string;
         email: string;
@@ -145,8 +189,22 @@ export async function getSessionUser(createIfMissing = false): Promise<(User & {
         theme?: string;
         backend_token?: string | null;
         is_guest?: boolean;
+        guest_started_at?: number;
+        guest_expires_at?: number;
       }>(token);
+
       if (verified && verified.id) {
+        const isGuest = Boolean(verified.is_guest || verified.email?.startsWith("guest-"));
+        let guestExpired = false;
+        let guestRemainingSeconds: number | null = null;
+
+        if (isGuest) {
+          const expMs = verified.guest_expires_at || (verified.guest_started_at ? verified.guest_started_at + GUEST_TRIAL_SECONDS * 1000 : Date.now() + GUEST_TRIAL_SECONDS * 1000);
+          const remMs = expMs - Date.now();
+          guestExpired = remMs <= 0;
+          guestRemainingSeconds = Math.max(0, Math.ceil(remMs / 1000));
+        }
+
         const existing = globalStore.getUserById(verified.id);
         if (!existing) {
           globalStore.saveUser({
@@ -160,66 +218,107 @@ export async function getSessionUser(createIfMissing = false): Promise<(User & {
             created_at: new Date(),
           });
         }
+
         return {
-          id: verified.id,
-          email: verified.email,
-          name: verified.name,
-          password_hash: null,
-          avatar_url: verified.avatar_url || null,
-          theme: verified.theme || "dark",
-          backend_token: verified.backend_token || (existing ? existing.backend_token : null),
-          created_at: existing ? existing.created_at : new Date(),
-        } as any;
+          user: {
+            id: verified.id,
+            email: verified.email,
+            name: verified.name,
+            password_hash: null,
+            avatar_url: verified.avatar_url || null,
+            theme: verified.theme || "dark",
+            backend_token: verified.backend_token || (existing ? existing.backend_token : null),
+            created_at: existing ? existing.created_at : new Date(),
+          } as any,
+          isGuest,
+          guestExpired,
+          guestRemainingSeconds,
+        };
       }
 
-      // 2. Fallback to in-memory lookup if plain UUID
+      // Fallback in-memory lookup
       const session = globalStore.getSession(token);
       if (session) {
-        const user = globalStore.getUserById(session.user_id);
-        if (user) {
+        const u = globalStore.getUserById(session.user_id);
+        if (u) {
+          const isGuest = u.email.startsWith("guest-");
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            password_hash: user.password_hash,
-            avatar_url: user.avatar_url,
-            theme: user.theme || "dark",
-            created_at: user.created_at,
+            user: {
+              id: u.id,
+              email: u.email,
+              name: u.name,
+              password_hash: u.password_hash,
+              avatar_url: u.avatar_url,
+              google_id: null,
+              theme: u.theme || "dark",
+              created_at: u.created_at,
+            },
+            isGuest,
+            guestExpired: false,
+            guestRemainingSeconds: isGuest ? GUEST_TRIAL_SECONDS : null,
           };
         }
       }
     }
 
-    if (!createIfMissing) return null;
+    if (!createGuestIfMissing) {
+      return { user: null, isGuest: false, guestExpired: false, guestRemainingSeconds: null };
+    }
 
-    // Automatically provision guest user with zero latency and signed token
+    const now = Date.now();
     const guestId = generateUUID().slice(0, 8);
-    const guestUser: StoredUser = {
+    const guestUser: StoredUser & { guest_started_at?: number; guest_expires_at?: number } = {
       id: generateUUID(),
       email: `guest-${guestId}@rockgpt.local`,
       name: "Guest",
       password_hash: null,
       avatar_url: null,
       theme: "dark",
-      created_at: new Date(),
+      created_at: new Date(now),
+      guest_started_at: now,
+      guest_expires_at: now + GUEST_TRIAL_SECONDS * 1000,
     };
 
     globalStore.saveUser(guestUser);
-    await createSession(guestUser.id);
+    const newCookieToken = createSignedSessionTokenForUser(guestUser);
+    globalStore.createSession(guestUser.id);
+
+    try {
+      const cookieStore = await cookies();
+      cookieStore.set(SESSION_COOKIE_NAME, newCookieToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(now + 24 * 60 * 60 * 1000),
+      });
+    } catch {}
 
     return {
-      id: guestUser.id,
-      email: guestUser.email,
-      name: guestUser.name,
-      password_hash: guestUser.password_hash,
-      avatar_url: guestUser.avatar_url,
-      theme: guestUser.theme,
-      created_at: guestUser.created_at,
+      user: {
+        id: guestUser.id,
+        email: guestUser.email,
+        name: guestUser.name,
+        password_hash: guestUser.password_hash,
+        avatar_url: guestUser.avatar_url,
+        google_id: null,
+        theme: guestUser.theme,
+        created_at: guestUser.created_at,
+      },
+      isGuest: true,
+      guestExpired: false,
+      guestRemainingSeconds: GUEST_TRIAL_SECONDS,
+      newCookieToken,
     };
   } catch (err) {
     console.error("Error retrieving session user:", err);
-    return null;
+    return { user: null, isGuest: false, guestExpired: false, guestRemainingSeconds: null };
   }
+}
+
+export async function getSessionUser(createIfMissing = false): Promise<(User & { backend_token?: string | null }) | null> {
+  const state = await getSessionState(createIfMissing);
+  return state.user;
 }
 
 export async function destroySession(): Promise<void> {

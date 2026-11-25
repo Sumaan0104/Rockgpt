@@ -1,3 +1,5 @@
+import { detectSecurityOrPersonalConcern } from "./security";
+
 export type ModelMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -69,6 +71,11 @@ export function generateStructuredResponse(
 ): string {
   const cleanQ = query.trim();
   const qLower = cleanQ.toLowerCase();
+
+  const securityBlock = detectSecurityOrPersonalConcern(cleanQ);
+  if (securityBlock) {
+    return securityBlock;
+  }
 
   const has = (...terms: string[]) => terms.some(t => qLower.includes(t));
 

@@ -1,12 +1,12 @@
 {
-  "name": "ROCKGPT - AI Assistant",
-  "short_name": "ROCKGPT",
-  "description": "ROCKGPT is a next-generation AI assistant for chat, code, documents and vision.",
+  "name": "RockGPT – Official AI Assistant",
+  "short_name": "RockGPT",
+  "description": "RockGPT is a next-generation AI assistant by Suman Mansuri for chat, code, documents, and vision.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
   "icons": [
     {
       "src": "/icons/icon-192.png",
