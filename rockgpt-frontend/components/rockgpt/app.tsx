@@ -1903,6 +1903,52 @@ export function RockGPTApp() {
       try {
         await loadGsiScript();
         const googleOAuth2 = (window as any).google?.accounts?.oauth2;
+        if (googleOAuth2?.initTokenClient) {
+          const client = googleOAuth2.initTokenClient({
+            client_id: cfg.clientId,
+            scope: "openid email profile",
+            prompt: "select_account",
+            error_callback: (err: any) => {
+              if (err?.type === "popup_closed") {
+                setAuthLoading(false);
+                setAuthError("Google sign-in popup was closed.");
+              } else {
+                setAuthLoading(false);
+                window.location.href = "/api/auth/google";
+              }
+            },
+            callback: async (response: { access_token?: string; error?: string; error_description?: string }) => {
+              if (!response?.access_token) {
+                setAuthLoading(false);
+                setAuthError(
+                  response?.error === "access_denied"
+                    ? "Google sign-in was cancelled."
+                    : response?.error_description || "Google sign-in did not complete. Please try again."
+                );
+                return;
+              }
+              try {
+                const postRes = await apiFetch("/api/auth/google", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ accessToken: response.access_token }),
+                });
+                const postData = await postRes.json().catch(() => ({}));
+                if (postRes.ok && postData?.user) {
+                  finishAuthSuccess(postData.user, `Welcome, ${(postData.user.name || "User").split(" ")[0]}!`);
+                } else {
+                  setAuthError(postData?.error?.message || "Google authentication failed. Please try again.");
+                }
+              } catch {
+                setAuthError("Network error during Google Sign-In.");
+              } finally {
+                setAuthLoading(false);
+              }
+            },
+          });
+          client.requestAccessToken();
+          return;
+        }
         if (googleOAuth2?.initCodeClient) {
           const client = googleOAuth2.initCodeClient({
             client_id: cfg.clientId,
@@ -1913,7 +1959,6 @@ export function RockGPTApp() {
               if (err?.type === "popup_closed") {
                 setAuthError("Google sign-in popup was closed.");
               } else {
-                // Fall back seamlessly to standard OAuth redirect flow
                 window.location.href = "/api/auth/google";
               }
             },
@@ -1924,7 +1969,7 @@ export function RockGPTApp() {
                 return;
               }
               try {
-                const postRes = await fetch("/api/auth/google", {
+                const postRes = await apiFetch("/api/auth/google", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ code: response.code, redirectUri: "postmessage" }),

@@ -49,27 +49,43 @@ export async function proxyAuthRequest(
   timeoutMs = 25000,
   clientIp?: string
 ) {
-  try {
-    const backendUrl = await getBackendUrl();
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (process.env.INTERNAL_SERVICE_KEY) {
-      headers["x-service-key"] = process.env.INTERNAL_SERVICE_KEY;
+  const maxAttempts = 2;
+  let lastStatus = 503;
+  let lastError = "Backend unreachable";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const backendUrl = await getBackendUrl();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.INTERNAL_SERVICE_KEY) {
+        headers["x-service-key"] = process.env.INTERNAL_SERVICE_KEY;
+      }
+      if (clientIp) {
+        headers["x-forwarded-client-ip"] = clientIp;
+      }
+      const res = await fetch(`${backendUrl}/api/auth/${endpoint}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(attempt === 1 ? Math.min(timeoutMs, 18000) : timeoutMs),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status >= 502 && res.status <= 504 && attempt < maxAttempts) {
+        lastStatus = res.status;
+        await new Promise((r) => setTimeout(r, 800));
+        continue;
+      }
+      return { ok: res.ok, status: res.status, data };
+    } catch (err: any) {
+      lastStatus = 503;
+      lastError = err?.message || "Backend unreachable";
+      console.warn(`[Backend Auth Proxy Error] ${endpoint} (attempt ${attempt}):`, lastError);
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 600));
+      }
     }
-    if (clientIp) {
-      headers["x-forwarded-client-ip"] = clientIp;
-    }
-    const res = await fetch(`${backendUrl}/api/auth/${endpoint}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
-  } catch (err: any) {
-    console.warn(`[Backend Auth Proxy Error] ${endpoint}:`, err?.message || err);
-    return { ok: false, status: 503, error: err?.message || "Backend unreachable" };
   }
+  return { ok: false, status: lastStatus, error: lastError };
 }
 
 export async function proxyBackendRequest(

@@ -153,14 +153,16 @@ export async function GET(request: Request) {
       globalStore.saveUser(userRecord);
     }
 
-    // Forward sync to backend provider if available
+    // Forward sync to backend MongoDB user so chats/settings share the authoritative user ID & JWT
     try {
       const bRes = await proxyAuthRequest("google", {
-        code,
-        idToken: tokenData.id_token,
+        ...(tokenData.access_token ? { accessToken: tokenData.access_token } : {}),
+        ...(tokenData.id_token ? { idToken: tokenData.id_token } : {}),
       });
-      if (bRes.ok && bRes.data?.token) {
-        userRecord.backend_token = bRes.data.token;
+      if (bRes.ok && bRes.data?.user) {
+        userRecord.id = bRes.data.user.id || userRecord.id;
+        userRecord.name = bRes.data.user.name || userRecord.name;
+        userRecord.backend_token = bRes.data.token || null;
         if (bRes.data.refreshToken) {
           userRecord.backend_refresh_token = bRes.data.refreshToken;
         }

@@ -5,10 +5,11 @@ function buildCspHeader(): string {
   const directives = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://accounts.google.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self' https://rockgpt.onrender.com https://generativelanguage.googleapis.com https://api.groq.com https://image.pollinations.ai https://accounts.google.com https://oauth2.googleapis.com https://vitals.vercel-insights.com",
+    "connect-src 'self' https://rockgpt.onrender.com https://generativelanguage.googleapis.com https://api.groq.com https://image.pollinations.ai https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://vitals.vercel-insights.com",
+    "frame-src 'self' https://accounts.google.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",

@@ -1173,7 +1173,71 @@ function isAllowedRedirectUri(uri) {
   }
 }
 
-async function verifyGoogleTokenOrCode(tokenOrCode, redirectUri = "postmessage") {
+function getGoogleProjectPrefix(clientId) {
+  if (!clientId || typeof clientId !== "string") return "";
+  const idx = clientId.indexOf("-");
+  return idx > 0 ? clientId.slice(0, idx + 1) : "";
+}
+
+function isAllowedGoogleAudience(audOrAzp, configuredClientId) {
+  if (!audOrAzp || typeof audOrAzp !== "string") return false;
+  if (configuredClientId && audOrAzp === configuredClientId) return true;
+  const projectPrefix = getGoogleProjectPrefix(configuredClientId);
+  if (projectPrefix && audOrAzp.startsWith(projectPrefix)) return true;
+  return false;
+}
+
+async function verifyGoogleAccessToken(accessToken, configuredClientId) {
+  const tokenInfoRes = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
+  );
+  const tokenInfo = await tokenInfoRes.json().catch(() => ({}));
+  if (!tokenInfoRes.ok || tokenInfo.error) {
+    throw new Error("Google session token expired or invalid. Please try again.");
+  }
+
+  const aud = tokenInfo.aud || tokenInfo.azp || "";
+  if (configuredClientId && !isAllowedGoogleAudience(aud, configuredClientId)) {
+    throw new Error("Google client project mismatch.");
+  }
+
+  const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const userInfo = await userInfoRes.json().catch(() => ({}));
+  if (!userInfoRes.ok || !userInfo?.email) {
+    throw new Error("Could not retrieve verified profile from Google.");
+  }
+
+  const emailVerified =
+    userInfo.email_verified === true ||
+    userInfo.email_verified === "true" ||
+    tokenInfo.email_verified === true ||
+    tokenInfo.email_verified === "true";
+
+  if (!emailVerified) {
+    throw new Error("Email not verified by Google.");
+  }
+
+  return {
+    email: String(userInfo.email).toLowerCase().trim(),
+    name: userInfo.name || String(userInfo.email).split("@")[0],
+    googleId: userInfo.sub || tokenInfo.sub || "",
+    picture: userInfo.picture || null,
+  };
+}
+
+async function verifyGoogleTokenOrCode(tokenOrCode, redirectUri = "postmessage", accessTokenParam = null) {
+  const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").trim() || GOOGLE_CLIENT_ID;
+  if (!googleClientId && !testGoogleOAuthClient) {
+    throw new Error("GOOGLE_CLIENT_ID is not configured on the server.");
+  }
+
+  // 0a. Support verified Google OAuth access_token flow (no client_secret dependency across proxies)
+  if (accessTokenParam && typeof accessTokenParam === "string" && !testGoogleOAuthClient) {
+    return await verifyGoogleAccessToken(accessTokenParam.trim(), googleClientId);
+  }
+
   if (!tokenOrCode || typeof tokenOrCode !== "string") return null;
   const cleanInput = tokenOrCode.trim();
   const safeRedirectUri = isAllowedRedirectUri(redirectUri) ? redirectUri : "postmessage";
@@ -1212,13 +1276,14 @@ async function verifyGoogleTokenOrCode(tokenOrCode, redirectUri = "postmessage")
     }
   }
 
-  const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").trim() || GOOGLE_CLIENT_ID;
-  if (!googleClientId) {
-    throw new Error("GOOGLE_CLIENT_ID is not configured on the server.");
-  }
   const cleanSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
 
-  // 1. If authorization code (starts with 4/ or no dots):
+  // 1. Handle explicit ya29. OAuth access_token passed in tokenOrCode
+  if (cleanInput.startsWith("ya29.")) {
+    return await verifyGoogleAccessToken(cleanInput, googleClientId);
+  }
+
+  // 2. If authorization code (starts with 4/ or no dots):
   let resolvedIdToken = cleanInput;
   if (cleanInput.startsWith("4/") || !cleanInput.includes(".")) {
     try {
@@ -1236,23 +1301,33 @@ async function verifyGoogleTokenOrCode(tokenOrCode, redirectUri = "postmessage")
       const tokenData = await tokenRes.json().catch(() => ({}));
       if (tokenData.id_token) {
         resolvedIdToken = tokenData.id_token;
+      } else if (tokenData.access_token) {
+        return await verifyGoogleAccessToken(tokenData.access_token, googleClientId);
       } else {
-        throw new Error(tokenData.error_description || "Invalid or expired Google authorization code.");
+        const rawErr = tokenData.error_description || tokenData.error || "";
+        const friendly =
+          /unauthorized/i.test(rawErr) || tokenData.error === "unauthorized_client"
+            ? "Google OAuth client configuration mismatch. Please try signing in again."
+            : rawErr || "Invalid or expired Google authorization code.";
+        throw new Error(friendly);
       }
     } catch (e) {
       throw new Error(e.message || "Google authorization code exchange failed.");
     }
   }
 
-  // 2. SEC-06: Strictly verify ID token via OAuth2Client with audience = GOOGLE_CLIENT_ID
+  // 3. SEC-06: Verify ID token cryptographically via Google OAuth2Client + project/client audience check
   const client = new OAuth2Client(googleClientId);
   const ticket = await client.verifyIdToken({
     idToken: resolvedIdToken,
-    audience: googleClientId,
   });
   const payload = ticket.getPayload();
   if (!payload || !payload.email) {
     throw new Error("Invalid Google token payload.");
+  }
+  const tokenAud = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
+  if (!isAllowedGoogleAudience(tokenAud, googleClientId) && !isAllowedGoogleAudience(payload.azp, googleClientId)) {
+    throw new Error("Google token audience mismatch.");
   }
   if (payload.email_verified === false) {
     throw new Error("Email not verified by Google");
@@ -1269,7 +1344,8 @@ async function verifyGoogleTokenOrCode(tokenOrCode, redirectUri = "postmessage")
 // 6. Google OAuth Login
 router.post("/google", authLimiter, async (req, res) => {
   try {
-    const tokenOrCode = req.body.idToken || req.body.credential || req.body.token || req.body.code;
+    const accessToken = typeof req.body.accessToken === "string" ? req.body.accessToken : null;
+    const tokenOrCode = req.body.idToken || req.body.credential || req.body.token || req.body.code || accessToken;
     const redirectUri = req.body.redirectUri || "postmessage";
     if (!tokenOrCode) {
       return res.status(400).json({ error: "Google credentials are required." });
@@ -1277,7 +1353,7 @@ router.post("/google", authLimiter, async (req, res) => {
 
     let googleUser;
     try {
-      googleUser = await verifyGoogleTokenOrCode(tokenOrCode, redirectUri);
+      googleUser = await verifyGoogleTokenOrCode(tokenOrCode, redirectUri, accessToken);
     } catch (err) {
       return res.status(400).json({ error: err.message || "Invalid or unverified Google account." });
     }
@@ -1290,25 +1366,46 @@ router.post("/google", authLimiter, async (req, res) => {
     let user = await findUserByEmail(cleanEmail);
 
     if (!user) {
-      user = await User.create({
-        name: googleUser.name || cleanEmail.split("@")[0],
-        email: cleanEmail,
-        googleId: googleUser.googleId,
-        isVerified: true,
-        plan: "free",
-        lastLoginAt: new Date(),
-      });
-    } else {
-      if (!user.googleId) user.googleId = googleUser.googleId;
+      try {
+        user = await User.create({
+          name: googleUser.name || cleanEmail.split("@")[0],
+          email: cleanEmail,
+          googleId: googleUser.googleId,
+          isVerified: true,
+          failedOtpAttempts: 0,
+          lockedUntil: null,
+          plan: "free",
+          lastLoginAt: new Date(),
+        });
+      } catch (createErr) {
+        if (createErr?.code === 11000) {
+          user = await findUserByEmail(cleanEmail);
+        } else {
+          throw createErr;
+        }
+      }
+    }
+    if (user) {
+      if (!user.googleId && googleUser.googleId) user.googleId = googleUser.googleId;
       user.isVerified = true;
+      user.failedOtpAttempts = 0;
+      user.lockedUntil = null;
       user.lastLoginAt = new Date();
       if (user.plan) user.plan = String(user.plan).toLowerCase();
       try {
         await user.save();
-      } catch (saveErr) {
+      } catch {
         await User.updateOne(
           { _id: user._id },
-          { $set: { googleId: user.googleId, isVerified: true, lastLoginAt: new Date() } }
+          {
+            $set: {
+              ...(user.googleId ? { googleId: user.googleId } : {}),
+              isVerified: true,
+              failedOtpAttempts: 0,
+              lockedUntil: null,
+              lastLoginAt: new Date(),
+            },
+          }
         );
       }
     }
