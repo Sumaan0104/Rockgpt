@@ -1083,8 +1083,8 @@ html:not(.reveal) #dock * {
   max-width: 100%;
   font-size: 16px;
   line-height: 1.72;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   width: 100%;
   padding-top: 2px;
 }
@@ -1133,6 +1133,7 @@ html:not(.reveal) #dock * {
   color: var(--text);
   text-underline-offset: 3px;
   text-decoration-color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .body a:hover {
@@ -1637,6 +1638,8 @@ html:not(.reveal) #dock * {
   padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .table-container th {
