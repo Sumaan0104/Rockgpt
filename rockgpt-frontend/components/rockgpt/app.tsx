@@ -1374,7 +1374,6 @@ export function RockGPTApp() {
 
     const abortCtrl = new AbortController();
     abortCtrlRef.current = abortCtrl;
-    const minThinkUntil = Date.now() + 650;
     let finalMessageId: string | undefined;
 
     const removeEmptyPlaceholder = () => {
@@ -1389,11 +1388,6 @@ export function RockGPTApp() {
     const startSmoothRevealLoop = () => {
       if (streamRafRef.current !== null) return;
       const tick = () => {
-        if (Date.now() < minThinkUntil) {
-          streamRafRef.current = requestAnimationFrame(tick);
-          return;
-        }
-
         const target = streamTargetRef.current;
         const shown = streamShownLenRef.current;
 
@@ -1402,7 +1396,7 @@ export function RockGPTApp() {
             setIsThinking(false);
           }
           const backlog = target.length - shown;
-          const step = Math.max(2, Math.min(20, Math.ceil(backlog / 8)));
+          const step = Math.max(6, Math.min(64, Math.ceil(backlog / 3)));
           const nextLen = Math.min(target.length, shown + step);
           streamShownLenRef.current = nextLen;
           const visibleText = target.slice(0, nextLen);
@@ -2911,12 +2905,6 @@ export function RockGPTApp() {
                   </button>
                 </div>
               </div>
-            </div>
-
-            <div className="hint-row" aria-hidden="true">
-              {settings.enter
-                ? "Shift + Enter for a new line"
-                : "Ctrl + Enter to send · Shift + Enter for a new line"}
             </div>
 
             {isFeedEmpty && (

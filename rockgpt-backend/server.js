@@ -224,7 +224,18 @@ app.get("/api/version", (req, res) => {
   });
 });
 
-app.get("/health", (req, res) => res.json({ status: "ok" }));
+app.get("/health", (req, res) =>
+  res.json({
+    status: "ok",
+    db: mongoose.connection.readyState === 1 ? "connected" : "connecting",
+  })
+);
+app.get("/api/health", (req, res) =>
+  res.json({
+    status: "ok",
+    db: mongoose.connection.readyState === 1 ? "connected" : "connecting",
+  })
+);
 
 app.get("/", (req, res) => {
   res.json({

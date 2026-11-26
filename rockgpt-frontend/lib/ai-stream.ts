@@ -353,7 +353,7 @@ export async function createChatStream({
   if (GROQ_API_KEY) {
     const groqModels = isFast
       ? ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
-      : ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+      : ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"];
 
     const groqMessages = [
       { role: "system", content: systemPrompt },
@@ -377,6 +377,7 @@ export async function createChatStream({
         };
         if (model.includes("oss")) {
           body.reasoning_format = "hidden";
+          body.reasoning_effort = isDeep ? "medium" : "low";
         }
 
         const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
